@@ -1,0 +1,9 @@
+{
+  "project_name": "MyProject",
+  "project_slug": "my_project",
+  "namespace_prefix": "myprj",
+  "macro_prefix": "MYPRJ",
+  "primary_module": "my_module",
+  "description": "Cross-platform C++ application scaffold with CLI, GUI, tests, and deployment workflows",
+  "vendor": "YourCompany"
+}
