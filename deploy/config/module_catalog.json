@@ -1,0 +1,19 @@
+{
+    "$schema": "../schemas/module_catalog.schema.json",
+    "version": "1.0",
+    "modules": [
+        {
+            "id": "my_module",
+            "display_name": "MyModule",
+            "version": "0.1.0",
+            "description": "TODO: describe this module",
+            "executables": {
+                "windows": ["my_module.exe"],
+                "linux":   ["my_module"]
+            },
+            "gui_executables": {
+                "windows": ["my_module-gui.exe"]
+            }
+        }
+    ]
+}

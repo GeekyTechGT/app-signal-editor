@@ -1,0 +1,23 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "customer_profile.schema.json",
+    "title": "Customer Deployment Profile",
+    "type": "object",
+    "required": ["customer_id", "modules"],
+    "properties": {
+        "customer_id": {
+            "type": "string",
+            "description": "Unique customer identifier used for output directory naming"
+        },
+        "display_name": {
+            "type": "string",
+            "description": "Human-readable customer name"
+        },
+        "modules": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "List of module IDs to include in this customer's package"
+        }
+    },
+    "additionalProperties": false
+}
