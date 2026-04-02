@@ -1,0 +1,18 @@
+#!/usr/bin/env sh
+set -eu
+
+msg_file="$1"
+
+if [ -s "$msg_file" ]; then
+  exit 0
+fi
+
+cat <<'EOT' > "$msg_file"
+# <type>(<scope>): <summary>
+#
+# Why:
+# -
+#
+# Notes:
+# -
+EOT

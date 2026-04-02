@@ -1,0 +1,87 @@
+# Build directories
+build/
+out/
+cmake-build-*/
+
+# IDE files
+.vs/
+*.user
+*.suo
+*.sln
+*.vcxproj*
+.idea/
+*.swp
+*.swo
+*~
+
+# Compiled files
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+*.lib
+*.pdb
+*.ilk
+*.exp
+
+# CMake generated
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+compile_commands.json
+install_manifest.txt
+CTestTestfile.cmake
+_deps/
+
+# Test output
+Testing/
+*.log
+tests/test_results/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+*.egg-info/
+dist/
+*.egg
+.eggs/
+venv/
+.venv/
+ENV/
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Package files
+*.tar.gz
+*.zip
+*.7z
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+
+# Test data (except committed examples)
+tests/test_data/*.generated.*
+
+# Coverage
+*.gcda
+*.gcno
+*.gcov
+coverage/
+
+# Coding assistants
+.claude/
+
+pyvenv/
+
+.scaffold-backups/

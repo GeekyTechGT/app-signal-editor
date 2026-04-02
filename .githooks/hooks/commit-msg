@@ -1,0 +1,20 @@
+#!/usr/bin/env sh
+set -eu
+
+msg_file="$1"
+subject="$(sed -n '1p' "$msg_file" | tr -d '\r')"
+
+if [ -z "$subject" ]; then
+  echo "commit-msg: empty commit subject" >&2
+  exit 1
+fi
+
+case "$subject" in
+  \#*) exit 0 ;;
+esac
+
+subject_len="$(printf "%s" "$subject" | wc -c | tr -d ' ')"
+if [ "$subject_len" -gt 72 ]; then
+  echo "commit-msg: subject too long ($subject_len > 72)" >&2
+  exit 1
+fi

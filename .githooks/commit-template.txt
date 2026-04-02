@@ -1,0 +1,10 @@
+# <type>(<scope>): <summary>
+#
+# Types: feat, fix, refactor, docs, test, build, ci, chore
+# Summary: imperative mood, <= 72 chars
+#
+# Why:
+# -
+#
+# Notes:
+# -
