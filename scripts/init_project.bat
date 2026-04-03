@@ -3,8 +3,9 @@ REM ============================================================
 REM  init_project.bat - Project bootstrap
 REM ============================================================
 REM  Verifies required tools from CMakePresets.json, creates the
-REM  Python virtual environment, enables git hooks and prints a
-REM  compact overview of the default project layout.
+REM  Python virtual environment, scaffolds optional extra apps,
+REM  enables git hooks and prints a compact overview of the
+REM  default project layout.
 REM ============================================================
 
 setlocal EnableDelayedExpansion
@@ -31,9 +32,12 @@ set "VENV_PYTHON=%VENV_DIR%\Scripts\python.exe"
 set "VENV_SITE_PACKAGES=%VENV_DIR%\Lib\site-packages"
 set "HOOKS_DIR=%PROJECT_ROOT%\.githooks\hooks"
 set "HOOKS_TEMPLATE=%PROJECT_ROOT%\.githooks\commit-template.txt"
+set "SCAFFOLD_APPS_SCRIPT=%PROJECT_ROOT%\scripts\scaffold_apps.py"
+set "SCAFFOLD_APPS_REPORT=%PROJECT_ROOT%\.scaffold-backups\last_scaffold_apps_report.json"
 
 set "VERIFY_ERRORS=0"
 set "VENV_ERRORS=0"
+set "SCAFFOLD_ERRORS=0"
 set "HOOK_ERRORS=0"
 set "INIT_EXIT_CODE=0"
 
@@ -44,7 +48,7 @@ echo !CYAN!         MyProject - Project Initialization!RESET!
 echo !CYAN!======================================================!RESET!
 echo.
 
-echo !BLUE![STEP 1/4]!RESET! Verifying tools declared in CMake presets...
+echo !BLUE![STEP 1/5]!RESET! Verifying tools declared in CMake presets...
 if not exist "%PRESETS_FILE%" (
     echo !RED![ERROR]!RESET! Missing file: %PRESETS_FILE%
     set /a VERIFY_ERRORS+=1
@@ -156,7 +160,7 @@ if not exist "%PRESETS_FILE%" (
 )
 
 echo.
-echo !BLUE![STEP 2/4]!RESET! Creating Python virtual environment...
+echo !BLUE![STEP 2/5]!RESET! Creating Python virtual environment...
 if not exist "%PM_HELPERS_SCRIPT%" (
     echo !RED![ERROR]!RESET! Missing helper module: %PM_HELPERS_SCRIPT%
     set /a VENV_ERRORS+=1
@@ -217,9 +221,25 @@ if errorlevel 1 (
 echo !GREEN![OK]!RESET! Python virtual environment is ready.
 echo [INFO] Activate it with: pyvenv\Scripts\activate
 
+echo.
+echo !BLUE![STEP 3/5]!RESET! Scaffolding additional apps from project metadata...
+if not exist "%SCAFFOLD_APPS_SCRIPT%" (
+    echo !YELLOW![WARN]!RESET! Optional scaffold script not found: %SCAFFOLD_APPS_SCRIPT%
+    set /a SCAFFOLD_ERRORS+=1
+    goto hooks_step
+)
+
+call "%VENV_PYTHON%" "%SCAFFOLD_APPS_SCRIPT%" --metadata "%PROJECT_ROOT%\project.metadata.json" --report-json "%SCAFFOLD_APPS_REPORT%"
+if errorlevel 1 (
+    echo !RED![ERROR]!RESET! Failed to scaffold additional apps from project.metadata.json.
+    set /a SCAFFOLD_ERRORS+=1
+) else (
+    echo !GREEN![OK]!RESET! App scaffold metadata processed.
+)
+
 :hooks_step
 echo.
-echo !BLUE![STEP 3/4]!RESET! Enabling git hooks...
+echo !BLUE![STEP 4/5]!RESET! Enabling git hooks...
 git rev-parse --show-toplevel >nul 2>&1
 if errorlevel 1 (
     echo [INFO] Git repository not found. Initializing repository in %PROJECT_ROOT%
@@ -264,7 +284,7 @@ if "!HOOK_ERRORS!"=="0" (
 
 :summary_step
 echo.
-echo !BLUE![STEP 4/4]!RESET! Initialization summary
+echo !BLUE![STEP 5/5]!RESET! Initialization summary
 echo.
 echo   Tool checks:
 if "!VERIFY_ERRORS!"=="0" (
@@ -277,6 +297,12 @@ if "!VENV_ERRORS!"=="0" (
     echo     !GREEN![OK]!RESET! pyvenv created and dependencies installed.
 ) else (
     echo     !YELLOW![WARN]!RESET! Python environment setup requires attention.
+)
+echo   App scaffolds:
+if "!SCAFFOLD_ERRORS!"=="0" (
+    echo     !GREEN![OK]!RESET! Additional app metadata processed successfully.
+) else (
+    echo     !YELLOW![WARN]!RESET! Additional app scaffolding requires attention.
 )
 echo   Git hooks:
 if "!HOOK_ERRORS!"=="0" (
@@ -299,6 +325,7 @@ echo     - .githooks\         versioned git hooks and commit message template
 
 if not "!VERIFY_ERRORS!"=="0" set "INIT_EXIT_CODE=1"
 if not "!VENV_ERRORS!"=="0" set "INIT_EXIT_CODE=1"
+if not "!SCAFFOLD_ERRORS!"=="0" set "INIT_EXIT_CODE=1"
 if not "!HOOK_ERRORS!"=="0" set "INIT_EXIT_CODE=1"
 
 echo.

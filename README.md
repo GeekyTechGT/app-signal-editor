@@ -63,12 +63,13 @@ The root file [`project.metadata.json`](project.metadata.json) is the single sou
 Current metadata fields:
 
 - `project_name`: human-readable project name
-- `project_slug`: filesystem-friendly project identifier
+- `project_slug`: filesystem-friendly project identifier for the project/repository
 - `namespace_prefix`: lowercase namespace and include prefix
 - `macro_prefix`: uppercase CMake/macro prefix
 - `primary_module`: first functional module name
 - `description`: default project description
 - `vendor`: owning company or team
+- `apps`: optional array of additional modules/apps to scaffold during initialization; each entry can be either a module name string or an object with `module`, `cli`, and `gui`
 
 ### Windows Bootstrap
 
@@ -85,10 +86,11 @@ The initialization flow in [`scripts/init_project.bat`](scripts/init_project.bat
 1. Validates the tools referenced by `CMakePresets.json` for the current host only.
 2. Creates or repairs the local virtual environment in `pyvenv/`.
 3. Repairs bundled `pip` when needed and installs [`requirements/requirements.txt`](requirements/requirements.txt).
-4. Initializes Git automatically if the scaffold is not yet a repository.
-5. Configures `core.hooksPath` to use the versioned hooks in `.githooks/hooks`.
-6. Configures the shared commit template from `.githooks/commit-template.txt`.
-7. Prints a concise summary of the default repository structure.
+4. Scaffolds any additional modules/apps declared in `project.metadata.json` under `apps[]`.
+5. Initializes Git automatically if the scaffold is not yet a repository.
+6. Configures `core.hooksPath` to use the versioned hooks in `.githooks/hooks`.
+7. Configures the shared commit template from `.githooks/commit-template.txt`.
+8. Prints a concise summary of the default repository structure.
 
 ### Customize The Project
 
@@ -103,7 +105,8 @@ That step:
 5. applies placeholder substitutions across eligible text files
 6. renames matching template paths such as `include/myprj` or `src/my_module`
 7. validates that critical project placeholders are no longer present in managed files
-8. leaves `.git`, `pyvenv`, build directories, generated outputs, and project customization tooling untouched
+8. leaves any extra apps generated during initialization intact
+9. leaves `.git`, `pyvenv`, build directories, generated outputs, and project customization tooling untouched
 
 The same wrapper also supports rollback of the latest customization backup.
 

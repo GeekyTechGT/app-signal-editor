@@ -24,10 +24,12 @@ set "RESET=!ESC![0m"
 
 REM Script paths
 set "PROJECT_ROOT=%~dp0"
-set "INIT_PROJECT_SCRIPT=scripts\init_project.bat"
-set "CUSTOMIZE_PROJECT_SCRIPT=scripts\customize_project.bat"
-set "INIT_SUBMODULES_SCRIPT=scripts\init_submodules.bat"
-set "PM_HELPERS_SCRIPT=scripts\pm_helpers.bat"
+if "%PROJECT_ROOT:~-1%"=="\" set "PROJECT_ROOT=%PROJECT_ROOT:~0,-1%"
+set "INIT_PROJECT_SCRIPT=%PROJECT_ROOT%\scripts\init_project.bat"
+set "CUSTOMIZE_PROJECT_SCRIPT=%PROJECT_ROOT%\scripts\customize_project.bat"
+set "INIT_SUBMODULES_SCRIPT=%PROJECT_ROOT%\scripts\init_submodules.bat"
+set "PM_HELPERS_SCRIPT=%PROJECT_ROOT%\scripts\pm_helpers.bat"
+set "METADATA_FILE=%PROJECT_ROOT%\project.metadata.json"
 
 REM Build directories
 set "BUILD_DIR=build"
@@ -98,6 +100,7 @@ goto main_menu
 cls
 echo.
 if exist "%INIT_PROJECT_SCRIPT%" (
+    cd /d "%PROJECT_ROOT%"
     call "%INIT_PROJECT_SCRIPT%"
 ) else (
     echo !RED![ERROR]!RESET! Script not found: %INIT_PROJECT_SCRIPT%

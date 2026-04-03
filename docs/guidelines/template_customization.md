@@ -51,7 +51,7 @@ The customization flow now stores backups and reports under `.scaffold-backups/`
 
 - inspect `last_customize_report.json` after each dry-run or apply
 - use `Customize Project` -> rollback to restore the last backed up state
-- do not delete `.scaffold-backups/` until the project rename is verified
+- do not delete `.scaffold-backups/` until the customization result is verified
 
 ## Quality Bar Before First Commit
 

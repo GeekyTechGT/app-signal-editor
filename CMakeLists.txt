@@ -180,16 +180,49 @@ endif()
 # Subdirectories — libraries
 # =============================================================================
 add_subdirectory(src/common)
-add_subdirectory(src/my_module)
-# add_subdirectory(src/other_module)
+
+file(GLOB MYPRJ_MODULE_CMAKELISTS RELATIVE ${CMAKE_SOURCE_DIR} src/*/CMakeLists.txt)
+set(MYPRJ_DISCOVERED_MODULES)
+foreach(module_cmakelists ${MYPRJ_MODULE_CMAKELISTS})
+    get_filename_component(module_dir ${module_cmakelists} DIRECTORY)
+    get_filename_component(module_name ${module_dir} NAME)
+    if(module_name STREQUAL "common")
+        continue()
+    endif()
+    add_subdirectory(${module_dir})
+    list(APPEND MYPRJ_DISCOVERED_MODULES ${module_name})
+endforeach()
 
 # =============================================================================
 # Subdirectories — applications
 # =============================================================================
-add_subdirectory(apps/my_module/cli)
+file(GLOB MYPRJ_CLI_APP_CMAKELISTS RELATIVE ${CMAKE_SOURCE_DIR} apps/*/cli/CMakeLists.txt)
+set(MYPRJ_DISCOVERED_CLI_APPS)
+foreach(app_cmakelists ${MYPRJ_CLI_APP_CMAKELISTS})
+    get_filename_component(app_dir ${app_cmakelists} DIRECTORY)
+    get_filename_component(app_root ${app_dir} DIRECTORY)
+    get_filename_component(app_name ${app_root} NAME)
+    add_subdirectory(${app_dir})
+    list(APPEND MYPRJ_DISCOVERED_CLI_APPS ${app_name})
+endforeach()
+
 if(MYPRJ_BUILD_GUI)
-    add_subdirectory(apps/common/gui)
-    add_subdirectory(apps/my_module/gui)
+    if(EXISTS ${CMAKE_SOURCE_DIR}/apps/common/gui/CMakeLists.txt)
+        add_subdirectory(apps/common/gui)
+    endif()
+
+    file(GLOB MYPRJ_GUI_APP_CMAKELISTS RELATIVE ${CMAKE_SOURCE_DIR} apps/*/gui/CMakeLists.txt)
+    set(MYPRJ_DISCOVERED_GUI_APPS)
+    foreach(app_cmakelists ${MYPRJ_GUI_APP_CMAKELISTS})
+        get_filename_component(app_dir ${app_cmakelists} DIRECTORY)
+        get_filename_component(app_root ${app_dir} DIRECTORY)
+        get_filename_component(app_name ${app_root} NAME)
+        if(app_name STREQUAL "common")
+            continue()
+        endif()
+        add_subdirectory(${app_dir})
+        list(APPEND MYPRJ_DISCOVERED_GUI_APPS ${app_name})
+    endforeach()
 endif()
 
 # =============================================================================
@@ -208,16 +241,36 @@ install(DIRECTORY include/myprj
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
-install(TARGETS myprj_common myprj_my_module_core
+set(MYPRJ_INSTALL_TARGETS myprj_common)
+foreach(module_name ${MYPRJ_DISCOVERED_MODULES})
+    list(APPEND MYPRJ_INSTALL_TARGETS myprj_${module_name}_core)
+endforeach()
+install(TARGETS ${MYPRJ_INSTALL_TARGETS}
     EXPORT MyProjectTargets
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
 
-install(TARGETS myprj_my_module_cli
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-)
+if(MYPRJ_DISCOVERED_CLI_APPS)
+    set(MYPRJ_CLI_INSTALL_TARGETS)
+    foreach(app_name ${MYPRJ_DISCOVERED_CLI_APPS})
+        list(APPEND MYPRJ_CLI_INSTALL_TARGETS myprj_${app_name}_cli)
+    endforeach()
+    install(TARGETS ${MYPRJ_CLI_INSTALL_TARGETS}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
+endif()
+
+if(MYPRJ_BUILD_GUI AND MYPRJ_DISCOVERED_GUI_APPS)
+    set(MYPRJ_GUI_INSTALL_TARGETS)
+    foreach(app_name ${MYPRJ_DISCOVERED_GUI_APPS})
+        list(APPEND MYPRJ_GUI_INSTALL_TARGETS myprj_${app_name}_gui)
+    endforeach()
+    install(TARGETS ${MYPRJ_GUI_INSTALL_TARGETS}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
+endif()
 
 install(EXPORT MyProjectTargets
     FILE MyProjectTargets.cmake

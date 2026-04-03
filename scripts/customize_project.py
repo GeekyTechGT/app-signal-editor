@@ -3,12 +3,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_METADATA_PATH = ROOT / "project.metadata.json"
@@ -80,7 +81,7 @@ def resolve_metadata_path(path: Path) -> Path:
     return path
 
 
-def load_metadata(path: Path) -> dict[str, str]:
+def load_metadata(path: Path) -> dict[str, Any]:
     path = resolve_metadata_path(path)
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -93,20 +94,22 @@ def load_metadata(path: Path) -> dict[str, str]:
     if missing:
         raise SystemExit(f"[ERROR] Missing required metadata keys: {', '.join(missing)}")
 
-    return {key: str(value).strip() for key, value in data.items()}
+    return data
 
 
-def validate_metadata(metadata: dict[str, str]) -> None:
-    values = {key: metadata[key] for key in REQUIRED_KEYS}
+def validate_metadata(metadata: dict[str, Any]) -> None:
+    values = {key: str(metadata[key]).strip() for key in REQUIRED_KEYS}
     for key, value in values.items():
-        if any(ch in value for ch in ('/', '\\')) and key in {"project_name", "namespace_prefix", "macro_prefix", "primary_module"}:
+        if any(ch in value for ch in ('/', '\\')) and key in {"project_name", "project_slug", "namespace_prefix", "macro_prefix", "primary_module"}:
             raise SystemExit(f"[ERROR] Metadata field {key} must not contain path separators: {value}")
-    if metadata["macro_prefix"] != metadata["macro_prefix"].upper():
+    if values["macro_prefix"] != values["macro_prefix"].upper():
         raise SystemExit("[ERROR] macro_prefix must be uppercase, e.g. MYPRJ")
-    if not metadata["namespace_prefix"].islower():
+    if not values["namespace_prefix"].islower():
         raise SystemExit("[ERROR] namespace_prefix must be lowercase, e.g. myprj")
-    if not metadata["primary_module"].islower():
+    if not values["primary_module"].islower():
         raise SystemExit("[ERROR] primary_module must be lowercase, e.g. my_module")
+    if not re.fullmatch(r"[a-z0-9]+(?:[a-z0-9_-]*[a-z0-9])?", values["project_slug"]):
+        raise SystemExit("[ERROR] project_slug must be lowercase and filesystem-friendly, e.g. bin-tools or bin_tools")
 
 
 def should_skip_dir(path: Path) -> bool:
@@ -117,8 +120,8 @@ def is_text_candidate(path: Path) -> bool:
     return path.name in TEXT_FILENAMES or path.suffix.lower() in TEXT_SUFFIXES
 
 
-def replacement_pairs(metadata: dict[str, str]) -> list[tuple[str, str]]:
-    pairs = [(placeholder, metadata[key]) for placeholder, key in DEFAULT_PLACEHOLDERS.items()]
+def replacement_pairs(metadata: dict[str, Any]) -> list[tuple[str, str]]:
+    pairs = [(placeholder, str(metadata[key]).strip()) for placeholder, key in DEFAULT_PLACEHOLDERS.items()]
     return sorted(pairs, key=lambda item: len(item[0]), reverse=True)
 
 
@@ -156,11 +159,11 @@ def replace_path_parts(rel_path: Path, pairs: list[tuple[str, str]]) -> Path:
     return Path(*replaced_parts)
 
 
-def detect_default_metadata(metadata: dict[str, str]) -> bool:
-    return all(metadata[key] == placeholder for placeholder, key in DEFAULT_PLACEHOLDERS.items())
+def detect_default_metadata(metadata: dict[str, Any]) -> bool:
+    return all(str(metadata[key]).strip() == placeholder for placeholder, key in DEFAULT_PLACEHOLDERS.items())
 
 
-def collect_plan(metadata: dict[str, str]) -> tuple[list[tuple[Path, str]], list[tuple[Path, Path]], list[Change]]:
+def collect_plan(metadata: dict[str, Any]) -> tuple[list[tuple[Path, str]], list[tuple[Path, Path]], list[Change]]:
     pairs = replacement_pairs(metadata)
     file_updates: list[tuple[Path, str]] = []
     renames: list[tuple[Path, Path]] = []
