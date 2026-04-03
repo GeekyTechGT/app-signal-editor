@@ -1,9 +1,10 @@
 {
-  "project_name": "MyProject",
-  "project_slug": "my_project",
+  "project_name": "MyProject1223344",
+  "project_slug": "MyProject1223344",
   "namespace_prefix": "myprj",
   "macro_prefix": "MYPRJ",
   "primary_module": "my_module",
   "description": "Cross-platform C++ application scaffold with CLI, GUI, tests, and deployment workflows",
-  "vendor": "YourCompany"
+  "vendor": "YourCompany",
+  "apps": ["proro", "sssss"]
 }

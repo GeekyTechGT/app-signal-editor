@@ -3,16 +3,41 @@
     "version": "1.0",
     "modules": [
         {
-            "id": "my_module",
-            "display_name": "MyModule",
+            "id": "proro",
+            "display_name": "Proro",
             "version": "0.1.0",
-            "description": "TODO: describe this module",
+            "description": "TODO: describe this module (proro)",
             "executables": {
-                "windows": ["my_module.exe"],
-                "linux":   ["my_module"]
+                "windows": [
+                    "proro.exe"
+                ],
+                "linux": [
+                    "proro"
+                ]
             },
             "gui_executables": {
-                "windows": ["my_module-gui.exe"]
+                "windows": [
+                    "proro-gui.exe"
+                ]
+            }
+        },
+        {
+            "id": "sssss",
+            "display_name": "Sssss",
+            "version": "0.1.0",
+            "description": "TODO: describe this module (sssss)",
+            "executables": {
+                "windows": [
+                    "sssss.exe"
+                ],
+                "linux": [
+                    "sssss"
+                ]
+            },
+            "gui_executables": {
+                "windows": [
+                    "sssss-gui.exe"
+                ]
             }
         }
     ]

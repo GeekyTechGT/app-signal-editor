@@ -1,0 +1,14 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "proro_config.schema.json",
+    "title": "Proro Configuration",
+    "type": "object",
+    "required": ["data_dir"],
+    "properties": {
+        "data_dir": {
+            "type": "string",
+            "description": "Path to the data directory"
+        }
+    },
+    "additionalProperties": false
+}
