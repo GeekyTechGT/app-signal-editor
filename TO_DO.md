@@ -1,13 +1,2 @@
-# Scaffold Update Notes
-
-Implemented:
-
-- project manager hook menu replaced by `Initialize Project`
-- host-aware CMake preset tool validation
-- local Python virtual environment bootstrap in `pyvenv/`
-- versioned Git hooks with commit template
-- README documentation for bootstrap, hooks, repository structure, and project metadata workflow
-
-Recommended next customization step:
-
-- edit `project.metadata.json` and run `Customize Project` to turn the template into a real project identity
+Vorrei che implementassi un app in c++23, seguendo principi solid, kiss, dry, per replicare il tool signal editor di matlab (link: https://www.mathworks.com/help/simulink/slref/signaleditortool.html). L'obiettivo iniziale è poter caricare (tramite filesystem o drag and drop ) un file csv, contenente la prima colonna il time, e le colonne successive le y(t), dove ogni colonna rappresenta un segnale.
+L'utente deve poter visualizzare in una list tutti i segnali caricati, e per ciascuno poter visualizzare la forma d'onda, e tramite mouse con drag e drop poter modificare la morfologia della forma donda, aggiunge waypoint, tirare la curva e cambiare morfologia, e poter salvare la nuova forma d'onda; l'utente deve poter esportare le modifiche fatte in formato csv. Inoltre deve poter aggiungere un segnale from scratch, riumovere segnale esistente, o modificare un segnale estratto dal file. Fai tutto ispirandoti a Signal editor di matlab. Utilizza la struttura definita in questo progetto, privilegiando architettura esagonale, quindi tutti i file .hpp e .cpp dentro la folder /src seguendo la struttura esagonale. Dentro app devi inserire il main, per ora crea solo app gui. Utilizza Qt per la grafica. Crea gui accattivante e moderna.
