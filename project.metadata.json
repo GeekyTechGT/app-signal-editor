@@ -1,10 +1,10 @@
 {
-  "project_name": "MyProject1223344",
-  "project_slug": "MyProject1223344",
+  "project_name": "SignalEditor",
+  "project_slug": "signal-editor",
   "namespace_prefix": "myprj",
   "macro_prefix": "MYPRJ",
-  "primary_module": "my_module",
-  "description": "Cross-platform C++ application scaffold with CLI, GUI, tests, and deployment workflows",
-  "vendor": "YourCompany",
-  "apps": ["proro", "sssss"]
+  "primary_module": "signal_editor",
+  "description": "C++23 / Qt6 reimplementation of the MATLAB Signal Editor (hexagonal architecture)",
+  "vendor": "MyPrj",
+  "apps": ["signal_editor"]
 }

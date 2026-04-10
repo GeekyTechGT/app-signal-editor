@@ -98,55 +98,6 @@ function(myprj_enable_static_cpp_runtime target)
 endfunction()
 
 # =============================================================================
-# Copy OpenSSL DLLs (called from main CMakeLists.txt after OpenSSL is found)
-# =============================================================================
-function(myprj_copy_openssl_dlls)
-    if(WIN32 AND OPENSSL_FOUND)
-        get_filename_component(OPENSSL_LIB_DIR "${OPENSSL_CRYPTO_LIBRARY}" DIRECTORY)
-        get_filename_component(OPENSSL_ROOT_DIR "${OPENSSL_LIB_DIR}" DIRECTORY)
-
-        set(OPENSSL_DLL_SEARCH_PATHS
-            "${OPENSSL_ROOT_DIR}/bin"
-            "${OPENSSL_LIB_DIR}"
-            "${OPENSSL_LIB_DIR}/../bin"
-        )
-        set(OPENSSL_DLL_NAMES
-            "libssl-3-x64.dll" "libcrypto-3-x64.dll"
-            "libssl-3.dll" "libcrypto-3.dll"
-            "libssl.dll" "libcrypto.dll"
-        )
-
-        set(OPENSSL_DLLS_TO_COPY)
-        foreach(search_path ${OPENSSL_DLL_SEARCH_PATHS})
-            foreach(dll_name ${OPENSSL_DLL_NAMES})
-                if(EXISTS "${search_path}/${dll_name}")
-                    list(APPEND OPENSSL_DLLS_TO_COPY "${search_path}/${dll_name}")
-                endif()
-            endforeach()
-        endforeach()
-        list(REMOVE_DUPLICATES OPENSSL_DLLS_TO_COPY)
-
-        if(OPENSSL_DLLS_TO_COPY)
-            set(OPENSSL_COPY_COMMANDS
-                COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
-            )
-            foreach(dll ${OPENSSL_DLLS_TO_COPY})
-                get_filename_component(dll_name "${dll}" NAME)
-                list(APPEND OPENSSL_COPY_COMMANDS
-                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                        "${dll}" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${dll_name}"
-                )
-            endforeach()
-            add_custom_target(copy_openssl_dlls ALL
-                ${OPENSSL_COPY_COMMANDS}
-                COMMENT "Copying OpenSSL DLLs to bin folder"
-            )
-            message(STATUS "OpenSSL DLLs will be copied to bin folder")
-        endif()
-    endif()
-endfunction()
-
-# =============================================================================
 # Compiler warnings
 # =============================================================================
 function(myprj_set_warnings target)
@@ -258,35 +209,50 @@ function(myprj_find_windeployqt out_var)
 endfunction()
 
 function(myprj_enable_windeployqt_post_build target)
-    if(WIN32)
-        myprj_find_windeployqt(_windeployqt_exe)
-        if(NOT _windeployqt_exe)
-            message(WARNING "windeployqt6/windeployqt not found; Qt deploy step skipped for ${target}.")
-            return()
-        endif()
-
-        get_filename_component(_windeployqt_bin_dir "${_windeployqt_exe}" DIRECTORY)
-        get_filename_component(_qt_prefix "${_windeployqt_bin_dir}/.." ABSOLUTE)
-        set(_qt_plugins_dir "${_qt_prefix}/plugins")
-        set(_qt_platforms_dir "${_qt_plugins_dir}/platforms")
-        set(_env_path "${_windeployqt_bin_dir}")
-        if(MINGW AND DEFINED MYPRJ_MINGW_BIN_DIR)
-            set(_env_path "${_windeployqt_bin_dir};${MYPRJ_MINGW_BIN_DIR}")
-        endif()
-
-        set(_args --no-translations)
-        if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-            list(APPEND _args --debug)
-        else()
-            list(APPEND _args --release)
-        endif()
-
-        add_custom_command(TARGET ${target} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E env
-                "PATH=${_env_path}"
-                "QT_PLUGIN_PATH=${_qt_plugins_dir}"
-                "QT_QPA_PLATFORM_PLUGIN_PATH=${_qt_platforms_dir}"
-                "${_windeployqt_exe}" ${_args} "$<TARGET_FILE:${target}>"
-        )
+    # Manual deployment: copy the Qt6 runtime DLLs and the minimum set of
+    # platform / styles / image plugins next to the executable. We do this
+    # ourselves because windeployqt6 in this Qt install fails to discover its
+    # own platform plugin and aborts.
+    if(NOT WIN32)
+        return()
     endif()
+    if(NOT DEFINED Qt6_DIR)
+        return()
+    endif()
+
+    get_filename_component(_qt_prefix "${Qt6_DIR}/../../.." ABSOLUTE)
+    set(_qt_bin     "${_qt_prefix}/bin")
+    set(_qt_plugins "${_qt_prefix}/plugins")
+
+    # Pick debug or release variant; fall back to release if no debug build.
+    set(_qt_modules Core Gui Widgets)
+    foreach(_mod IN LISTS _qt_modules)
+        set(_chosen "")
+        if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND
+           EXISTS "${_qt_bin}/Qt6${_mod}d.dll")
+            set(_chosen "Qt6${_mod}d.dll")
+        elseif(EXISTS "${_qt_bin}/Qt6${_mod}.dll")
+            set(_chosen "Qt6${_mod}.dll")
+        endif()
+        if(_chosen)
+            add_custom_command(TARGET ${target} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${_qt_bin}/${_chosen}" "$<TARGET_FILE_DIR:${target}>/${_chosen}"
+            )
+        endif()
+    endforeach()
+
+    set(_plugin_groups platforms styles imageformats iconengines)
+    foreach(_group IN LISTS _plugin_groups)
+        set(_src_dir "${_qt_plugins}/${_group}")
+        if(EXISTS "${_src_dir}")
+            add_custom_command(TARGET ${target} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E make_directory
+                    "$<TARGET_FILE_DIR:${target}>/${_group}"
+                COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    "${_src_dir}"
+                    "$<TARGET_FILE_DIR:${target}>/${_group}"
+            )
+        endif()
+    endforeach()
 endfunction()
