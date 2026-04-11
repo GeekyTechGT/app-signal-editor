@@ -11,41 +11,43 @@ class Signal;
 
 namespace myprj::signal_editor::adapters::qt {
 
-// --- Driving adapter (Qt) ---------------------------------------------------
-// A custom QWidget that paints a `Signal` and lets the user manipulate its
-// samples directly with the mouse.
-//
-// Interaction model:
-//   * Left click on a sample handle and drag        -> change y of that sample.
-//   * Left click + drag on the curve away from any
-//     handle, holding `Shift`                       -> Gaussian deformation
-//                                                      around the click point.
-//   * Double click on the canvas                    -> insert a new sample.
-//   * Right click near a sample                     -> remove it.
-//   * Hovering                                      -> emits `cursorMoved` so
-//                                                      the main window can show
-//                                                      the (t, y) in the
-//                                                      status bar.
-//
-// The widget never owns the `Signal`. It holds a non-owning pointer that
-// the controller updates when the user picks a new signal in the list panel.
+/**
+ * @brief Interactive waveform canvas used for direct manipulation editing.
+ *
+ * The widget renders the selected signal, supports waypoint dragging, context
+ * insertion/removal, and a Gaussian brush interaction. Ownership stays in the
+ * calling controller; the plot only keeps a raw pointer to the active signal.
+ */
 class SignalPlotWidget : public QWidget {
     Q_OBJECT
 
 public:
+    /**
+     * @brief Creates the plot widget with mouse interaction enabled.
+     * @param parent Optional owning widget supplied by Qt.
+     */
     explicit SignalPlotWidget(QWidget* parent = nullptr);
 
-    // Bind the widget to a signal. `nullptr` clears the view.
+    /**
+     * @brief Binds the plot to a signal instance.
+     * @param signal Signal to render and edit, or `nullptr`.
+     */
     void set_signal(Signal* signal);
 
-    // Notify the widget that the bound signal was mutated externally.
+    /**
+     * @brief Recomputes the viewport and schedules a repaint.
+     */
     void refresh();
 
-signals:
-    // Emitted whenever the bound signal was modified by user interaction.
-    void signalChanged();
+    /**
+     * @brief Reports whether the user is currently in a drag interaction.
+     * @return `true` while a sample or brush gesture is active.
+     */
+    [[nodiscard]] bool is_drag_active() const noexcept;
 
-    // Emitted whenever the cursor hovers over a new (t, y) pair.
+signals:
+    void editStarted();
+    void signalChanged();
     void cursorMoved(double t, double y);
 
 protected:
@@ -55,34 +57,41 @@ protected:
     void mouseReleaseEvent(QMouseEvent* event) override;
     void mouseDoubleClickEvent(QMouseEvent* event) override;
     void contextMenuEvent(QContextMenuEvent* event) override;
+    void leaveEvent(QEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
 
 private:
-    static constexpr int    kMargin       = 48;
+    static constexpr int kMargin = 48;
     static constexpr double kHandleRadius = 6.0;
-    static constexpr double kPickRadius   = 10.0;
+    static constexpr double kSelectedHandleRadius = 8.5;
+    static constexpr double kPickRadius = 12.0;
 
     Signal* signal_{nullptr};
-
-    // Cached view rectangle in data coordinates.
     double view_t_min_{0.0};
     double view_t_max_{1.0};
     double view_y_min_{-1.0};
     double view_y_max_{1.0};
 
-    // Drag state.
     enum class DragMode { None, MoveSample, GaussianBrush };
-    DragMode    drag_mode_{DragMode::None};
+    DragMode drag_mode_{DragMode::None};
     std::size_t drag_index_{0};
-    QPointF     drag_start_data_;
+    std::size_t selected_index_{static_cast<std::size_t>(-1)};
+    std::size_t hovered_index_{static_cast<std::size_t>(-1)};
+    QPointF drag_start_data_;
+    QPointF last_context_data_;
+    QPointF pinned_data_point_;
+    bool pinned_data_point_visible_{false};
 
-    // --- Coordinate helpers --------------------------------------------
     QPointF data_to_pixel(double t, double y) const;
     QPointF pixel_to_data(const QPointF& pixel) const;
-
-    // Recompute view bounds to fit the bound signal (with a margin).
     void auto_fit_view();
     bool find_handle_near(const QPointF& pixel, std::size_t& out_index) const;
+    [[nodiscard]] bool has_selection() const noexcept;
+    [[nodiscard]] bool has_hovered_handle() const noexcept;
+    void set_selected_index(std::size_t index);
+    void clear_selection();
+    void set_hovered_index(std::size_t index);
+    void clear_hovered_index();
 };
 
 }  // namespace myprj::signal_editor::adapters::qt

@@ -10,7 +10,7 @@ using namespace myprj::signal_editor;
 
 namespace {
 
-// Test double — captures the last load/save call.
+// Test double - captures the last load/save call.
 class StubRepository : public ISignalRepository {
 public:
     SignalLibrary load(const std::filesystem::path& source) override {
@@ -69,6 +69,17 @@ TEST(SignalEditorServiceTest, CreateSignalReportsErrors) {
     EXPECT_FALSE(r.message.empty());
 }
 
+TEST(SignalEditorServiceTest, AddSignalAcceptsCustomWaveform) {
+    StubRepository repo;
+    SignalEditorService svc(repo);
+
+    const Signal waveform = Signal::from_vectors("sine_like", {0.0, 0.5, 1.0}, {0.0, 1.0, 0.0});
+    EXPECT_TRUE(svc.add_signal(waveform).is_ok());
+    ASSERT_EQ(svc.library().size(), 1u);
+    EXPECT_EQ(svc.library().at(0).name(), "sine_like");
+    EXPECT_DOUBLE_EQ(svc.library().at(0).samples()[1].y, 1.0);
+}
+
 TEST(SignalEditorServiceTest, RenameSignal) {
     StubRepository repo;
     SignalEditorService svc(repo);
@@ -79,6 +90,15 @@ TEST(SignalEditorServiceTest, RenameSignal) {
     EXPECT_FALSE(svc.rename_signal(7, "x").is_ok());
 }
 
+TEST(SignalEditorServiceTest, SetSignalInterpolation) {
+    StubRepository repo;
+    SignalEditorService svc(repo);
+    svc.create_signal("a", 0.0, 1.0, 3, 0.0);
+    EXPECT_TRUE(svc.set_signal_interpolation(0, Signal::InterpolationMode::Step).is_ok());
+    EXPECT_EQ(svc.library().at(0).interpolation(), Signal::InterpolationMode::Step);
+    EXPECT_FALSE(svc.set_signal_interpolation(7, Signal::InterpolationMode::Linear).is_ok());
+}
+
 TEST(SignalEditorServiceTest, RemoveSignal) {
     StubRepository repo;
     SignalEditorService svc(repo);
@@ -87,6 +107,18 @@ TEST(SignalEditorServiceTest, RemoveSignal) {
     EXPECT_TRUE(svc.remove_signal(0).is_ok());
     EXPECT_EQ(svc.library().size(), 1u);
     EXPECT_EQ(svc.library().at(0).name(), "b");
+}
+
+TEST(SignalEditorServiceTest, ReplaceSignalUpdatesSamples) {
+    StubRepository repo;
+    SignalEditorService svc(repo);
+    svc.create_signal("a", 0.0, 1.0, 3, 0.0);
+
+    const Signal replacement = Signal::from_vectors("a", {0.0, 0.25, 1.0}, {1.0, 2.0, 3.0});
+    EXPECT_TRUE(svc.replace_signal(0, replacement).is_ok());
+    ASSERT_EQ(svc.library().at(0).size(), 3u);
+    EXPECT_DOUBLE_EQ(svc.library().at(0).samples()[1].t, 0.25);
+    EXPECT_DOUBLE_EQ(svc.library().at(0).samples()[1].y, 2.0);
 }
 
 TEST(SignalEditorServiceTest, MoveAndInsertAndRemoveSamples) {

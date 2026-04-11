@@ -100,6 +100,27 @@ TEST(CsvRepositoryTest, RoundTripPreservesData) {
     std::filesystem::remove(dst);
 }
 
+TEST(CsvRepositoryTest, RoundTripPreservesInterpolationMetadata) {
+    auto src = make_temp_path("se_test_interp_in.csv");
+    auto dst = make_temp_path("se_test_interp_out.csv");
+    write_file(src,
+               "# interpolation,step,linear\n"
+               "time,sigA,sigB\n"
+               "0.0,0.0,0.0\n"
+               "1.0,1.0,1.0\n"
+               "2.0,2.0,0.0\n");
+    CsvSignalRepository repo;
+    auto lib = repo.load(src);
+    ASSERT_EQ(lib.at(0).interpolation(), Signal::InterpolationMode::Step);
+    ASSERT_EQ(lib.at(1).interpolation(), Signal::InterpolationMode::Linear);
+    ASSERT_TRUE(repo.save(dst, lib).is_ok());
+    auto reloaded = repo.load(dst);
+    EXPECT_EQ(reloaded.at(0).interpolation(), Signal::InterpolationMode::Step);
+    EXPECT_EQ(reloaded.at(1).interpolation(), Signal::InterpolationMode::Linear);
+    std::filesystem::remove(src);
+    std::filesystem::remove(dst);
+}
+
 TEST(CsvRepositoryTest, SaveEmptyLibraryReturnsError) {
     SignalLibrary empty_lib;
     CsvSignalRepository repo;

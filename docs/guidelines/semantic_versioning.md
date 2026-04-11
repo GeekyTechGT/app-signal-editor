@@ -1,49 +1,44 @@
 # Semantic Versioning
 
-This project follows [Semantic Versioning 2.0.0](https://semver.org/).
+Signal Editor follows [Semantic Versioning 2.0.0](https://semver.org/).
 
 ## Version Format
 
-```
+```text
 MAJOR.MINOR.PATCH
 ```
 
-| Component | When to increment                                                                 |
-|-----------|-----------------------------------------------------------------------------------|
-| `MAJOR`   | Incompatible API changes that break existing callers                              |
-| `MINOR`   | New backward-compatible functionality                                             |
-| `PATCH`   | Backward-compatible bug fixes                                                     |
+| Component | Increment when |
+|-----------|----------------|
+| `MAJOR` | introducing breaking API, format, or workflow changes |
+| `MINOR` | adding backward-compatible functionality |
+| `PATCH` | fixing bugs without changing expected compatibility |
 
-## Pre-release Labels
+## Authoritative Version Sources
 
-| Label      | Meaning                               | Example         |
-|------------|---------------------------------------|-----------------|
-| `alpha`    | Early development, unstable           | `1.1.0-alpha.1` |
-| `beta`     | Feature-complete, may have bugs       | `1.1.0-beta.2`  |
-| `rc`       | Release candidate, final testing      | `1.1.0-rc.1`    |
+Keep these aligned:
 
-## Version Files
+1. `VERSION`
+2. `CMakeLists.txt` project version
+3. `CHANGELOG.md` release entries
 
-The authoritative version is stored in two places:
+The repository also defines a module version through `MYPRJ_SIGNAL_EDITOR_VERSION` in `CMakeLists.txt`.
 
-1. `VERSION` — plain text, used for scripting
-2. `CMakeLists.txt` — `project(MyProject VERSION x.y.z)`, used for build-time header generation
+## When a Version Bump Is Expected
 
-Keep both files in sync. The CMake `configure_file()` call generates `include/myprj/version.h` from the CMake project version.
+Increase the version when changes affect at least one of these areas:
+
+- public module APIs
+- CSV persistence semantics
+- user-visible GUI behavior
+- supported build/test workflows
+- packaging or deployment outputs
 
 ## Changelog Policy
 
-Every version increment must include a `CHANGELOG.md` entry describing:
-- What changed
-- Why it changed
-- Whether the change is breaking
+Every release should describe:
 
-## Module Versions
-
-Individual modules have independent version variables in `CMakeLists.txt`:
-
-```cmake
-set(MYPRJ_MY_MODULE_VERSION "1.0.0")
-```
-
-Module versions follow the same MAJOR.MINOR.PATCH convention and are independent from the project version.
+- what changed
+- why it matters
+- whether compatibility was affected
+- whether user workflow or data format expectations changed

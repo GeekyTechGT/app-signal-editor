@@ -2,37 +2,36 @@
 
 ## C++ Naming
 
-| Construct               | Convention              | Example                          |
-|-------------------------|-------------------------|----------------------------------|
-| Namespace               | `snake_case`            | `myprj::my_module`               |
-| Class / Struct          | `PascalCase`            | `MyEntity`, `FsAdapter`          |
-| Interface (port)        | `IPascalCase`           | `IMyRepository`                  |
-| Function / Method       | `snake_case`            | `parse_args()`, `load_all()`     |
-| Variable / Parameter    | `snake_case`            | `data_dir`, `entity_id`          |
-| Constant / Enum value   | `UPPER_SNAKE_CASE`      | `Status::Ok`, `MAX_RETRY`        |
-| Template parameter      | `PascalCase`            | `T`, `ValueType`                 |
-| Private member          | `snake_case_` (trailing `_`) | `data_dir_`, `repository_`  |
-| Header guard / macro    | `MYPRJ_MODULE_FILE_H`   | `MYPRJ_MY_MODULE_ENTITY_H`       |
+| Construct | Convention | Example |
+|-----------|------------|---------|
+| Namespace | `snake_case` | `myprj::signal_editor` |
+| Class / Struct | `PascalCase` | `Signal`, `SignalLibrary`, `CsvSignalRepository` |
+| Interface / Port | `IPascalCase` | `ISignalRepository` |
+| Function / Method | `snake_case` | `load_from()`, `apply_gaussian_brush()` |
+| Variable / Parameter | `snake_case` | `signal_index`, `destination_path` |
+| Enum value | `PascalCase` inside enum | `InterpolationMode::Linear` |
+| Private member | trailing underscore | `repository_`, `workspace_title_label_` |
 
 ## File Naming
 
-| Artifact                | Convention              | Example                          |
-|-------------------------|-------------------------|----------------------------------|
-| Header file             | `snake_case.h`          | `my_entity.h`                    |
-| Implementation file     | `snake_case.cpp`        | `my_entity.cpp`                  |
-| Test file               | `test_snake_case.cpp`   | `test_my_entity.cpp`             |
-| CMakeLists              | `CMakeLists.txt`        | (fixed)                          |
-| JSON schema             | `snake_case.schema.json`| `my_module_config.schema.json`   |
+| Artifact | Convention | Example |
+|----------|------------|---------|
+| Header | `snake_case.h` | `signal_editor_service.h` |
+| Implementation | `snake_case.cpp` | `signal_plot_widget.cpp` |
+| Test | `test_<subject>.cpp` | `test_signal_editor_service.cpp` |
 
 ## CMake Naming
 
-| Construct               | Convention              | Example                            |
-|-------------------------|-------------------------|------------------------------------|
-| Target (library)        | `myprj_<module>_core`   | `myprj_my_module_core`             |
-| Target (executable)     | `myprj_<module>_cli`    | `myprj_my_module_cli`              |
-| CMake option            | `MYPRJ_<OPTION>`        | `MYPRJ_BUILD_TESTS`                |
-| CMake function          | `myprj_<verb>_<noun>`   | `myprj_configure_target`           |
+| Construct | Convention | Example |
+|-----------|------------|---------|
+| Core library target | `myprj_<module>_core` | `myprj_signal_editor_core` |
+| GUI target | `myprj_<module>_gui` | `myprj_signal_editor_gui` |
+| Qt adapter library | `myprj_<module>_qt` | `myprj_signal_editor_qt` |
+| Options | `MYPRJ_<OPTION>` | `MYPRJ_BUILD_GUI` |
+| Helper functions | `myprj_<verb>_<noun>` | `myprj_configure_target` |
 
-## Directory Naming
+## Documentation Naming
 
-Directories always use `snake_case`. No hyphens in directory names under `src/` or `apps/`.
+- Product-facing docs use clear titles and repository-relative links.
+- Architecture docs describe actual containers and components, not template placeholders.
+- Public headers that define module boundaries should include Doxygen comments.

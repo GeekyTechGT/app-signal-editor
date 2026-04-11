@@ -8,71 +8,157 @@
 
 namespace myprj::signal_editor {
 
-// --- Domain entity ----------------------------------------------------------
-// A named, time-ordered collection of (t, y) samples.
-//
-// Invariants enforced by all mutators:
-//   * `samples_` is sorted strictly ascending by `t`.
-//   * `name_` is non-empty.
-//
-// No I/O, no framework dependency, no virtual functions — pure C++23.
+/**
+ * @brief Domain entity representing a named, time-ordered waveform.
+ *
+ * The class owns the sample collection and enforces the following invariants
+ * through every mutation path:
+ * - sample timestamps remain strictly ordered;
+ * - duplicate timestamps collapse into a single sample;
+ * - the signal name is never empty.
+ */
 class Signal {
 public:
-    // --- Construction ---------------------------------------------------
-    Signal(std::string name, std::vector<SamplePoint> samples);
+    /**
+     * @brief Interpolation strategy used for visualisation and export.
+     */
+    enum class InterpolationMode { Linear = 0, Step };
 
+    /**
+     * @brief Builds a signal from a name and explicit sample collection.
+     * @param name Human-readable signal identifier.
+     * @param samples Sample sequence to take ownership of.
+     * @param interpolation Rendering/export interpolation strategy.
+     */
+    Signal(std::string name,
+           std::vector<SamplePoint> samples,
+           InterpolationMode interpolation = InterpolationMode::Linear);
+
+    /**
+     * @brief Builds a signal from parallel time and value vectors.
+     * @param name Human-readable signal identifier.
+     * @param time Sample timestamps.
+     * @param values Sample values.
+     * @param interpolation Rendering/export interpolation strategy.
+     * @return Newly constructed signal.
+     */
     static Signal from_vectors(std::string name,
                                const std::vector<double>& time,
-                               const std::vector<double>& values);
+                               const std::vector<double>& values,
+                               InterpolationMode interpolation = InterpolationMode::Linear);
 
-    // Build a flat (constant `initial_value`) signal sampled uniformly on
-    // [t_start, t_end] with `num_samples` points (>= 2).
+    /**
+     * @brief Builds a uniformly sampled flat signal.
+     * @param name Human-readable signal identifier.
+     * @param t_start Inclusive first timestamp.
+     * @param t_end Inclusive final timestamp.
+     * @param num_samples Number of generated points, must be at least 2.
+     * @param initial_value Value assigned to every generated point.
+     * @param interpolation Rendering/export interpolation strategy.
+     * @return Newly constructed signal.
+     */
     static Signal create_uniform(std::string name,
                                  double t_start,
                                  double t_end,
                                  std::size_t num_samples,
-                                 double initial_value = 0.0);
+                                 double initial_value = 0.0,
+                                 InterpolationMode interpolation = InterpolationMode::Linear);
 
-    // --- Read access ----------------------------------------------------
+    /** @brief Returns the signal name. */
     [[nodiscard]] const std::string& name() const noexcept { return name_; }
+
+    /** @brief Returns the interpolation mode. */
+    [[nodiscard]] InterpolationMode interpolation() const noexcept { return interpolation_; }
+
+    /** @brief Returns the ordered sample collection. */
     [[nodiscard]] const std::vector<SamplePoint>& samples() const noexcept { return samples_; }
+
+    /** @brief Returns the number of samples in the signal. */
     [[nodiscard]] std::size_t size() const noexcept { return samples_.size(); }
+
+    /** @brief Reports whether the signal contains no samples. */
     [[nodiscard]] bool empty() const noexcept { return samples_.empty(); }
 
+    /** @brief Returns the smallest timestamp or `0.0` when empty. */
     [[nodiscard]] double t_min() const noexcept;
+
+    /** @brief Returns the largest timestamp or `0.0` when empty. */
     [[nodiscard]] double t_max() const noexcept;
+
+    /** @brief Returns the smallest sample value or `0.0` when empty. */
     [[nodiscard]] double y_min() const noexcept;
+
+    /** @brief Returns the largest sample value or `0.0` when empty. */
     [[nodiscard]] double y_max() const noexcept;
 
-    // Linear interpolation; clamps outside [t_min, t_max].
+    /**
+     * @brief Interpolates the signal at an arbitrary timestamp.
+     * @param t Query timestamp.
+     * @return Interpolated value, clamped outside the sampled range.
+     */
     [[nodiscard]] double interpolate(double t) const noexcept;
 
-    // --- Editing --------------------------------------------------------
+    /**
+     * @brief Replaces the human-readable signal name.
+     * @param name Non-empty new name.
+     */
     void set_name(std::string name);
 
-    // Update the y of the sample at `index`. Throws std::out_of_range.
+    /**
+     * @brief Updates the interpolation mode.
+     * @param interpolation New interpolation strategy.
+     */
+    void set_interpolation(InterpolationMode interpolation) noexcept;
+
+    /**
+     * @brief Updates the value of an existing sample.
+     * @param index Zero-based sample index.
+     * @param new_y Replacement sample value.
+     */
     void set_sample_value(std::size_t index, double new_y);
 
-    // Insert a new sample, keeping the time order. If a sample already
-    // exists at the same `t` (within tolerance), its `y` is updated and
-    // the existing index is returned.
+    /**
+     * @brief Moves a sample and keeps time ordering intact.
+     * @param index Zero-based sample index.
+     * @param new_t New timestamp.
+     * @param new_y New sample value.
+     * @return Index assigned to the moved sample after reordering.
+     */
+    std::size_t move_sample(std::size_t index, double new_t, double new_y);
+
+    /**
+     * @brief Inserts or merges a sample at the given timestamp.
+     * @param t Timestamp to insert.
+     * @param y Sample value to insert.
+     * @return Index of the inserted or updated sample.
+     */
     std::size_t insert_sample(double t, double y);
 
-    // Remove the sample at `index`. Throws std::out_of_range.
+    /**
+     * @brief Removes a sample from the signal.
+     * @param index Zero-based sample index.
+     */
     void remove_sample(std::size_t index);
 
-    // Apply a smooth Gaussian deformation centered at `t_center`:
-    //   y_i += delta_y * exp(-((t_i - t_center)^2) / (2*sigma^2))
-    // for every existing sample. `sigma` must be > 0.
+    /**
+     * @brief Applies a smooth Gaussian deformation to all samples.
+     * @param t_center Centre timestamp of the brush.
+     * @param delta_y Signed amplitude applied by the brush.
+     * @param sigma Standard deviation controlling brush width.
+     */
     void apply_gaussian_brush(double t_center, double delta_y, double sigma);
 
-    // Find the index of the sample whose `t` is closest to `t_query`.
-    // Returns SIZE_MAX if the signal is empty.
+    /**
+     * @brief Finds the closest sample by timestamp.
+     * @param t_query Query timestamp.
+     * @return Nearest sample index or `SIZE_MAX` when the signal is empty.
+     */
     [[nodiscard]] std::size_t nearest_index(double t_query) const noexcept;
 
 private:
     std::string name_;
-    std::vector<SamplePoint> samples_;  // sorted by t
+    InterpolationMode interpolation_{InterpolationMode::Linear};
+    std::vector<SamplePoint> samples_;
 
     static void validate_name(const std::string& name);
 };

@@ -1,56 +1,46 @@
-# Contributing to MyProject
+# Contributing to Signal Editor
 
-This scaffold contains template placeholders such as `MyProject`, `myprj`, `MYPRJ`, and `my_module`. Replace them consistently before treating the repository as a real product codebase.
+This repository is treated as a production-grade engineering codebase. Contributions are expected to preserve architectural boundaries, keep the editing workflow stable, and update the surrounding documentation when behavior changes.
 
-## Purpose of This Document
+## Read This First
 
-This repository is private. Contribution is therefore controlled, review-driven, and intentionally explicit. The goal of this document is to make internal onboarding easier, reduce avoidable review cycles, and ensure that code, tests, documentation, and compliance material evolve together.
-
-If you are new to the project, read the following in order:
+Recommended onboarding order:
 
 1. `README.md`
 2. `docs/product/vision.md`
-3. `docs/architecture/architecture_overview.md`
-4. `docs/guidelines/`
-5. `SECURITY.md`
-6. `CHANGELOG.md`
+3. `docs/product/prd.md`
+4. `docs/specs/srs.md`
+5. `docs/architecture/architecture_overview.md`
+6. `SECURITY.md`
+7. `CHANGELOG.md`
 
-## What a Good Contribution Looks Like
+## Definition of Done
 
-A contribution is considered complete when it includes all applicable parts of the change:
+A contribution is complete when it includes every applicable part of the change:
 
 - source code
 - tests
-- documentation
-- configuration or schema updates
-- compliance updates when licensing or redistribution implications change
-- changelog entry when the change is user-visible, operationally relevant, or onboarding-relevant
+- updated product or architecture documentation when scope changed
+- updated requirements when expected behavior changed
+- changelog entry when the change is user-visible or workflow-relevant
 
-## Recommended Onboarding Path
+## Architectural Expectations
 
-For new contributors, the fastest way to become productive is:
+Keep the existing module boundaries intact:
 
-1. Identify the target module under `src/` and `apps/`.
-2. Read the module-specific docs in `apps/<module>/docs/`.
-3. Inspect the corresponding API in `include/myprj/`.
-4. Review unit tests in `tests/03.unit_test/<module>/`.
-5. Review end-to-end tests in `tests/04.e2e_test/<module>/`.
-6. Build the relevant preset and run the affected tests before editing.
+- `core/domain/` owns invariants and pure editing logic
+- `core/usecases/` orchestrates workflows and failure handling
+- `ports/` define abstractions consumed by the core
+- `adapters/` handle frameworks, UI, and persistence details
+- `apps/` stay thin and only wire dependencies together
 
-## Branching and Change Scope
-
-Keep branches focused. A branch should ideally address one coherent concern:
-
-- one feature
-- one bug fix
-- one refactor with a tightly bounded surface
-- one documentation or compliance update
+Do not leak Qt types or filesystem concerns into the domain layer.
 
 ## Development Workflow
 
-### 1. Build before you edit
+### 1. Start from a clean understanding
 
-Confirm that the repository builds on your machine before introducing changes.
+Before editing:
 
 ```bash
 cmake --preset linux-gcc-debug
@@ -58,76 +48,61 @@ cmake --build --preset linux-gcc-debug
 ctest --preset linux-gcc-debug --output-on-failure
 ```
 
-On Windows:
-
-```batch
-project_manager.bat
-```
+If the change touches the GUI, also validate the corresponding Windows MinGW preset.
 
 ### 2. Make the smallest coherent change
 
-Preserve existing architecture:
+Keep branches focused. A branch should ideally address one concern:
 
-- domain rules stay in `core/`
-- interfaces stay in `ports/`
-- infrastructure belongs in `adapters/`
-- application wiring belongs in `apps/`
+- one feature
+- one bug fix
+- one refactor with bounded impact
+- one documentation/requirements update
 
-### 3. Run the relevant tests
+### 3. Preserve UX quality
 
-At minimum, run the unit tests for the touched module and e2e tests for the affected executable.
+Signal Editor is an interactive desktop tool. UI changes must improve clarity, responsiveness, or discoverability. Avoid decorative churn that does not improve actual usage.
 
-### 4. Update documentation
+### 4. Update docs with intent
 
-- `README.md` when module inventory, setup, or structure changes
-- `CHANGELOG.md` when the change is notable
-- module docs under `apps/<module>/docs/` when user-facing behavior changes
+Update these documents when relevant:
 
-## Coding Expectations
+- `README.md` for setup, structure, or workflow changes
+- `docs/product/` for user-facing scope or goals
+- `docs/specs/srs.md` for behavioral requirements
+- `docs/architecture/` for structural or dependency changes
+- `CHANGELOG.md` for notable changes
 
-- prefer clear, explicit code over clever compression
-- keep domain logic deterministic
-- surface failures through explicit error handling
-- preserve separation between use cases, ports, and adapters
-- avoid leaking UI concerns into domain code
+## Coding Standards
 
-## Build and Preset Guidance
-
-Documented presets:
-
-- `windows-mingw64-debug`
-- `windows-mingw64-release`
-- `linux-gcc-debug`
-- `linux-gcc-release`
-
-Use Windows MinGW presets when touching GUI applications. Use Linux GCC presets for fast CLI or core-library iteration.
+- Prefer explicit code over compact cleverness.
+- Preserve deterministic behavior in editing and export flows.
+- Keep public APIs documented with Doxygen when they are part of module boundaries.
+- Remove dead code and stale comments rather than layering new behavior on top of them.
+- Keep error reporting actionable for both UI and test diagnostics.
 
 ## Testing Expectations
 
-- `tests/01.data/` — reusable input data
-- `tests/02.config/` — reusable config fixtures
-- `tests/03.unit_test/` — module-focused unit coverage
-- `tests/04.e2e_test/` — executable and workflow-level verification
-- `tests/05.pipeline_test/` — pipeline scenarios
+At minimum, run tests that cover every touched behavior. For changes in this repository that usually means:
 
-## Security and Sensitive Data
-
-Read `SECURITY.md` before contributing. Never commit secrets, certificates, private keys, customer credentials, or proprietary datasets.
+- domain tests for waveform invariants and interpolation
+- service tests for editing workflows and error handling
+- CSV repository tests for round-trip behavior and metadata handling
 
 ## Commit Guidance
 
-Prefer commit messages that explain intent, not just file movement.
+Use concise, professional English commit messages that describe intent.
 
-Good commit themes:
+Good examples:
 
-- `add my_module e2e coverage`
-- `refactor my_module config validation`
-- `document test layout and build presets`
+- `Refine Signal Editor workspace UX and plot interactions`
+- `Document Signal Editor architecture and product scope`
+- `Tighten CSV repository metadata round-trip coverage`
 
-A good merge request description states:
+## Pull Request Checklist
 
-- what changed
-- why it changed
-- which modules are affected
-- which tests were run
-- whether docs were updated
+- [ ] Code matches the intended architecture
+- [ ] Tests were run and relevant results are recorded
+- [ ] Documentation was updated where applicable
+- [ ] Dead code and stale comments were removed
+- [ ] The change leaves the repository easier to understand than before

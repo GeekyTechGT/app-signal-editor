@@ -36,9 +36,6 @@ configure_file(
 
 # =============================================================================
 # signal_editor — Qt adapter (only built when GUI is enabled)
-#
-# Lives in its own static library so the core remains framework-agnostic and a
-# different GUI framework can replace this layer in the future.
 # =============================================================================
 if(MYPRJ_BUILD_GUI)
     find_package(Qt6 REQUIRED COMPONENTS Widgets)
@@ -47,12 +44,16 @@ if(MYPRJ_BUILD_GUI)
     set(CMAKE_AUTORCC ON)
 
     add_library(myprj_signal_editor_qt STATIC
+        adapters/qt/file_list_panel.cpp
+        adapters/qt/file_list_panel.h
         adapters/qt/main_window.cpp
         adapters/qt/main_window.h
         adapters/qt/signal_list_panel.cpp
         adapters/qt/signal_list_panel.h
         adapters/qt/signal_plot_widget.cpp
         adapters/qt/signal_plot_widget.h
+        adapters/qt/signal_table_panel.cpp
+        adapters/qt/signal_table_panel.h
         adapters/qt/theme.cpp
         adapters/qt/theme.h
     )
@@ -76,8 +77,6 @@ if(MYPRJ_BUILD_GUI)
     )
 
     myprj_configure_target(myprj_signal_editor_qt)
-    # Qt headers and arg() casts trip these specific warnings; silence them
-    # only on this adapter so the core stays under strict warnings.
     if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
         target_compile_options(myprj_signal_editor_qt PRIVATE
             -Wno-useless-cast

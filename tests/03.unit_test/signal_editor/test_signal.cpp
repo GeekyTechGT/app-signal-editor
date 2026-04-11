@@ -40,9 +40,18 @@ TEST(SignalTest, CreateUniformValidatesArguments) {
 TEST(SignalTest, InterpolateClampsAndInterpolates) {
     auto s = Signal::from_vectors("s", {0.0, 1.0, 2.0}, {0.0, 10.0, 20.0});
     EXPECT_DOUBLE_EQ(s.interpolate(-1.0), 0.0);
-    EXPECT_DOUBLE_EQ(s.interpolate(3.0),  20.0);
-    EXPECT_DOUBLE_EQ(s.interpolate(0.5),  5.0);
-    EXPECT_DOUBLE_EQ(s.interpolate(1.5),  15.0);
+    EXPECT_DOUBLE_EQ(s.interpolate(3.0), 20.0);
+    EXPECT_DOUBLE_EQ(s.interpolate(0.5), 5.0);
+    EXPECT_DOUBLE_EQ(s.interpolate(1.5), 15.0);
+}
+
+TEST(SignalTest, StepInterpolationUsesPreviousSampleValue) {
+    auto s = Signal::from_vectors("s", {0.0, 1.0, 2.0}, {0.0, 10.0, 20.0}, Signal::InterpolationMode::Step);
+    EXPECT_EQ(s.interpolation(), Signal::InterpolationMode::Step);
+    EXPECT_DOUBLE_EQ(s.interpolate(0.25), 0.0);
+    EXPECT_DOUBLE_EQ(s.interpolate(1.75), 10.0);
+    s.set_interpolation(Signal::InterpolationMode::Linear);
+    EXPECT_DOUBLE_EQ(s.interpolate(1.75), 17.5);
 }
 
 TEST(SignalTest, SetSampleValueUpdatesY) {
@@ -52,6 +61,17 @@ TEST(SignalTest, SetSampleValueUpdatesY) {
     EXPECT_THROW(s.set_sample_value(7, 0.0), std::out_of_range);
 }
 
+TEST(SignalTest, MoveSampleReordersAndUpdatesPoint) {
+    auto s = Signal::from_vectors("s", {0.0, 1.0, 2.0}, {0.0, 10.0, 20.0});
+    const std::size_t moved_index = s.move_sample(0, 1.5, 7.5);
+    EXPECT_EQ(moved_index, 1u);
+    ASSERT_EQ(s.size(), 3u);
+    EXPECT_DOUBLE_EQ(s.samples()[0].t, 1.0);
+    EXPECT_DOUBLE_EQ(s.samples()[1].t, 1.5);
+    EXPECT_DOUBLE_EQ(s.samples()[1].y, 7.5);
+    EXPECT_THROW(s.move_sample(9, 0.0, 0.0), std::out_of_range);
+}
+
 TEST(SignalTest, InsertSampleKeepsOrderAndDedupes) {
     auto s = Signal::from_vectors("s", {0.0, 1.0}, {0.0, 1.0});
     const auto idx_mid = s.insert_sample(0.5, 0.5);
@@ -59,7 +79,6 @@ TEST(SignalTest, InsertSampleKeepsOrderAndDedupes) {
     ASSERT_EQ(s.size(), 3u);
     EXPECT_DOUBLE_EQ(s.samples()[1].t, 0.5);
 
-    // Duplicate t -> updates y, no new sample.
     const auto idx_dup = s.insert_sample(0.5, 7.0);
     EXPECT_EQ(idx_dup, 1u);
     EXPECT_EQ(s.size(), 3u);
@@ -77,7 +96,6 @@ TEST(SignalTest, RemoveSample) {
 TEST(SignalTest, GaussianBrushPeaksAtCenter) {
     auto s = Signal::create_uniform("u", 0.0, 1.0, 11, 0.0);
     s.apply_gaussian_brush(0.5, 1.0, 0.1);
-    // Sample at t=0.5 (index 5) should be ~1.0
     EXPECT_NEAR(s.samples()[5].y, 1.0, 1e-9);
     EXPECT_LT(s.samples()[0].y, 0.001);
     EXPECT_LT(s.samples()[10].y, 0.001);
@@ -87,7 +105,7 @@ TEST(SignalTest, GaussianBrushPeaksAtCenter) {
 TEST(SignalTest, NearestIndex) {
     auto s = Signal::from_vectors("s", {0.0, 1.0, 2.0, 3.0}, {0.0, 0.0, 0.0, 0.0});
     EXPECT_EQ(s.nearest_index(-5.0), 0u);
-    EXPECT_EQ(s.nearest_index( 0.4), 0u);
-    EXPECT_EQ(s.nearest_index( 1.6), 2u);
+    EXPECT_EQ(s.nearest_index(0.4), 0u);
+    EXPECT_EQ(s.nearest_index(1.6), 2u);
     EXPECT_EQ(s.nearest_index(99.0), 3u);
 }

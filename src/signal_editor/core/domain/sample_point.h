@@ -2,14 +2,23 @@
 
 namespace myprj::signal_editor {
 
-// --- Domain value object -----------------------------------------------------
-// A single (time, value) sample of a signal. Pure value type — comparable,
-// copyable, no invariants beyond IEEE-754 finiteness which is enforced by
-// callers (Signal::insert_sample). No framework dependency.
+/**
+ * @brief Immutable-style value object that represents a single sample.
+ *
+ * `SamplePoint` is intentionally tiny and framework-free so that it can be
+ * copied, compared, and transported between the domain layer and adapters
+ * without conversion overhead.
+ */
 struct SamplePoint {
     double t{0.0};
     double y{0.0};
 
+    /**
+     * @brief Compares two samples for exact coordinate equality.
+     * @param a Left-hand sample.
+     * @param b Right-hand sample.
+     * @return `true` when both time and value match exactly.
+     */
     friend constexpr bool operator==(const SamplePoint& a, const SamplePoint& b) noexcept {
         return a.t == b.t && a.y == b.y;
     }

@@ -1,4 +1,4 @@
-// Signal Editor — GUI entry point.
+// Signal Editor - GUI entry point.
 //
 // This main is intentionally tiny: every responsibility lives behind the
 // hexagonal boundaries. The only thing that happens here is wiring an

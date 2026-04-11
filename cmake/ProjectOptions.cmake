@@ -208,51 +208,9 @@ function(myprj_find_windeployqt out_var)
     endif()
 endfunction()
 
-function(myprj_enable_windeployqt_post_build target)
-    # Manual deployment: copy the Qt6 runtime DLLs and the minimum set of
-    # platform / styles / image plugins next to the executable. We do this
-    # ourselves because windeployqt6 in this Qt install fails to discover its
-    # own platform plugin and aborts.
-    if(NOT WIN32)
-        return()
-    endif()
-    if(NOT DEFINED Qt6_DIR)
-        return()
-    endif()
-
-    get_filename_component(_qt_prefix "${Qt6_DIR}/../../.." ABSOLUTE)
-    set(_qt_bin     "${_qt_prefix}/bin")
-    set(_qt_plugins "${_qt_prefix}/plugins")
-
-    # Pick debug or release variant; fall back to release if no debug build.
-    set(_qt_modules Core Gui Widgets)
-    foreach(_mod IN LISTS _qt_modules)
-        set(_chosen "")
-        if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND
-           EXISTS "${_qt_bin}/Qt6${_mod}d.dll")
-            set(_chosen "Qt6${_mod}d.dll")
-        elseif(EXISTS "${_qt_bin}/Qt6${_mod}.dll")
-            set(_chosen "Qt6${_mod}.dll")
-        endif()
-        if(_chosen)
-            add_custom_command(TARGET ${target} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${_qt_bin}/${_chosen}" "$<TARGET_FILE_DIR:${target}>/${_chosen}"
-            )
-        endif()
-    endforeach()
-
-    set(_plugin_groups platforms styles imageformats iconengines)
-    foreach(_group IN LISTS _plugin_groups)
-        set(_src_dir "${_qt_plugins}/${_group}")
-        if(EXISTS "${_src_dir}")
-            add_custom_command(TARGET ${target} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E make_directory
-                    "$<TARGET_FILE_DIR:${target}>/${_group}"
-                COMMAND ${CMAKE_COMMAND} -E copy_directory
-                    "${_src_dir}"
-                    "$<TARGET_FILE_DIR:${target}>/${_group}"
-            )
-        endif()
-    endforeach()
-endfunction()
+# NOTE: Qt runtime deployment is no longer done as a CMake POST_BUILD step.
+# It is performed exclusively by the deploy task — see
+# `scripts\pm_deploy.bat` (`:do_deploy_windows`), which invokes windeployqt
+# on the .exe files copied into `deploy\windows\<config>\`.
+# `myprj_find_windeployqt` is kept above so other tooling can still locate
+# the executable from CMake if needed.

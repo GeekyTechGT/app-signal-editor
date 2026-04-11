@@ -70,6 +70,36 @@ bool row_is_numeric(const std::vector<std::string>& row) {
     return !row.empty();
 }
 
+bool is_interpolation_metadata_row(const std::vector<std::string>& row) {
+    return !row.empty() &&
+        (row.front() == "# interpolation" || row.front() == "#interpolation");
+}
+
+Signal::InterpolationMode parse_interpolation_mode(const std::string& raw) {
+    std::string lowered;
+    lowered.reserve(raw.size());
+    for (char ch : raw) {
+        lowered.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
+    }
+    if (lowered.empty() || lowered == "linear") {
+        return Signal::InterpolationMode::Linear;
+    }
+    if (lowered == "step" || lowered == "zoh" || lowered == "zero_order_hold") {
+        return Signal::InterpolationMode::Step;
+    }
+    throw std::runtime_error("Unsupported interpolation mode: " + raw);
+}
+
+const char* interpolation_mode_to_csv(Signal::InterpolationMode interpolation) {
+    switch (interpolation) {
+    case Signal::InterpolationMode::Linear:
+        return "linear";
+    case Signal::InterpolationMode::Step:
+        return "step";
+    }
+    return "linear";
+}
+
 }  // namespace
 
 SignalLibrary CsvSignalRepository::load(const std::filesystem::path& source) {
@@ -90,14 +120,28 @@ SignalLibrary CsvSignalRepository::load(const std::filesystem::path& source) {
         throw std::runtime_error("CSV file is empty: " + source.string());
     }
 
+    std::vector<Signal::InterpolationMode> interpolations;
+    std::size_t row_index = 0;
+    if (is_interpolation_metadata_row(rows.front())) {
+        const auto& meta_row = rows.front();
+        interpolations.reserve(meta_row.size() > 0 ? meta_row.size() - 1 : 0);
+        for (std::size_t i = 1; i < meta_row.size(); ++i) {
+            interpolations.push_back(parse_interpolation_mode(meta_row[i]));
+        }
+        row_index = 1;
+        if (row_index >= rows.size()) {
+            throw std::runtime_error("Interpolation metadata has no CSV content rows");
+        }
+    }
+
     // --- Detect header --------------------------------------------------
-    bool has_header = !row_is_numeric(rows.front());
+    bool has_header = !row_is_numeric(rows[row_index]);
     std::vector<std::string> headers;
-    std::size_t data_start = 0;
+    std::size_t data_start = row_index;
     if (has_header) {
-        headers = rows.front();
-        data_start = 1;
-        if (rows.size() < 2) {
+        headers = rows[row_index];
+        data_start = row_index + 1;
+        if (rows.size() <= data_start) {
             throw std::runtime_error("CSV header has no data rows");
         }
     }
@@ -108,6 +152,12 @@ SignalLibrary CsvSignalRepository::load(const std::filesystem::path& source) {
     }
     if (has_header && headers.size() != ncols) {
         throw std::runtime_error("CSV header column count does not match data column count");
+    }
+    if (!interpolations.empty() && interpolations.size() != ncols - 1) {
+        throw std::runtime_error("Interpolation metadata column count does not match signal column count");
+    }
+    if (interpolations.empty()) {
+        interpolations.assign(ncols - 1, Signal::InterpolationMode::Linear);
     }
 
     // --- Allocate per-signal value vectors ------------------------------
@@ -154,7 +204,7 @@ SignalLibrary CsvSignalRepository::load(const std::filesystem::path& source) {
         if (name.empty()) {
             name = "signal_" + std::to_string(c + 1);
         }
-        library.add(Signal::from_vectors(name, time, values[c]));
+        library.add(Signal::from_vectors(name, time, values[c], interpolations[c]));
     }
     return library;
 }
@@ -181,6 +231,13 @@ myprj::Result CsvSignalRepository::save(const std::filesystem::path& destination
         if (!out.is_open()) {
             return myprj::Result::error("Cannot open file for writing: " + destination.string());
         }
+
+        // --- Metadata ---------------------------------------------------
+        out << "# interpolation";
+        for (const auto& s : library.items()) {
+            out << ',' << interpolation_mode_to_csv(s.interpolation());
+        }
+        out << '\n';
 
         // --- Header -----------------------------------------------------
         out << "time";

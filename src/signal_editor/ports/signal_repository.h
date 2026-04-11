@@ -7,18 +7,31 @@
 
 namespace myprj::signal_editor {
 
-// --- Driven port -----------------------------------------------------------
-// Abstraction for persisting / retrieving a SignalLibrary.
-// The core depends only on this interface; concrete implementations live in
-// `adapters/filesystem`, `adapters/json`, etc.
+/**
+ * @brief Output port responsible for persisting and restoring signal libraries.
+ *
+ * The core depends only on this abstraction. Concrete implementations live in
+ * adapters such as filesystem-backed CSV readers or future network/database
+ * integrations.
+ */
 class ISignalRepository {
 public:
     virtual ~ISignalRepository() = default;
 
-    // Load all signals from `source`. Throws on parse failure.
+    /**
+     * @brief Loads all signals from the given source.
+     * @param source Repository-specific source path.
+     * @return Fully populated signal library.
+     * @throws std::exception Implementations throw when parsing or access fails.
+     */
     virtual SignalLibrary load(const std::filesystem::path& source) = 0;
 
-    // Persist `library` to `destination`. Returns ok / error result.
+    /**
+     * @brief Persists the supplied library to the destination.
+     * @param destination Repository-specific output path.
+     * @param library In-memory library to serialise.
+     * @return Success or failure information for UI and workflow code.
+     */
     virtual myprj::Result save(const std::filesystem::path& destination,
                                const SignalLibrary& library) = 0;
 };

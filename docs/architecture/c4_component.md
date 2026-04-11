@@ -1,44 +1,34 @@
 # C4 Model — Level 3: Component
 
-## Component Diagram for `myprj_my_module_core`
+## Component Diagram for `myprj_signal_editor_core`
 
-```
+```text
 ┌────────────────────────────────────────────────────────────────────┐
-│  myprj_my_module_core                                              │
+│                    myprj_signal_editor_core                       │
 │                                                                    │
-│  ┌─────────────────────────────────────────────────────────────┐  │
-│  │  api/MyModuleApi                                            │  │
-│  │  Public facade — thin wrapper over use cases                │  │
-│  └───────────────────────────┬─────────────────────────────────┘  │
-│                              ↓                                     │
-│  ┌─────────────────────────────────────────────────────────────┐  │
-│  │  core/usecases/MyUseCase                                    │  │
-│  │  Orchestrates domain logic; depends only on ports           │  │
-│  └─────────────┬─────────────────────────────────┬─────────────┘  │
-│                ↓                                 ↓                 │
-│  ┌─────────────────────────┐  ┌─────────────────────────────────┐ │
-│  │  core/domain/MyEntity   │  │  ports/IMyRepository            │ │
-│  │  Immutable domain type  │  │  Abstract output port           │ │
-│  └─────────────────────────┘  └────────────┬────────────────────┘ │
-│                                            ↑                      │
-│                               ┌────────────┴────────────────────┐ │
-│                               │  adapters/                       │ │
-│                               │  FsAdapter (filesystem)          │ │
-│                               │  JsonAdapter (config parsing)    │ │
-│                               │  CliAdapter (arg parsing)        │ │
-│                               │  GuiAdapter (Qt widget logic)    │ │
-│                               └─────────────────────────────────┘ │
+│  api/signal_editor_api.h                                           │
+│          │                                                         │
+│          v                                                         │
+│  core/usecases/SignalEditorService                                 │
+│      ├──────────────> core/domain/SignalLibrary                    │
+│      │                  └────────────> core/domain/Signal          │
+│      │                                         └────> SamplePoint  │
+│      │                                                            │
+│      └──────────────> ports/ISignalRepository                      │
+│                               ^                                    │
+│                               │                                    │
+│               adapters/filesystem/CsvSignalRepository              │
 └────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Components
 
-| Component          | Location                              | Responsibility                              |
-|--------------------|---------------------------------------|---------------------------------------------|
-| MyEntity           | `core/domain/my_entity.h`             | Domain object with enforced invariants       |
-| MyUseCase          | `core/usecases/my_usecase.h`          | Business orchestration                       |
-| IMyRepository      | `ports/my_port.h`                     | Abstract persistence interface               |
-| FsAdapter          | `adapters/filesystem/fs_adapter.h`    | Filesystem-backed repository implementation  |
-| JsonAdapter        | `adapters/json/json_adapter.h`        | JSON configuration parser                    |
-| CliAdapter         | `adapters/cli/cli_adapter.h`          | argv parser and usage printer                |
-| MyModuleApi        | `api/my_module_api.h`                 | Public entry point used by apps              |
+| Component | Location | Responsibility |
+|-----------|----------|----------------|
+| `SignalEditorService` | `core/usecases/signal_editor_service.*` | Coordinates load/save/edit workflows |
+| `SignalLibrary` | `core/domain/signal_library.*` | Owns the collection of signals |
+| `Signal` | `core/domain/signal.*` | Enforces waveform invariants and editing primitives |
+| `SamplePoint` | `core/domain/sample_point.h` | Value object for time/value samples |
+| `ISignalRepository` | `ports/signal_repository.h` | Persistence abstraction consumed by the core |
+| `CsvSignalRepository` | `adapters/filesystem/csv_signal_repository.*` | CSV-specific persistence implementation |
+| `signal_editor_api.h` | `api/signal_editor_api.h` | Public façade consumed by apps |

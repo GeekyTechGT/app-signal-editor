@@ -1,74 +1,76 @@
 # Architecture Overview
 
-## 1. Purpose and Scope
+## 1. Purpose
 
-This document provides a comprehensive architecture overview for MyProject. It is intended for developers, quality, and program management who require a unified understanding of the system's structure, key design decisions, and interfaces.
+This document explains the architecture of Signal Editor and the rationale behind the current design choices. It is intended to help developers extend the application without breaking editing behavior, UI responsiveness, or module boundaries.
 
-The scope includes:
-- The platform's logical and physical structure
-- Major subsystems and their responsibilities
-- External interfaces and integration points
-- Cross-cutting concerns: quality, compliance, and maintainability
+## 2. Architectural Style
 
-## 2. Architectural Principles
+Signal Editor uses a hexagonal architecture with a narrow application shell.
 
-1. **Separation of concerns** — distinct layers for core logic, orchestration, and integration
-2. **Modularity** — components are designed for independent evolution and testability
-3. **Automation first** — workflows are codified and machine-executable wherever feasible
-4. **Documentation as a product** — architecture and documentation are treated as versioned assets
-
-## 3. High-Level Structure (Hexagonal Architecture)
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  apps/  (Composition Root)                              │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │  api/  (Public Module Facade)                    │  │
-│  │  ┌────────────────────────────────────────────┐  │  │
-│  │  │  core/usecases/  (Business Orchestration) │  │  │
-│  │  │  ┌──────────────────────────────────────┐ │  │  │
-│  │  │  │  core/domain/  (Entities, Values)   │ │  │  │
-│  │  │  └──────────────────────────────────────┘ │  │  │
-│  │  │  ports/  (Abstract Interfaces)            │  │  │
-│  │  └────────────────────────────────────────────┘  │  │
-│  │  adapters/  (CLI, GUI, Filesystem, JSON)         │  │
-│  └──────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────┘
+```text
+apps/gui -> api -> core/usecases -> ports <- adapters
+                      |
+                      -> core/domain
 ```
 
-**Dependency rule:** `apps → api → usecases → ports ← adapters`
+The key rule is that the domain and use cases do not depend on Qt, filesystem code, or concrete persistence details.
 
-The domain and use cases never depend on adapters, frameworks, or I/O.
+## 3. Main Building Blocks
 
-## 4. Key Layers and Responsibilities
+| Layer | Location | Responsibility |
+|-------|----------|----------------|
+| Composition root | `apps/signal_editor/gui/` | Creates the Qt application and wires dependencies |
+| API | `src/signal_editor/api/` | Re-exports the module surface used by apps |
+| Use cases | `src/signal_editor/core/usecases/` | Orchestrates load/save/edit workflows |
+| Domain | `src/signal_editor/core/domain/` | Owns waveform entities, invariants, and editing primitives |
+| Ports | `src/signal_editor/ports/` | Defines persistence contracts |
+| Adapters | `src/signal_editor/adapters/` | Implements Qt UI and CSV persistence |
+| Shared utilities | `src/common/` | Result types and reusable support code |
 
-| Layer           | Location                      | Responsibility                                 |
-|-----------------|-------------------------------|------------------------------------------------|
-| Domain          | `src/<module>/core/domain/`   | Entities, value objects, business invariants   |
-| Use Cases       | `src/<module>/core/usecases/` | Business logic orchestration                   |
-| Ports           | `src/<module>/ports/`         | Abstract interfaces (dependency inversion)     |
-| Adapters        | `src/<module>/adapters/`      | Concrete I/O: CLI, filesystem, JSON, GUI       |
-| API Facade      | `src/<module>/api/`           | Thin public entry point for apps               |
-| Apps            | `apps/<module>/`              | Composition root — wires adapters to ports     |
+## 4. Why This Structure Matters
 
-## 5. Interfaces and Integration Points
+This architecture keeps the project extensible in practical ways:
 
-External interfaces include:
-- **CLI**: argument parsing in adapters/cli, mapped to use cases via api
-- **GUI**: Qt widget adapters in adapters/gui
-- **JSON config**: schema-validated via adapters/json
-- **Filesystem**: file I/O isolated to adapters/filesystem
+- the CSV adapter can evolve without touching waveform invariants
+- the GUI can become richer without pulling Qt types into the core
+- automated tests can exercise editing behavior without starting the UI
+- future adapters can reuse the same service and domain model
 
-## 6. Data and Artifact Lifecycle
+## 5. Key Runtime Flows
 
-Artifacts managed by the system:
-- Source code, configuration, and schema files
-- Build outputs: `build/<preset>/bin/` and `build/<preset>/lib/`
-- Test reports: `tests/06.results/` (HTML) and `tests/test_results/` (JUnit XML)
-- Deploy artifacts: `deploy/out/<customer>/<platform>/<config>/`
+### 5.1 Load
 
-## 7. Quality and Compliance
+1. The main window asks `SignalEditorService` to load a path.
+2. The service delegates parsing to `ISignalRepository`.
+3. The CSV adapter returns a `SignalLibrary`.
+4. The window binds the active document into the list, plot, and table widgets.
 
-- ISO/IEC 12207-aligned lifecycle processes
-- Requirements traced from `docs/specs/` through tests to implementation
-- Security handled via isolated crypto adapters, never in domain code
+### 5.2 Edit
+
+1. The user edits either through the plot or the table.
+2. The window snapshots undo state at the document level.
+3. The bound `Signal` is mutated through domain operations or service calls.
+4. The plot, table, and workspace status are refreshed.
+
+### 5.3 Save
+
+1. The active document is synchronized back into the service.
+2. The service delegates persistence to the CSV adapter.
+3. The adapter exports the union time axis and interpolation metadata.
+4. The window clears dirty state and refreshes workspace summaries.
+
+## 6. Quality Attributes
+
+The current design optimizes for:
+
+- maintainability through clear boundaries
+- testability of the core editing model
+- deterministic CSV round-trips
+- UI responsiveness for day-to-day engineering work
+
+## 7. Known Constraints
+
+- GUI delivery is currently centered on the Windows MinGW64 preset.
+- Linux presets focus on core and test workflows.
+- Persistence is currently limited to CSV-backed workspaces.

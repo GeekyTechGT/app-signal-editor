@@ -22,4 +22,6 @@ set_target_properties(myprj_signal_editor_gui PROPERTIES
 )
 
 myprj_configure_target(myprj_signal_editor_gui)
-myprj_enable_windeployqt_post_build(myprj_signal_editor_gui)
+# NOTE: Qt runtime deployment (windeployqt) is intentionally NOT done as a
+# POST_BUILD step. It is performed by the deploy task — see
+# `scripts\pm_deploy.bat` (`:do_deploy_windows`).

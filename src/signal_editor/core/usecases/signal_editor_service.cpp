@@ -52,13 +52,31 @@ myprj::Result SignalEditorService::create_signal(const std::string& name,
     });
 }
 
+myprj::Result SignalEditorService::add_signal(Signal signal) {
+    return guarded([&] {
+        library_.add(std::move(signal));
+    });
+}
+
 myprj::Result SignalEditorService::remove_signal(std::size_t index) {
     return guarded([&] { library_.remove(index); });
+}
+
+myprj::Result SignalEditorService::replace_signal(std::size_t index, Signal signal) {
+    return guarded([&] {
+        library_.replace(index, std::move(signal));
+    });
 }
 
 myprj::Result SignalEditorService::rename_signal(std::size_t index,
                                                  const std::string& new_name) {
     return guarded([&] { library_.at(index).set_name(new_name); });
+}
+
+myprj::Result SignalEditorService::set_signal_interpolation(
+    std::size_t index,
+    Signal::InterpolationMode interpolation) {
+    return guarded([&] { library_.at(index).set_interpolation(interpolation); });
 }
 
 myprj::Result SignalEditorService::move_sample(std::size_t signal_index,

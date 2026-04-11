@@ -29,15 +29,18 @@ void Signal::validate_name(const std::string& name) {
     }
 }
 
-Signal::Signal(std::string name, std::vector<SamplePoint> samples)
-    : name_(std::move(name)), samples_(std::move(samples)) {
+Signal::Signal(std::string name,
+               std::vector<SamplePoint> samples,
+               InterpolationMode interpolation)
+    : name_(std::move(name)), interpolation_(interpolation), samples_(std::move(samples)) {
     validate_name(name_);
     sort_and_dedupe(samples_);
 }
 
 Signal Signal::from_vectors(std::string name,
                             const std::vector<double>& time,
-                            const std::vector<double>& values) {
+                            const std::vector<double>& values,
+                            InterpolationMode interpolation) {
     if (time.size() != values.size()) {
         throw std::invalid_argument("time and values must have the same length");
     }
@@ -46,14 +49,15 @@ Signal Signal::from_vectors(std::string name,
     for (std::size_t i = 0; i < time.size(); ++i) {
         samples.push_back({time[i], values[i]});
     }
-    return Signal(std::move(name), std::move(samples));
+    return Signal(std::move(name), std::move(samples), interpolation);
 }
 
 Signal Signal::create_uniform(std::string name,
                               double t_start,
                               double t_end,
                               std::size_t num_samples,
-                              double initial_value) {
+                              double initial_value,
+                              InterpolationMode interpolation) {
     if (num_samples < 2) {
         throw std::invalid_argument("num_samples must be >= 2");
     }
@@ -68,7 +72,7 @@ Signal Signal::create_uniform(std::string name,
     for (std::size_t i = 0; i < num_samples; ++i) {
         samples.push_back({t_start + dt * static_cast<double>(i), initial_value});
     }
-    return Signal(std::move(name), std::move(samples));
+    return Signal(std::move(name), std::move(samples), interpolation);
 }
 
 double Signal::t_min() const noexcept {
@@ -110,11 +114,16 @@ double Signal::interpolate(double t) const noexcept {
     if (t >= samples_.back().t) {
         return samples_.back().y;
     }
-    // Binary search for upper bound on t.
+
     auto it = std::upper_bound(samples_.begin(), samples_.end(), t,
                                [](double v, const SamplePoint& s) { return v < s.t; });
     const auto& hi = *it;
     const auto& lo = *std::prev(it);
+
+    if (interpolation_ == InterpolationMode::Step) {
+        return lo.y;
+    }
+
     const double dt = hi.t - lo.t;
     if (dt <= 0.0) {
         return lo.y;
@@ -128,6 +137,10 @@ void Signal::set_name(std::string name) {
     name_ = std::move(name);
 }
 
+void Signal::set_interpolation(InterpolationMode interpolation) noexcept {
+    interpolation_ = interpolation;
+}
+
 void Signal::set_sample_value(std::size_t index, double new_y) {
     if (index >= samples_.size()) {
         throw std::out_of_range("sample index out of range");
@@ -135,8 +148,16 @@ void Signal::set_sample_value(std::size_t index, double new_y) {
     samples_[index].y = new_y;
 }
 
+std::size_t Signal::move_sample(std::size_t index, double new_t, double new_y) {
+    if (index >= samples_.size()) {
+        throw std::out_of_range("sample index out of range");
+    }
+
+    samples_.erase(samples_.begin() + static_cast<std::ptrdiff_t>(index));
+    return insert_sample(new_t, new_y);
+}
+
 std::size_t Signal::insert_sample(double t, double y) {
-    // Search for an existing sample at the same time.
     auto it = std::lower_bound(samples_.begin(), samples_.end(), t,
                                [](const SamplePoint& s, double v) { return s.t < v; });
     if (it != samples_.end() && std::fabs(it->t - t) < kTimeEpsilon) {
