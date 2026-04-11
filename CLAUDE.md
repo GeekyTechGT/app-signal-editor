@@ -10,7 +10,7 @@ Canonical identifiers:
 
 - Product name: `Signal Editor`
 - Primary module: `signal_editor`
-- CMake target prefix: `myprj_`
+- CMake target family: `signal_editor_*`
 - Namespace root: `myprj::signal_editor`
 
 Do not reintroduce scaffold wording or template-oriented assumptions into code or documentation.

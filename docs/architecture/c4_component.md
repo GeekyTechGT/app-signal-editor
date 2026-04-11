@@ -1,10 +1,10 @@
 # C4 Model — Level 3: Component
 
-## Component Diagram for `myprj_signal_editor_core`
+## Component Diagram for `signal_editor_core`
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────────┐
-│                        myprj_signal_editor_core                           │
+│                        signal_editor_core                                 │
 │                                                                            │
 │  api/signal_editor_api.h                                                   │
 │          │                                                                 │

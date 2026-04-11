@@ -8,7 +8,7 @@ add_executable(test_signal_editor
 
 target_link_libraries(test_signal_editor
     PRIVATE
-        myprj_signal_editor_core
+        signal_editor_core
         GTest::gtest_main
 )
 

@@ -1,7 +1,7 @@
 # =============================================================================
 # signal_editor — core (no Qt dependency)
 # =============================================================================
-add_library(myprj_signal_editor_core ${SIGNAL_EDITOR_LIBRARY_TYPE}
+add_library(signal_editor_core ${SIGNAL_EDITOR_LIBRARY_TYPE}
     # --- Domain ---
     core/domain/signal.cpp
     core/domain/signal_library.cpp
@@ -14,20 +14,20 @@ add_library(myprj_signal_editor_core ${SIGNAL_EDITOR_LIBRARY_TYPE}
     api/signal_editor_api.cpp
 )
 
-target_include_directories(myprj_signal_editor_core
+target_include_directories(signal_editor_core
     PUBLIC
         ${CMAKE_SOURCE_DIR}/include
         ${CMAKE_SOURCE_DIR}/src
         ${CMAKE_BINARY_DIR}/generated
 )
 
-target_link_libraries(myprj_signal_editor_core
+target_link_libraries(signal_editor_core
     PUBLIC
-        myprj_common
+        signal_editor_common
         nlohmann_json::nlohmann_json
 )
 
-myprj_configure_target(myprj_signal_editor_core)
+myprj_configure_target(signal_editor_core)
 
 configure_file(
     ${CMAKE_SOURCE_DIR}/include/myprj/signal_editor_version.h.in
@@ -44,7 +44,7 @@ if(SIGNAL_EDITOR_BUILD_GUI)
     set(CMAKE_AUTOMOC ON)
     set(CMAKE_AUTORCC ON)
 
-    add_library(myprj_signal_editor_qt STATIC
+    add_library(signal_editor_qt STATIC
         adapters/qt/file_list_panel.cpp
         adapters/qt/file_list_panel.h
         adapters/qt/main_window.cpp
@@ -59,27 +59,27 @@ if(SIGNAL_EDITOR_BUILD_GUI)
         adapters/qt/theme.h
     )
 
-    target_include_directories(myprj_signal_editor_qt
+    target_include_directories(signal_editor_qt
         PUBLIC
             ${CMAKE_SOURCE_DIR}/include
             ${CMAKE_SOURCE_DIR}/src
             ${CMAKE_BINARY_DIR}/generated
     )
 
-    target_link_libraries(myprj_signal_editor_qt
+    target_link_libraries(signal_editor_qt
         PUBLIC
-            myprj_signal_editor_core
+            signal_editor_core
             Qt6::Widgets
     )
 
-    set_target_properties(myprj_signal_editor_qt PROPERTIES
+    set_target_properties(signal_editor_qt PROPERTIES
         AUTOMOC ON
         POSITION_INDEPENDENT_CODE ON
     )
 
-    myprj_configure_target(myprj_signal_editor_qt)
+    myprj_configure_target(signal_editor_qt)
     if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-        target_compile_options(myprj_signal_editor_qt PRIVATE
+        target_compile_options(signal_editor_qt PRIVATE
             -Wno-useless-cast
             -Wno-shadow
             -Wno-conversion

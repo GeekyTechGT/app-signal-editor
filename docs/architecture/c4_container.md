@@ -7,22 +7,22 @@
 │                               Signal Editor                               │
 │                                                                            │
 │  ┌──────────────────────────────┐                                          │
-│  │ myprj_signal_editor_gui      │                                          │
+│  │ signal_editor_gui            │                                          │
 │  │ Qt executable / composition  │                                          │
 │  └───────────────┬──────────────┘                                          │
 │                  │                                                         │
 │  ┌───────────────v──────────────────────────────────────────────────────┐   │
-│  │ myprj_signal_editor_qt                                              │   │
+│  │ signal_editor_qt                                                   │   │
 │  │ Main window, workspace tabs, plot widget, table panel, dialogs      │   │
 │  └───────────────┬──────────────────────────────────────────────────────┘   │
 │                  │                                                         │
 │  ┌───────────────v──────────────────────────────────────────────────────┐   │
-│  │ myprj_signal_editor_core                                            │   │
+│  │ signal_editor_core                                                 │   │
 │  │ Domain, use cases, ports, repositories, and public API facade       │   │
 │  └───────────────┬──────────────────────────────────────────────────────┘   │
 │                  │                                                         │
 │  ┌───────────────v──────────────┐                                          │
-│  │ myprj_common                 │                                          │
+│  │ signal_editor_common         │                                          │
 │  │ Shared result/support types  │                                          │
 │  └──────────────────────────────┘                                          │
 └────────────────────────────────────────────────────────────────────────────┘
@@ -32,10 +32,10 @@
 
 | Container | Technology | Purpose |
 |-----------|------------|---------|
-| `myprj_signal_editor_gui` | C++23, Qt 6 | GUI executable and composition root |
-| `myprj_signal_editor_qt` | C++23, Qt 6 | Workspace shell, plot editing, table editing, dialogs, and presentation logic |
-| `myprj_signal_editor_core` | C++23 | Domain model, use cases, repository abstractions, filesystem repositories, and API surface |
-| `myprj_common` | C++23 | Shared support and result types |
+| `signal_editor_gui` | C++23, Qt 6 | GUI executable and composition root |
+| `signal_editor_qt` | C++23, Qt 6 | Workspace shell, plot editing, table editing, dialogs, and presentation logic |
+| `signal_editor_core` | C++23 | Domain model, use cases, repository abstractions, filesystem repositories, and API surface |
+| `signal_editor_common` | C++23 | Shared support and result types |
 
 ## Key Dependencies
 

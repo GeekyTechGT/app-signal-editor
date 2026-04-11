@@ -10,7 +10,7 @@ This repository originated from a structured project template, but it is now the
 - CMake project: `SignalEditor`
 - Namespace root: `myprj`
 - Primary module: `signal_editor`
-- GUI target family: `myprj_signal_editor_*`
+- GUI target family: `signal_editor_*`
 
 ## Customization Rules
 

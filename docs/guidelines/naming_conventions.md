@@ -35,9 +35,9 @@ Naming conventions in Signal Editor are intended to optimize:
 
 | Construct | Convention | Example |
 |-----------|------------|---------|
-| Core library target | `myprj_<module>_core` | `myprj_signal_editor_core` |
-| Qt adapter target | `myprj_<module>_qt` | `myprj_signal_editor_qt` |
-| GUI target | `myprj_<module>_gui` | `myprj_signal_editor_gui` |
+| Core library target | `<module>_core` | `signal_editor_core` |
+| Qt adapter target | `<module>_qt` | `signal_editor_qt` |
+| GUI target | `<module>_gui` | `signal_editor_gui` |
 | Options | `SIGNAL_EDITOR_<OPTION>` | `SIGNAL_EDITOR_BUILD_GUI` |
 
 ## Documentation Naming
