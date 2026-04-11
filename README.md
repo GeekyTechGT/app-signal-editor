@@ -1,14 +1,15 @@
 # Signal Editor
 
-Signal Editor is a desktop waveform editing application written in C++23 with a Qt 6 GUI and a hexagonal architecture. It is designed for engineers who need to inspect, shape, and export time-series data stored in CSV files without mixing UI concerns into the domain layer.
+Signal Editor is a desktop waveform editing application written in C++23 with a Qt 6 GUI and a hexagonal architecture. It is designed for engineers who need to inspect, shape, and export time-series data stored in engineering-friendly interchange files without mixing UI concerns into the domain layer.
 
 ## Highlights
 
-- Multi-file workspace with fast switching between loaded CSV documents
+- Multi-file workspace with fast switching between loaded signal documents
 - Interactive plot editing with waypoint drag, add/remove, and Gaussian brushing
 - Tabular sample editing for precise numeric adjustments
 - Signal creation from numeric waveform templates and user-defined enumerated states
-- Per-signal interpolation modes and enum mappings persisted in CSV metadata
+- Multi-format import/export: CSV, JSON, TSV/TXT, and SpreadsheetML XML
+- Per-signal interpolation modes and enum mappings persisted across supported tabular formats
 - Undo support scoped to the active workspace document
 - Clean separation between domain, use cases, ports, and adapters
 
@@ -35,7 +36,7 @@ The implementation follows a ports-and-adapters style:
 - `core/domain/`: waveform entities and invariants
 - `core/usecases/`: orchestration of load, save, edit, and generation flows
 - `ports/`: persistence abstraction (`ISignalRepository`)
-- `adapters/filesystem/`: CSV repository
+- `adapters/filesystem/`: CSV and multi-format filesystem repositories
 - `adapters/qt/`: Qt widgets, dialogs, and interactive editing surface
 - `api/`: compact facade for app composition roots
 
@@ -43,7 +44,9 @@ Dependency rule: `apps -> api -> usecases -> ports <- adapters`
 
 ## Supported CSV Format
 
-Signal Editor works with CSV files where the first column is the shared time axis and each following column is a signal:
+Signal Editor works with several persistence formats. The native mental model stays the same: the first column or field is time, and the remaining data represents signals with optional interpolation and enumeration metadata.
+
+The simplest tabular layout is CSV:
 
 ```csv
 time,throttle,brake,steer
@@ -64,6 +67,8 @@ time,enable,torque
 ```
 
 Import also accepts inline bootstrapping tokens such as `TRUE:1` and `FALSE:0` in data cells when a mapping row is not present. In the GUI, enumerated signals are shown with label-aware table editing and textual Y-axis labels.
+
+JSON uses an object/array-based representation with per-signal sample arrays, which is better suited for automation and scripting workflows. Tab-delimited `.tsv` / `.txt` files are supported as Excel-friendly plain-text tables, and `.xml` supports SpreadsheetML 2003 workbooks exported by Excel. Native `.xlsx` / `.xls` workbook binaries are not supported yet; export them from Excel as CSV, TSV/TXT, or SpreadsheetML XML first.
 
 ## Build
 

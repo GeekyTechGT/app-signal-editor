@@ -9,6 +9,7 @@ add_library(myprj_signal_editor_core ${MYPRJ_LIBRARY_TYPE}
     core/usecases/signal_editor_service.cpp
     # --- Adapters (driven, no framework) ---
     adapters/filesystem/csv_signal_repository.cpp
+    adapters/filesystem/signal_file_repository.cpp
     # --- API ---
     api/signal_editor_api.cpp
 )

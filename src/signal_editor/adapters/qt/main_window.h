@@ -97,7 +97,7 @@ private:
     bool switching_document_{false};
 
     void open_paths(const QStringList& paths);
-    void load_csv(const QString& path);
+    void load_document(const QString& path);
     void sync_active_document_from_service();
     void activate_document(int index, int preferred_signal_index = 0);
     void mark_active_document_dirty(bool dirty = true);

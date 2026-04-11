@@ -50,6 +50,33 @@ QString summarize_counts(const SignalLibrary& library) {
     return QStringLiteral("%1 signal(s)").arg(static_cast<qulonglong>(library.size()));
 }
 
+QString import_file_filter() {
+    return QStringLiteral(
+        "Supported signal files (*.csv *.tsv *.txt *.json *.xml);;"
+        "CSV files (*.csv);;"
+        "Tab-delimited files (*.tsv *.txt);;"
+        "JSON files (*.json);;"
+        "SpreadsheetML XML files (*.xml)");
+}
+
+QString export_file_filter() {
+    return QStringLiteral(
+        "Supported export files (*.csv *.tsv *.txt *.json *.xml);;"
+        "CSV files (*.csv);;"
+        "Tab-delimited files (*.tsv *.txt);;"
+        "JSON files (*.json);;"
+        "SpreadsheetML XML files (*.xml)");
+}
+
+bool is_supported_import_path(const QString& path) {
+    const QString lowered = QFileInfo(path).suffix().toLower();
+    return lowered == QStringLiteral("csv") ||
+           lowered == QStringLiteral("tsv") ||
+           lowered == QStringLiteral("txt") ||
+           lowered == QStringLiteral("json") ||
+           lowered == QStringLiteral("xml");
+}
+
 enum class WaveformKind {
     Constant = 0,
     Sine,
@@ -355,7 +382,7 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
     workspace_meta_label_ = new QLabel(QStringLiteral("No active document"), workspace_header);
     workspace_meta_label_->setObjectName(QStringLiteral("WorkspaceMeta"));
     workspace_hint_label_ = new QLabel(
-        QStringLiteral("Load CSV files, switch between workspace documents, and sculpt signals through the plot or table."),
+        QStringLiteral("Load CSV, JSON, tab-delimited, or Excel-compatible XML files, then sculpt signals through the plot or table."),
         workspace_header);
     workspace_hint_label_->setObjectName(QStringLiteral("WorkspaceHint"));
     workspace_hint_label_->setWordWrap(true);
@@ -396,8 +423,8 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
     table_panel_->set_signal(nullptr);
 
     auto* menu_file = menuBar()->addMenu(QStringLiteral("&File"));
-    auto* act_open = menu_file->addAction(QStringLiteral("&Open CSV files..."));
-    auto* act_save = menu_file->addAction(QStringLiteral("&Save current CSV..."));
+    auto* act_open = menu_file->addAction(QStringLiteral("&Open signal files..."));
+    auto* act_save = menu_file->addAction(QStringLiteral("&Save current file..."));
     undo_action_ = menu_file->addAction(QStringLiteral("&Undo"));
     menu_file->addSeparator();
     auto* act_quit = menu_file->addAction(QStringLiteral("&Quit"));
@@ -473,7 +500,7 @@ void MainWindow::dragEnterEvent(QDragEnterEvent* event) {
         return;
     }
     for (const QUrl& url : event->mimeData()->urls()) {
-        if (url.toLocalFile().endsWith(QStringLiteral(".csv"), Qt::CaseInsensitive)) {
+        if (is_supported_import_path(url.toLocalFile())) {
             event->acceptProposedAction();
             return;
         }
@@ -484,7 +511,7 @@ void MainWindow::dropEvent(QDropEvent* event) {
     QStringList paths;
     for (const QUrl& url : event->mimeData()->urls()) {
         const QString path = url.toLocalFile();
-        if (path.endsWith(QStringLiteral(".csv"), Qt::CaseInsensitive)) {
+        if (is_supported_import_path(path)) {
             paths.push_back(path);
         }
     }
@@ -504,16 +531,16 @@ void MainWindow::keyPressEvent(QKeyEvent* event) {
 void MainWindow::onOpen() {
     const QStringList paths = QFileDialog::getOpenFileNames(
         this,
-        QStringLiteral("Open CSV files"),
+        QStringLiteral("Open signal files"),
         {},
-        QStringLiteral("CSV files (*.csv)"));
+        import_file_filter());
     open_paths(paths);
 }
 
 void MainWindow::onSave() {
     if (active_document_index_ < 0 || active_document_index_ >= static_cast<int>(documents_.size())) {
         show_error(QStringLiteral("Nothing to save"),
-                   QStringLiteral("Load a CSV file first."));
+                   QStringLiteral("Load a supported signal file first."));
         return;
     }
 
@@ -523,9 +550,9 @@ void MainWindow::onSave() {
 
     const QString path = QFileDialog::getSaveFileName(
         this,
-        QStringLiteral("Save current CSV"),
+        QStringLiteral("Save current signal file"),
         initial_path,
-        QStringLiteral("CSV files (*.csv)"));
+        export_file_filter());
     if (path.isEmpty()) {
         return;
     }
@@ -593,7 +620,7 @@ void MainWindow::onAbout() {
         QStringLiteral("About Signal Editor"),
         QStringLiteral("<h3>Signal Editor</h3>"
                        "<p>Multi-file waveform editor built with C++23 and Qt 6.</p>"
-                       "<p>Current implementation supports CSV workspaces, enumerated-state signals, file switching, renaming, undo, waypoint drag/edit, point insertion and Gaussian brushing for numeric curves.</p>"));
+                       "<p>Current implementation supports CSV, JSON, tab-delimited, and SpreadsheetML XML workspaces, enumerated-state signals, file switching, renaming, undo, waypoint drag/edit, point insertion and Gaussian brushing for numeric curves.</p>"));
 }
 
 void MainWindow::onFileSelectionChanged(int index) {
@@ -1056,12 +1083,12 @@ void MainWindow::onCursorMoved(double t, double y) {
 void MainWindow::open_paths(const QStringList& paths) {
     for (const QString& path : paths) {
         if (!path.isEmpty()) {
-            load_csv(path);
+            load_document(path);
         }
     }
 }
 
-void MainWindow::load_csv(const QString& path) {
+void MainWindow::load_document(const QString& path) {
     const auto result = service_.load_from(std::filesystem::path(path.toStdString()));
     if (!result.is_ok()) {
         show_error(QStringLiteral("Load failed"),
@@ -1288,7 +1315,7 @@ void MainWindow::refresh_status(const QString& transient_message) {
             workspace_meta_label_->setText(QStringLiteral("No active document"));
         }
         if (workspace_hint_label_ != nullptr) {
-            workspace_hint_label_->setText(QStringLiteral("Load CSV files, switch between workspace documents, and sculpt signals through the plot or table."));
+            workspace_hint_label_->setText(QStringLiteral("Load CSV, JSON, tab-delimited, or Excel-compatible XML files, then sculpt signals through the plot or table."));
         }
         if (transient_message.isEmpty()) {
             statusBar()->showMessage(QStringLiteral("No file loaded"));

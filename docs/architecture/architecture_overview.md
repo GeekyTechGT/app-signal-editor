@@ -25,7 +25,7 @@ The key rule is that the domain and use cases do not depend on Qt, filesystem co
 | Use cases | `src/signal_editor/core/usecases/` | Orchestrates load/save/edit workflows |
 | Domain | `src/signal_editor/core/domain/` | Owns waveform entities, invariants, and editing primitives |
 | Ports | `src/signal_editor/ports/` | Defines persistence contracts |
-| Adapters | `src/signal_editor/adapters/` | Implements Qt UI and CSV persistence |
+| Adapters | `src/signal_editor/adapters/` | Implements Qt UI plus CSV and multi-format filesystem persistence |
 | Shared utilities | `src/common/` | Result types and reusable support code |
 
 ## 4. Why This Structure Matters
@@ -43,7 +43,7 @@ This architecture keeps the project extensible in practical ways:
 
 1. The main window asks `SignalEditorService` to load a path.
 2. The service delegates parsing to `ISignalRepository`.
-3. The CSV adapter returns a `SignalLibrary`.
+3. The filesystem adapter dispatches by extension and returns a `SignalLibrary` from CSV, JSON, TSV/TXT, or SpreadsheetML XML.
 4. The window binds the active document into the list, plot, and table widgets.
 
 ### 5.2 Edit
@@ -57,8 +57,8 @@ This architecture keeps the project extensible in practical ways:
 ### 5.3 Save
 
 1. The active document is synchronized back into the service.
-2. The service delegates persistence to the CSV adapter.
-3. The adapter exports the union time axis, interpolation metadata, and enum mappings.
+2. The service delegates persistence to the filesystem adapter selected at composition time.
+3. The adapter exports the union time axis, interpolation metadata, and enum mappings in the chosen target format.
 4. Enumerated values are written back as labels when the mapping is known, preserving human readability.
 5. The window clears dirty state and refreshes workspace summaries.
 
@@ -76,4 +76,4 @@ The current design optimizes for:
 
 - GUI delivery is currently centered on the Windows MinGW64 preset.
 - Linux presets focus on core and test workflows.
-- Persistence is currently limited to CSV-backed workspaces.
+- Native `.xlsx` / `.xls` workbook binaries are not yet supported; Excel users must export to CSV, TSV/TXT, or SpreadsheetML XML.

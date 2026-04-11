@@ -9,19 +9,19 @@
 
 ### 1.1 Purpose
 
-This specification describes the functional and non-functional requirements for Signal Editor, a C++23 desktop application with a Qt 6 GUI used to inspect, edit, generate, and export waveform data stored in CSV files.
+This specification describes the functional and non-functional requirements for Signal Editor, a C++23 desktop application with a Qt 6 GUI used to inspect, edit, generate, and export waveform data stored in engineering-friendly interchange files.
 
 ### 1.2 Scope
 
 The current product scope includes:
 
-- loading one or more CSV files into a workspace
+- loading one or more CSV, JSON, TSV/TXT, or SpreadsheetML XML files into a workspace
 - switching between loaded documents without closing the application
 - viewing and editing signals through both a plot and a sample table
 - creating new signals from common waveform templates and enumerated state definitions
 - renaming and removing signals from the active document
 - changing interpolation mode between linear and step behavior
-- saving edited data back to CSV with interpolation metadata preserved
+- saving edited data back to supported file formats with interpolation metadata preserved where applicable
 - undoing edits within the active document session
 
 Out of scope for this release:
@@ -46,16 +46,16 @@ Signal Editor is a local desktop engineering tool. The core editing model is fra
 
 - Windows 10/11 with MinGW64 and Qt 6 for GUI workflows
 - Linux with GCC for core library and automated test workflows
-- Local filesystem access to CSV inputs and outputs
+- Local filesystem access to CSV, JSON, TSV/TXT, and SpreadsheetML XML inputs and outputs
 
 ## 3. Functional Requirements
 
 | ID | Requirement |
 |----|-------------|
-| FR-1 | The system shall load CSV files whose first column is time and whose remaining columns represent signals. |
+| FR-1 | The system shall load CSV, JSON, TSV/TXT, and SpreadsheetML XML files into the shared signal editing model. |
 | FR-2 | The system shall accept both header-based signal names and generated fallback names when headers are absent. |
 | FR-3 | The system shall support opening files through the menu and drag-and-drop. |
-| FR-4 | The system shall maintain a workspace containing multiple loaded CSV documents. |
+| FR-4 | The system shall maintain a workspace containing multiple loaded signal documents. |
 | FR-5 | The system shall let the user activate a different document without losing in-memory edits in the others. |
 | FR-6 | The system shall display all signals of the active document in a dedicated list panel. |
 | FR-7 | The system shall render the selected signal on an interactive plot with auto-fitted axes. |
@@ -69,8 +69,8 @@ Signal Editor is a local desktop engineering tool. The core editing model is fra
 | FR-15 | The system shall allow renaming and removing signals in the active document. |
 | FR-16 | The system shall support per-signal interpolation modes of `linear` and `step`. |
 | FR-17 | The system shall force enumerated signals to use `step` interpolation semantics. |
-| FR-18 | The system shall save interpolation metadata when exporting CSV files. |
-| FR-19 | The system shall save enumerated mapping metadata when exporting CSV files. |
+| FR-18 | The system shall save interpolation metadata when exporting supported tabular files. |
+| FR-19 | The system shall save enumerated mapping metadata when exporting supported tabular files. |
 | FR-20 | The system shall accept enumerated values encoded either through `# enum_map` metadata or inline `label:value` tokens during CSV import. |
 | FR-21 | The system shall render enumerated signal values as labels on the plot Y axis and in tabular editing controls. |
 | FR-22 | The system shall provide undo for edits made to the active document. |
@@ -78,16 +78,18 @@ Signal Editor is a local desktop engineering tool. The core editing model is fra
 
 ## 4. Data Requirements
 
-### 4.1 CSV Input Format
+### 4.1 Supported Input Formats
 
-- Delimiter: comma
+- CSV: comma-delimited table with the first column representing strictly increasing time
+- TSV/TXT: tab-delimited equivalent of the CSV model, suitable for Excel text exports
+- SpreadsheetML XML: Excel 2003 XML workbook containing a single table-shaped worksheet
+- JSON: structured object/array representation with explicit signals, interpolation, enumeration, and sample arrays
 - Decimal separator: dot
-- First column: strictly increasing time values
-- Additional columns: signal values aligned to the row time
-- Optional metadata rows before the header: interpolation descriptors and enum mappings
-- Optional header row: signal names
+- Optional metadata rows before the header in tabular formats: interpolation descriptors and enum mappings
+- Optional header row in tabular formats: signal names
 - Enumerated state values may be encoded as labels when a matching `# enum_map` row exists
 - Enumerated state values may also be bootstrapped inline through `label:value` cells
+- Native `.xlsx` / `.xls` workbook binaries are out of scope for the current implementation
 
 ### 4.2 Export Rules
 
@@ -114,10 +116,10 @@ Signal Editor is a local desktop engineering tool. The core editing model is fra
 | NFR-3 | The codebase shall keep build support for Windows GUI workflows and Linux core/test workflows. |
 | NFR-4 | Public module interfaces shall be documented using Doxygen-style comments. |
 | NFR-5 | The UI shall make active document state and edit affordances easy to understand. |
-| NFR-6 | Unit tests shall cover domain logic, service orchestration, and CSV repository behavior. |
+| NFR-6 | Unit tests shall cover domain logic, service orchestration, and repository behavior across the supported file formats. |
 
 ## 7. Verification Strategy
 
-- Unit tests validate `Signal`, `SignalLibrary`, `SignalEditorService`, and `CsvSignalRepository`.
+- Unit tests validate `Signal`, `SignalLibrary`, `SignalEditorService`, `CsvSignalRepository`, and the multi-format file repository.
 - Manual GUI verification covers workspace switching, plot interactions, and save/load round-trips.
 - Documentation review verifies alignment between implementation and stated architecture.

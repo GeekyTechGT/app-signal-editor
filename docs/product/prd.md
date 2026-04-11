@@ -24,13 +24,13 @@ Signal Editor exists to cover the gap between heavyweight model-based tooling an
 
 | ID | Requirement | Priority | Notes |
 |----|-------------|----------|-------|
-| FR-01 | The product shall load CSV files containing a shared time column and one or more signal columns. | High | Header row optional |
+| FR-01 | The product shall load CSV, JSON, TSV/TXT, and SpreadsheetML XML files containing one or more signals. | High | Header row optional for tabular formats |
 | FR-02 | The product shall support a multi-file workspace with an active document concept. | High | Required for quick comparison/edit switching |
 | FR-03 | The product shall allow direct manipulation of plotted samples, including drag, insert, remove, and Gaussian brushing. | High | Main UX differentiator |
 | FR-04 | The product shall allow precise sample editing in tabular form. | High | Complements plot editing |
 | FR-05 | The product shall allow creating new signals from template waveforms and user-defined enumerated state mappings. | Medium | Supports synthetic trace authoring and boolean/state signals |
-| FR-06 | The product shall preserve interpolation mode metadata when saving and reloading CSV files. | High | Prevents semantic loss |
-| FR-07 | The product shall preserve enumerated state mappings when saving and reloading CSV files. | High | Required for readable state-based signals |
+| FR-06 | The product shall preserve interpolation mode metadata when saving and reloading supported file formats. | High | Prevents semantic loss |
+| FR-07 | The product shall preserve enumerated state mappings when saving and reloading supported file formats. | High | Required for readable state-based signals |
 | FR-08 | The product shall display enumerated signal values as labels in the table and on the plot Y axis. | High | Prevents users from reasoning in raw numeric codes only |
 | FR-09 | The product shall provide undo at the active document level. | High | Guards interactive edits |
 
@@ -42,7 +42,7 @@ Signal Editor exists to cover the gap between heavyweight model-based tooling an
 | NFR-02 | The GUI shall communicate active workspace state clearly, including file status and edit affordances. | High |
 | NFR-03 | The repository shall build on Windows MinGW64 for the GUI and Linux GCC for core/test workflows. | High |
 | NFR-04 | Public module boundaries shall be documented with Doxygen-style comments. | Medium |
-| NFR-05 | CSV round-trip behavior shall be validated through automated tests. | High |
+| NFR-05 | Multi-format round-trip behavior for the supported repository formats shall be validated through automated tests. | High |
 
 ## Acceptance Criteria
 
