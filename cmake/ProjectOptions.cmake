@@ -5,11 +5,11 @@
 # =============================================================================
 if(WIN32 AND MINGW)
     get_filename_component(MINGW_BIN_DIR ${CMAKE_CXX_COMPILER} DIRECTORY)
-    set(MYPRJ_MINGW_BIN_DIR "${MINGW_BIN_DIR}" CACHE INTERNAL "MinGW bin directory")
+    set(SIGNAL_EDITOR_MINGW_BIN_DIR "${MINGW_BIN_DIR}" CACHE INTERNAL "MinGW bin directory")
 endif()
 
 function(myprj_setup_mingw_runtime)
-    if(WIN32 AND MINGW AND DEFINED MYPRJ_MINGW_BIN_DIR)
+    if(WIN32 AND MINGW AND DEFINED SIGNAL_EDITOR_MINGW_BIN_DIR)
         set(MINGW_RUNTIME_DLLS
             "libstdc++-6.dll"
             "libgcc_s_seh-1.dll"
@@ -18,10 +18,10 @@ function(myprj_setup_mingw_runtime)
         )
         set(MINGW_DLL_COPY_COMMANDS)
         foreach(dll ${MINGW_RUNTIME_DLLS})
-            if(EXISTS "${MYPRJ_MINGW_BIN_DIR}/${dll}")
+            if(EXISTS "${SIGNAL_EDITOR_MINGW_BIN_DIR}/${dll}")
                 list(APPEND MINGW_DLL_COPY_COMMANDS
                     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                        "${MYPRJ_MINGW_BIN_DIR}/${dll}"
+                        "${SIGNAL_EDITOR_MINGW_BIN_DIR}/${dll}"
                         "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${dll}"
                 )
                 message(STATUS "  Will copy: ${dll}")
@@ -40,7 +40,7 @@ endfunction()
 # Copy required DLLs to executable directory (Windows)
 # =============================================================================
 function(myprj_copy_runtime_dlls target)
-    if(WIN32 AND MINGW AND DEFINED MYPRJ_MINGW_BIN_DIR)
+    if(WIN32 AND MINGW AND DEFINED SIGNAL_EDITOR_MINGW_BIN_DIR)
         set(_mingw_runtime_dlls
             "libstdc++-6.dll"
             "libgcc_s_seh-1.dll"
@@ -48,10 +48,10 @@ function(myprj_copy_runtime_dlls target)
             "libssp-0.dll"
         )
         foreach(dll IN LISTS _mingw_runtime_dlls)
-            if(EXISTS "${MYPRJ_MINGW_BIN_DIR}/${dll}")
+            if(EXISTS "${SIGNAL_EDITOR_MINGW_BIN_DIR}/${dll}")
                 add_custom_command(TARGET ${target} POST_BUILD
                     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                        "${MYPRJ_MINGW_BIN_DIR}/${dll}"
+                        "${SIGNAL_EDITOR_MINGW_BIN_DIR}/${dll}"
                         $<TARGET_FILE_DIR:${target}>
                 )
             endif()
@@ -60,19 +60,19 @@ function(myprj_copy_runtime_dlls target)
 endfunction()
 
 function(myprj_copy_mingw_extra_dlls target)
-    if(WIN32 AND MINGW AND DEFINED MYPRJ_MINGW_BIN_DIR)
+    if(WIN32 AND MINGW AND DEFINED SIGNAL_EDITOR_MINGW_BIN_DIR)
         foreach(dll IN LISTS ARGN)
-            if(EXISTS "${MYPRJ_MINGW_BIN_DIR}/${dll}")
+            if(EXISTS "${SIGNAL_EDITOR_MINGW_BIN_DIR}/${dll}")
                 add_custom_command(TARGET ${target} POST_BUILD
                     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                        "${MYPRJ_MINGW_BIN_DIR}/${dll}"
+                        "${SIGNAL_EDITOR_MINGW_BIN_DIR}/${dll}"
                         $<TARGET_FILE_DIR:${target}>
                 )
-                install(FILES "${MYPRJ_MINGW_BIN_DIR}/${dll}"
+                install(FILES "${SIGNAL_EDITOR_MINGW_BIN_DIR}/${dll}"
                     DESTINATION ${CMAKE_INSTALL_BINDIR}
                 )
             else()
-                message(WARNING "MinGW extra DLL not found: ${MYPRJ_MINGW_BIN_DIR}/${dll}")
+                message(WARNING "MinGW extra DLL not found: ${SIGNAL_EDITOR_MINGW_BIN_DIR}/${dll}")
             endif()
         endforeach()
     endif()
@@ -82,7 +82,7 @@ endfunction()
 # Static C++ runtime on Windows (Qt remains dynamic)
 # =============================================================================
 function(myprj_enable_static_cpp_runtime target)
-    if(WIN32 AND MYPRJ_STATIC_CPP_RUNTIME)
+    if(WIN32 AND SIGNAL_EDITOR_STATIC_CPP_RUNTIME)
         if(MSVC)
             set_property(TARGET ${target} PROPERTY
                 MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
@@ -131,7 +131,7 @@ endfunction()
 # Sanitizers (for debug builds)
 # =============================================================================
 function(myprj_enable_sanitizers target)
-    if(MYPRJ_ENABLE_SANITIZERS AND CMAKE_BUILD_TYPE STREQUAL "Debug")
+    if(SIGNAL_EDITOR_ENABLE_SANITIZERS AND CMAKE_BUILD_TYPE STREQUAL "Debug")
         if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
             target_compile_options(${target} PRIVATE
                 -fsanitize=address,undefined
@@ -184,8 +184,8 @@ endfunction()
 # Windows Qt deploy helper (windeployqt6 / windeployqt)
 # =============================================================================
 function(myprj_find_windeployqt out_var)
-    if(DEFINED MYPRJ_WINDEPLOYQT_EXECUTABLE)
-        set(${out_var} "${MYPRJ_WINDEPLOYQT_EXECUTABLE}" PARENT_SCOPE)
+    if(DEFINED SIGNAL_EDITOR_WINDEPLOYQT_EXECUTABLE)
+        set(${out_var} "${SIGNAL_EDITOR_WINDEPLOYQT_EXECUTABLE}" PARENT_SCOPE)
         return()
     endif()
 
@@ -201,7 +201,7 @@ function(myprj_find_windeployqt out_var)
     )
 
     if(_windeployqt_exe)
-        set(MYPRJ_WINDEPLOYQT_EXECUTABLE "${_windeployqt_exe}" CACHE INTERNAL "windeployqt executable")
+        set(SIGNAL_EDITOR_WINDEPLOYQT_EXECUTABLE "${_windeployqt_exe}" CACHE INTERNAL "windeployqt executable")
         set(${out_var} "${_windeployqt_exe}" PARENT_SCOPE)
     else()
         set(${out_var} "" PARENT_SCOPE)

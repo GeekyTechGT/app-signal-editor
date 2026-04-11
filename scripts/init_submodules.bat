@@ -1,7 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 
-REM Initialize and update git submodules for MyProject
+REM Initialize and update git submodules for Signal Editor
 REM Configure submodules as: URL,PATH,BRANCH (branch optional)
 REM Separate entries with ';' and avoid spaces.
 REM Example:

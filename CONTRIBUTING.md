@@ -1,108 +1,143 @@
 # Contributing to Signal Editor
 
-This repository is treated as a production-grade engineering codebase. Contributions are expected to preserve architectural boundaries, keep the editing workflow stable, and update the surrounding documentation when behavior changes.
+Signal Editor is maintained as a production-grade engineering repository. Contributions are expected to improve the product without weakening architectural boundaries, file-format guarantees, documentation quality, or user workflow clarity.
 
-## Read This First
+This guide describes the working expectations for contributors and reviewers.
 
-Recommended onboarding order:
+## Recommended Reading Order
+
+Before making material changes, read the repository in this order:
 
 1. `README.md`
-2. `docs/product/vision.md`
-3. `docs/product/prd.md`
-4. `docs/specs/srs.md`
-5. `docs/architecture/architecture_overview.md`
-6. `SECURITY.md`
-7. `CHANGELOG.md`
+2. `GOVERNANCE.md`
+3. `docs/product/vision.md`
+4. `docs/product/prd.md`
+5. `docs/specs/srs.md`
+6. `docs/architecture/architecture_overview.md`
+7. `SECURITY.md`
+8. `CHANGELOG.md`
 
 ## Definition of Done
 
-A contribution is complete when it includes every applicable part of the change:
+A change is only complete when every affected artifact has been updated.
+
+That usually means:
 
 - source code
-- tests
-- updated product or architecture documentation when scope changed
-- updated requirements when expected behavior changed
-- changelog entry when the change is user-visible or workflow-relevant
+- automated tests for changed behavior
+- product documentation when user-visible behavior changed
+- architecture documentation when structure or boundaries changed
+- specifications when requirements or semantics changed
+- changelog entries when the change matters to users or maintainers
 
 ## Architectural Expectations
 
-Keep the existing module boundaries intact:
+Keep the established boundaries intact.
 
-- `core/domain/` owns invariants and pure editing logic
+- `core/domain/` owns invariants and editing rules
 - `core/usecases/` orchestrates workflows and failure handling
 - `ports/` define abstractions consumed by the core
-- `adapters/` handle frameworks, UI, and persistence details
-- `apps/` stay thin and only wire dependencies together
+- `adapters/` implement framework and infrastructure behavior
+- `apps/` remain thin composition roots
 
-Do not leak Qt types or filesystem concerns into the domain layer.
+Do not move Qt types, filesystem concerns, or persistence-specific behavior into the domain layer.
 
-## Development Workflow
+## Product and UX Expectations
 
-### 1. Start from a clean understanding
+Signal Editor is not a generic desktop shell. It is a specialized waveform-editing tool for engineering workflows.
 
-Before editing:
+UI changes should therefore improve one or more of the following:
 
-```bash
-cmake --preset linux-gcc-debug
-cmake --build --preset linux-gcc-debug
-ctest --preset linux-gcc-debug --output-on-failure
-```
+- discoverability
+- edit speed
+- state clarity
+- error prevention
+- format transparency
+- workflow consistency between plot and table editing
 
-If the change touches the GUI, also validate the corresponding Windows MinGW preset.
+Avoid visual churn that changes the interface without improving task execution.
 
-### 2. Make the smallest coherent change
+## Documentation Expectations
 
-Keep branches focused. A branch should ideally address one concern:
-
-- one feature
-- one bug fix
-- one refactor with bounded impact
-- one documentation/requirements update
-
-### 3. Preserve UX quality
-
-Signal Editor is an interactive desktop tool. UI changes must improve clarity, responsiveness, or discoverability. Avoid decorative churn that does not improve actual usage.
-
-### 4. Update docs with intent
+Documentation is part of the deliverable.
 
 Update these documents when relevant:
 
-- `README.md` for setup, structure, or workflow changes
-- `docs/product/` for user-facing scope or goals
-- `docs/specs/srs.md` for behavioral requirements
-- `docs/architecture/` for structural or dependency changes
-- `CHANGELOG.md` for notable changes
+- `README.md` for setup, repository structure, format support, and overall workflow
+- `GOVERNANCE.md` when repository operating rules or decision boundaries change
+- `docs/product/vision.md` when target users or strategic goals change
+- `docs/product/prd.md` when product capabilities or priorities change
+- `docs/specs/srs.md` when behavior or non-functional expectations change
+- `docs/architecture/*` when the design, runtime flow, or boundaries change
+- `CHANGELOG.md` for release-facing visibility
+
+## Development Workflow
+
+### 1. Start from current repository state
+
+Understand the existing implementation before editing it. Do not assume that documentation or code from older iterations still reflects the current system.
+
+### 2. Keep changes coherent
+
+A branch or commit should ideally cover one bounded concern:
+
+- one feature
+- one bug fix
+- one refactor
+- one documentation alignment effort
+
+### 3. Avoid unrelated edits
+
+Do not mix unrelated cleanup, generated churn, or unrelated deletions into the same change unless those edits are required to make the primary change safe.
+
+### 4. Preserve explicit semantics
+
+Signal Editor has behavior that matters beyond what the UI visibly shows, including:
+
+- interpolation rules
+- enumerated mapping persistence
+- multi-format load/save behavior
+- undo behavior
+- active workspace semantics
+
+Be careful not to change these implicitly.
 
 ## Coding Standards
 
-- Prefer explicit code over compact cleverness.
-- Preserve deterministic behavior in editing and export flows.
-- Keep public APIs documented with Doxygen when they are part of module boundaries.
-- Remove dead code and stale comments rather than layering new behavior on top of them.
-- Keep error reporting actionable for both UI and test diagnostics.
+- Prefer explicit, readable code over compact cleverness.
+- Keep error handling actionable for both UI users and developers.
+- Use Doxygen comments on public module boundaries where they improve discoverability.
+- Remove dead code and stale comments rather than layering new behavior around them.
+- Preserve deterministic behavior in parsing, editing, and export flows.
 
 ## Testing Expectations
 
-At minimum, run tests that cover every touched behavior. For changes in this repository that usually means:
+Run the most relevant checks for the area you touched.
 
-- domain tests for waveform invariants and interpolation
-- service tests for editing workflows and error handling
-- CSV repository tests for round-trip behavior and metadata handling
+Typical expectations include:
+
+- domain tests for invariants, interpolation, and enumerated behavior
+- service tests for workflow-level editing behavior
+- repository tests for round-trip persistence and format parsing
+- manual GUI validation when workspace or interaction behavior changed
 
 ## Commit Guidance
 
-Use concise, professional English commit messages that describe intent.
+Use concise, professional English commit messages that communicate intent.
 
 Good examples:
 
-- `Refine Signal Editor workspace UX and plot interactions`
-- `Document Signal Editor architecture and product scope`
-- `Tighten CSV repository metadata round-trip coverage`
+- `Refine workspace navigation and shared interpolation controls`
+- `Add enumerated signal fixtures for multi-format persistence coverage`
+- `Document Signal Editor governance and delivery expectations`
 
-## Pull Request Checklist
+## Review Checklist
 
-- [ ] Code matches the intended architecture
-- [ ] Tests were run and relevant results are recorded
-- [ ] Documentation was updated where applicable
-- [ ] Dead code and stale comments were removed
-- [ ] The change leaves the repository easier to understand than before
+Before opening a change for review, verify:
+
+- the code respects architectural boundaries
+- tests cover the modified behavior where practical
+- documentation matches the implementation
+- no stale scaffold language remains in active docs
+- no unrelated repository churn was introduced
+- user-visible changes are reflected in the changelog when appropriate

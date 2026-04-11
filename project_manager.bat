@@ -1,19 +1,18 @@
 @echo off
 REM ============================================================
-REM  Project Manager - MyProject
+REM  Project Manager - Signal Editor
 REM ============================================================
 REM  Main project management script for common operations
 REM ============================================================
 
 setlocal enabledelayedexpansion
 
-REM Docker path (set if Docker is not in PATH)
+title Signal Editor - Project Manager
+
 set "DOCKER_BIN=C:\Program Files\Docker\Docker\resources\bin"
 set "PATH=%DOCKER_BIN%;%PATH%"
 
-REM Enable ANSI escape codes for colors (Windows 10+)
 for /f %%A in ('"prompt $E & for %%B in (1) do rem"') do set "ESC=%%A"
-
 set "GREEN=!ESC![32m"
 set "YELLOW=!ESC![33m"
 set "RED=!ESC![31m"
@@ -22,7 +21,6 @@ set "BLUE=!ESC![34m"
 set "MAGENTA=!ESC![35m"
 set "RESET=!ESC![0m"
 
-REM Script paths
 set "PROJECT_ROOT=%~dp0"
 if "%PROJECT_ROOT:~-1%"=="\" set "PROJECT_ROOT=%PROJECT_ROOT:~0,-1%"
 set "INIT_PROJECT_SCRIPT=%PROJECT_ROOT%\scripts\init_project.bat"
@@ -31,12 +29,6 @@ set "INIT_SUBMODULES_SCRIPT=%PROJECT_ROOT%\scripts\init_submodules.bat"
 set "PM_HELPERS_SCRIPT=%PROJECT_ROOT%\scripts\pm_helpers.bat"
 set "METADATA_FILE=%PROJECT_ROOT%\project.metadata.json"
 
-REM Build directories
-set "BUILD_DIR=build"
-set "DEPLOY_DIR=deploy"
-set "TEST_RESULTS_DIR=tests\06.results"
-
-REM Validate reusable helper module once at startup.
 if not exist "%PM_HELPERS_SCRIPT%" (
     echo.
     echo !RED![ERROR]!RESET! Missing helper module: %PM_HELPERS_SCRIPT%
@@ -50,7 +42,7 @@ if not exist "%PM_HELPERS_SCRIPT%" (
 cls
 echo.
 echo !CYAN!======================================================!RESET!
-echo !CYAN!         MyProject - Project Manager!RESET!
+echo !CYAN!         Signal Editor - Project Manager!RESET!
 echo !CYAN!======================================================!RESET!
 echo.
 echo   !BLUE!Project Setup!RESET!
@@ -72,12 +64,18 @@ echo   !GREEN![9]!RESET! Generate Installer
 echo.
 echo   !BLUE!Other!RESET!
 echo   !GREEN![10]!RESET! Init Submodules
+echo   !GREEN![11]!RESET! Git Hooks Status
 echo   !GREEN![0]!RESET! Exit
+echo.
+echo !MAGENTA!Preset matrix exposed by this repository:!RESET!
+echo   Windows: `windows-gcc`, `windows-clang`, `windows-MSVC` x `debug/release`
+echo   Linux:   `linux-gcc`, `linux-clang` x `debug/release`
+echo   Docker:  `docker-gcc`, `docker-clang` x `debug/release`
 echo.
 echo !CYAN!======================================================!RESET!
 echo.
 
-set /p "choice=  Select an option [0-10]: "
+set /p "choice=  Select an option [0-11]: "
 
 if "%choice%"=="1"  goto init_project
 if "%choice%"=="2"  goto customize_project
@@ -89,6 +87,7 @@ if "%choice%"=="7"  goto pipeline_menu
 if "%choice%"=="8"  goto deploy_menu
 if "%choice%"=="9"  goto generate_installer
 if "%choice%"=="10" goto init_submodules
+if "%choice%"=="11" goto status_menu
 if "%choice%"=="0"  goto exit_script
 
 echo.
@@ -104,7 +103,6 @@ if exist "%INIT_PROJECT_SCRIPT%" (
     call "%INIT_PROJECT_SCRIPT%"
 ) else (
     echo !RED![ERROR]!RESET! Script not found: %INIT_PROJECT_SCRIPT%
-    echo         Please ensure you are running from the project root.
 )
 echo.
 pause
@@ -117,7 +115,6 @@ if exist "%CUSTOMIZE_PROJECT_SCRIPT%" (
     call "%CUSTOMIZE_PROJECT_SCRIPT%"
 ) else (
     echo !RED![ERROR]!RESET! Script not found: %CUSTOMIZE_PROJECT_SCRIPT%
-    echo         Please ensure you are running from the project root.
 )
 echo.
 pause
@@ -154,7 +151,6 @@ if exist "%INIT_SUBMODULES_SCRIPT%" (
     call "%INIT_SUBMODULES_SCRIPT%"
 ) else (
     echo !RED![ERROR]!RESET! Script not found: %INIT_SUBMODULES_SCRIPT%
-    echo         Please ensure you are running from the project root.
 )
 echo.
 pause
@@ -164,9 +160,11 @@ goto main_menu
 call scripts\pm_pipeline.bat
 goto main_menu
 
+:status_menu
+call scripts\pm_status.bat
+goto main_menu
+
 :exit_script
-cls
 echo.
-echo !GREEN!  Goodbye!!RESET!
-echo.
+echo !GREEN![DONE]!RESET! Exiting Project Manager.
 exit /b 0

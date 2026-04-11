@@ -15,7 +15,7 @@
             }
         },
         {
-            "name": "windows-mingw64-base",
+            "name": "windows-gcc-base",
             "hidden": true,
             "inherits": "base",
             "generator": "Ninja",
@@ -25,38 +25,51 @@
                 "rhs": "Windows"
             },
             "cacheVariables": {
-                "CMAKE_C_COMPILER":   "C:/eng_apps/msys64/mingw64/bin/gcc.exe",
+                "CMAKE_C_COMPILER": "C:/eng_apps/msys64/mingw64/bin/gcc.exe",
                 "CMAKE_CXX_COMPILER": "C:/eng_apps/msys64/mingw64/bin/g++.exe",
-                "CMAKE_MAKE_PROGRAM": "C:/eng_apps/msys64/mingw64/bin/ninja.exe"
+                "CMAKE_MAKE_PROGRAM": "C:/eng_apps/msys64/mingw64/bin/ninja.exe",
+                "CMAKE_PREFIX_PATH": "C:/eng_apps/Qt/6.10.1/mingw_64"
             },
             "environment": {
                 "PATH": "C:/eng_apps/msys64/mingw64/bin;$penv{PATH}"
             }
         },
         {
-            "name": "windows-mingw64-debug",
-            "displayName": "Windows MinGW64 GCC Debug",
-            "inherits": "windows-mingw64-base",
+            "name": "windows-clang-base",
+            "hidden": true,
+            "inherits": "base",
+            "generator": "Ninja",
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            },
             "cacheVariables": {
-                "CMAKE_BUILD_TYPE":          "Debug",
-                "MYPRJ_BUILD_TESTS":         "ON",
-                "MYPRJ_BUILD_GUI":           "ON",
-                "MYPRJ_BUILD_SHARED":        "ON",
-                "CMAKE_PREFIX_PATH":         "C:/eng_apps/Qt/6.10.1/mingw_64",
-                "MYPRJ_ENABLE_SANITIZERS":   "OFF"
+                "CMAKE_C_COMPILER": "C:/Program Files/LLVM/bin/clang.exe",
+                "CMAKE_CXX_COMPILER": "C:/Program Files/LLVM/bin/clang++.exe",
+                "CMAKE_MAKE_PROGRAM": "C:/eng_apps/msys64/mingw64/bin/ninja.exe",
+                "CMAKE_PREFIX_PATH": "C:/eng_apps/Qt/6.10.1/mingw_64"
+            },
+            "environment": {
+                "PATH": "C:/Program Files/LLVM/bin;C:/eng_apps/msys64/mingw64/bin;$penv{PATH}"
             }
         },
         {
-            "name": "windows-mingw64-release",
-            "displayName": "Windows MinGW64 GCC Release",
-            "inherits": "windows-mingw64-base",
+            "name": "windows-MSVC-base",
+            "hidden": true,
+            "inherits": "base",
+            "generator": "Visual Studio 17 2022",
+            "architecture": {
+                "value": "x64"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            },
             "cacheVariables": {
-                "CMAKE_BUILD_TYPE":          "Release",
-                "MYPRJ_BUILD_TESTS":         "ON",
-                "MYPRJ_BUILD_GUI":           "ON",
-                "MYPRJ_BUILD_SHARED":        "ON",
-                "CMAKE_PREFIX_PATH":         "C:/eng_apps/Qt/6.10.1/mingw_64",
-                "MYPRJ_ENABLE_SANITIZERS":   "OFF"
+                "CMAKE_PREFIX_PATH": "C:/eng_apps/Qt/6.10.1/msvc2022_64",
+                "CMAKE_CONFIGURATION_TYPES": "Debug;Release"
             }
         },
         {
@@ -70,8 +83,119 @@
                 "rhs": "Linux"
             },
             "cacheVariables": {
-                "CMAKE_C_COMPILER":   "gcc",
+                "CMAKE_C_COMPILER": "gcc",
                 "CMAKE_CXX_COMPILER": "g++"
+            }
+        },
+        {
+            "name": "linux-clang-base",
+            "hidden": true,
+            "inherits": "base",
+            "generator": "Ninja",
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Linux"
+            },
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "clang",
+                "CMAKE_CXX_COMPILER": "clang++"
+            }
+        },
+        {
+            "name": "docker-gcc-base",
+            "hidden": true,
+            "inherits": "base",
+            "generator": "Ninja",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "gcc",
+                "CMAKE_CXX_COMPILER": "g++",
+                "SIGNAL_EDITOR_BUILD_TESTS": "ON",
+                "SIGNAL_EDITOR_BUILD_GUI": "OFF",
+                "SIGNAL_EDITOR_BUILD_SHARED": "OFF"
+            }
+        },
+        {
+            "name": "docker-clang-base",
+            "hidden": true,
+            "inherits": "base",
+            "generator": "Ninja",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "clang",
+                "CMAKE_CXX_COMPILER": "clang++",
+                "SIGNAL_EDITOR_BUILD_TESTS": "ON",
+                "SIGNAL_EDITOR_BUILD_GUI": "OFF",
+                "SIGNAL_EDITOR_BUILD_SHARED": "OFF"
+            }
+        },
+        {
+            "name": "windows-gcc-debug",
+            "displayName": "Windows GCC Debug",
+            "inherits": "windows-gcc-base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "SIGNAL_EDITOR_BUILD_TESTS": "ON",
+                "SIGNAL_EDITOR_BUILD_GUI": "ON",
+                "SIGNAL_EDITOR_BUILD_SHARED": "ON",
+                "SIGNAL_EDITOR_ENABLE_SANITIZERS": "OFF"
+            }
+        },
+        {
+            "name": "windows-gcc-release",
+            "displayName": "Windows GCC Release",
+            "inherits": "windows-gcc-base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "SIGNAL_EDITOR_BUILD_TESTS": "ON",
+                "SIGNAL_EDITOR_BUILD_GUI": "ON",
+                "SIGNAL_EDITOR_BUILD_SHARED": "ON",
+                "SIGNAL_EDITOR_ENABLE_SANITIZERS": "OFF"
+            }
+        },
+        {
+            "name": "windows-clang-debug",
+            "displayName": "Windows Clang Debug",
+            "inherits": "windows-clang-base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "SIGNAL_EDITOR_BUILD_TESTS": "ON",
+                "SIGNAL_EDITOR_BUILD_GUI": "ON",
+                "SIGNAL_EDITOR_BUILD_SHARED": "ON",
+                "SIGNAL_EDITOR_ENABLE_SANITIZERS": "OFF"
+            }
+        },
+        {
+            "name": "windows-clang-release",
+            "displayName": "Windows Clang Release",
+            "inherits": "windows-clang-base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "SIGNAL_EDITOR_BUILD_TESTS": "ON",
+                "SIGNAL_EDITOR_BUILD_GUI": "ON",
+                "SIGNAL_EDITOR_BUILD_SHARED": "ON",
+                "SIGNAL_EDITOR_ENABLE_SANITIZERS": "OFF"
+            }
+        },
+        {
+            "name": "windows-MSVC-debug",
+            "displayName": "Windows MSVC Debug",
+            "inherits": "windows-MSVC-base",
+            "cacheVariables": {
+                "SIGNAL_EDITOR_BUILD_TESTS": "ON",
+                "SIGNAL_EDITOR_BUILD_GUI": "ON",
+                "SIGNAL_EDITOR_BUILD_SHARED": "ON",
+                "SIGNAL_EDITOR_ENABLE_SANITIZERS": "OFF"
+            }
+        },
+        {
+            "name": "windows-MSVC-release",
+            "displayName": "Windows MSVC Release",
+            "inherits": "windows-MSVC-base",
+            "cacheVariables": {
+                "SIGNAL_EDITOR_BUILD_TESTS": "ON",
+                "SIGNAL_EDITOR_BUILD_GUI": "ON",
+                "SIGNAL_EDITOR_BUILD_SHARED": "ON",
+                "SIGNAL_EDITOR_ENABLE_SANITIZERS": "OFF"
             }
         },
         {
@@ -79,11 +203,11 @@
             "displayName": "Linux GCC Debug",
             "inherits": "linux-gcc-base",
             "cacheVariables": {
-                "CMAKE_BUILD_TYPE":        "Debug",
-                "MYPRJ_BUILD_TESTS":       "ON",
-                "MYPRJ_BUILD_GUI":         "OFF",
-                "MYPRJ_BUILD_SHARED":      "ON",
-                "MYPRJ_ENABLE_SANITIZERS": "ON"
+                "CMAKE_BUILD_TYPE": "Debug",
+                "SIGNAL_EDITOR_BUILD_TESTS": "ON",
+                "SIGNAL_EDITOR_BUILD_GUI": "OFF",
+                "SIGNAL_EDITOR_BUILD_SHARED": "ON",
+                "SIGNAL_EDITOR_ENABLE_SANITIZERS": "ON"
             }
         },
         {
@@ -91,24 +215,246 @@
             "displayName": "Linux GCC Release",
             "inherits": "linux-gcc-base",
             "cacheVariables": {
-                "CMAKE_BUILD_TYPE":        "Release",
-                "MYPRJ_BUILD_TESTS":       "ON",
-                "MYPRJ_BUILD_GUI":         "OFF",
-                "MYPRJ_BUILD_SHARED":      "ON",
-                "MYPRJ_ENABLE_SANITIZERS": "OFF"
+                "CMAKE_BUILD_TYPE": "Release",
+                "SIGNAL_EDITOR_BUILD_TESTS": "ON",
+                "SIGNAL_EDITOR_BUILD_GUI": "OFF",
+                "SIGNAL_EDITOR_BUILD_SHARED": "ON",
+                "SIGNAL_EDITOR_ENABLE_SANITIZERS": "OFF"
+            }
+        },
+        {
+            "name": "linux-clang-debug",
+            "displayName": "Linux Clang Debug",
+            "inherits": "linux-clang-base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "SIGNAL_EDITOR_BUILD_TESTS": "ON",
+                "SIGNAL_EDITOR_BUILD_GUI": "OFF",
+                "SIGNAL_EDITOR_BUILD_SHARED": "ON",
+                "SIGNAL_EDITOR_ENABLE_SANITIZERS": "ON"
+            }
+        },
+        {
+            "name": "linux-clang-release",
+            "displayName": "Linux Clang Release",
+            "inherits": "linux-clang-base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "SIGNAL_EDITOR_BUILD_TESTS": "ON",
+                "SIGNAL_EDITOR_BUILD_GUI": "OFF",
+                "SIGNAL_EDITOR_BUILD_SHARED": "ON",
+                "SIGNAL_EDITOR_ENABLE_SANITIZERS": "OFF"
+            }
+        },
+        {
+            "name": "docker-gcc-debug",
+            "displayName": "Docker GCC Debug",
+            "inherits": "docker-gcc-base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "SIGNAL_EDITOR_BUILD_TESTS": "ON",
+                "SIGNAL_EDITOR_BUILD_GUI": "OFF",
+                "SIGNAL_EDITOR_BUILD_SHARED": "OFF",
+                "SIGNAL_EDITOR_ENABLE_SANITIZERS": "ON"
+            }
+        },
+        {
+            "name": "docker-gcc-release",
+            "displayName": "Docker GCC Release",
+            "inherits": "docker-gcc-base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "SIGNAL_EDITOR_BUILD_TESTS": "ON",
+                "SIGNAL_EDITOR_BUILD_GUI": "OFF",
+                "SIGNAL_EDITOR_BUILD_SHARED": "OFF",
+                "SIGNAL_EDITOR_ENABLE_SANITIZERS": "OFF"
+            }
+        },
+        {
+            "name": "docker-clang-debug",
+            "displayName": "Docker Clang Debug",
+            "inherits": "docker-clang-base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "SIGNAL_EDITOR_BUILD_TESTS": "ON",
+                "SIGNAL_EDITOR_BUILD_GUI": "OFF",
+                "SIGNAL_EDITOR_BUILD_SHARED": "OFF",
+                "SIGNAL_EDITOR_ENABLE_SANITIZERS": "ON"
+            }
+        },
+        {
+            "name": "docker-clang-release",
+            "displayName": "Docker Clang Release",
+            "inherits": "docker-clang-base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "SIGNAL_EDITOR_BUILD_TESTS": "ON",
+                "SIGNAL_EDITOR_BUILD_GUI": "OFF",
+                "SIGNAL_EDITOR_BUILD_SHARED": "OFF",
+                "SIGNAL_EDITOR_ENABLE_SANITIZERS": "OFF"
             }
         }
     ],
     "buildPresets": [
-        { "name": "windows-mingw64-debug",   "configurePreset": "windows-mingw64-debug" },
-        { "name": "windows-mingw64-release",  "configurePreset": "windows-mingw64-release" },
-        { "name": "linux-gcc-debug",          "configurePreset": "linux-gcc-debug" },
-        { "name": "linux-gcc-release",        "configurePreset": "linux-gcc-release" }
+        {
+            "name": "windows-gcc-debug",
+            "configurePreset": "windows-gcc-debug"
+        },
+        {
+            "name": "windows-gcc-release",
+            "configurePreset": "windows-gcc-release"
+        },
+        {
+            "name": "windows-clang-debug",
+            "configurePreset": "windows-clang-debug"
+        },
+        {
+            "name": "windows-clang-release",
+            "configurePreset": "windows-clang-release"
+        },
+        {
+            "name": "windows-MSVC-debug",
+            "configurePreset": "windows-MSVC-debug",
+            "configuration": "Debug"
+        },
+        {
+            "name": "windows-MSVC-release",
+            "configurePreset": "windows-MSVC-release",
+            "configuration": "Release"
+        },
+        {
+            "name": "linux-gcc-debug",
+            "configurePreset": "linux-gcc-debug"
+        },
+        {
+            "name": "linux-gcc-release",
+            "configurePreset": "linux-gcc-release"
+        },
+        {
+            "name": "linux-clang-debug",
+            "configurePreset": "linux-clang-debug"
+        },
+        {
+            "name": "linux-clang-release",
+            "configurePreset": "linux-clang-release"
+        },
+        {
+            "name": "docker-gcc-debug",
+            "configurePreset": "docker-gcc-debug"
+        },
+        {
+            "name": "docker-gcc-release",
+            "configurePreset": "docker-gcc-release"
+        },
+        {
+            "name": "docker-clang-debug",
+            "configurePreset": "docker-clang-debug"
+        },
+        {
+            "name": "docker-clang-release",
+            "configurePreset": "docker-clang-release"
+        }
     ],
     "testPresets": [
-        { "name": "windows-mingw64-debug",   "configurePreset": "windows-mingw64-debug",  "output": {"outputOnFailure": true} },
-        { "name": "windows-mingw64-release",  "configurePreset": "windows-mingw64-release", "output": {"outputOnFailure": true} },
-        { "name": "linux-gcc-debug",          "configurePreset": "linux-gcc-debug",         "output": {"outputOnFailure": true} },
-        { "name": "linux-gcc-release",        "configurePreset": "linux-gcc-release",        "output": {"outputOnFailure": true} }
+        {
+            "name": "windows-gcc-debug",
+            "configurePreset": "windows-gcc-debug",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "windows-gcc-release",
+            "configurePreset": "windows-gcc-release",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "windows-clang-debug",
+            "configurePreset": "windows-clang-debug",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "windows-clang-release",
+            "configurePreset": "windows-clang-release",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "windows-MSVC-debug",
+            "configurePreset": "windows-MSVC-debug",
+            "configuration": "Debug",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "windows-MSVC-release",
+            "configurePreset": "windows-MSVC-release",
+            "configuration": "Release",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "linux-gcc-debug",
+            "configurePreset": "linux-gcc-debug",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "linux-gcc-release",
+            "configurePreset": "linux-gcc-release",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "linux-clang-debug",
+            "configurePreset": "linux-clang-debug",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "linux-clang-release",
+            "configurePreset": "linux-clang-release",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "docker-gcc-debug",
+            "configurePreset": "docker-gcc-debug",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "docker-gcc-release",
+            "configurePreset": "docker-gcc-release",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "docker-clang-debug",
+            "configurePreset": "docker-clang-debug",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "docker-clang-release",
+            "configurePreset": "docker-clang-release",
+            "output": {
+                "outputOnFailure": true
+            }
+        }
     ]
 }

@@ -1,57 +1,112 @@
 # Product Requirements Document
 
-## Overview
+## Document Control
 
 | Field | Value |
 |-------|-------|
 | Product | Signal Editor |
 | Version | 0.1.0 |
-| Status | Active draft |
-| Owner | Engineering team |
+| Status | Active working document |
+| Primary audience | Product, Engineering, QA |
 
-## Background
+## Executive Summary
 
-Signal Editor exists to cover the gap between heavyweight model-based tooling and ad-hoc CSV editing in spreadsheets. The product should let engineers manipulate waveforms confidently while keeping the implementation maintainable enough for long-term extension.
+Signal Editor is a desktop engineering application for waveform inspection, authoring, correction, and export. The product is intended for users who need a faster and more reliable alternative to spreadsheet-based editing while avoiding the complexity of larger toolchains when only bounded signal manipulation is required.
 
-## Core User Stories
+The current product emphasizes:
 
-- As an engineer, I want to open one or more CSV files and switch between them inside a single workspace.
-- As a test engineer, I want to edit signals directly on a plot so I can reshape traces faster than by editing raw CSV rows.
-- As a tooling engineer, I want the editing logic isolated from Qt so that the core stays testable and reusable.
-- As a calibration engineer, I want boolean or state-machine style signals to keep human-readable labels while remaining exportable as numeric CSV data.
+- a multi-document workspace
+- interactive plot editing
+- exact table editing
+- explicit interpolation control
+- enumerated signal support
+- reliable multi-format persistence
+
+## Background and Motivation
+
+Real-world engineering workflows routinely exchange waveform data as CSV-like tables, spreadsheet exports, and tool-oriented JSON structures. Those datasets often need small but high-confidence modifications such as:
+
+- reshaping a reference trace
+- fixing outliers or timing offsets
+- generating a synthetic waveform for testing
+- converting or preserving enumerated state channels
+- saving results in a downstream-consumable interchange format
+
+Traditional approaches are usually unsatisfactory:
+
+- spreadsheets are convenient but semantically weak
+- scripts are efficient but opaque to many users
+- large simulation tools are often too heavyweight for targeted edits
+
+Signal Editor exists to occupy this middle ground.
+
+## Product Scope
+
+### In scope for the current product line
+
+- loading one or more supported signal files into a shared workspace
+- switching among active workspace documents
+- selecting an active signal from the current document
+- editing that signal through either a plot view or a table view
+- creating new signals from predefined templates and enumerated state definitions
+- modifying interpolation behavior for non-enumerated signals
+- exporting the current document to supported file formats while preserving supported metadata
+- maintaining undo history for the active document during the current session
+
+### Explicitly out of scope for now
+
+- collaborative editing
+- remote storage backends
+- native binary Excel workbook parsing
+- broad scientific analysis features such as FFT, filtering suites, or statistics dashboards
+- project/session management beyond currently loaded documents
 
 ## Functional Requirements
 
 | ID | Requirement | Priority | Notes |
 |----|-------------|----------|-------|
-| FR-01 | The product shall load CSV, JSON, TSV/TXT, and SpreadsheetML XML files containing one or more signals. | High | Header row optional for tabular formats |
-| FR-02 | The product shall support a multi-file workspace with an active document concept. | High | Required for quick comparison/edit switching |
-| FR-03 | The product shall allow direct manipulation of plotted samples, including drag, insert, remove, and Gaussian brushing. | High | Main UX differentiator |
-| FR-04 | The product shall allow precise sample editing in tabular form. | High | Complements plot editing |
-| FR-05 | The product shall allow creating new signals from template waveforms and user-defined enumerated state mappings. | Medium | Supports synthetic trace authoring and boolean/state signals |
-| FR-06 | The product shall preserve interpolation mode metadata when saving and reloading supported file formats. | High | Prevents semantic loss |
-| FR-07 | The product shall preserve enumerated state mappings when saving and reloading supported file formats. | High | Required for readable state-based signals |
-| FR-08 | The product shall display enumerated signal values as labels in the table and on the plot Y axis. | High | Prevents users from reasoning in raw numeric codes only |
-| FR-09 | The product shall provide undo at the active document level. | High | Guards interactive edits |
+| FR-01 | The product shall load CSV, TSV/TXT, JSON, and SpreadsheetML XML signal files. | High | Core capability |
+| FR-02 | The product shall support a multi-document workspace with an active document concept. | High | Fundamental navigation model |
+| FR-03 | The product shall present a signal list for the active document. | High | Required for signal selection |
+| FR-04 | The product shall provide a dedicated plot workspace tab for visual waveform editing. | High | Primary interaction path |
+| FR-05 | The product shall provide a dedicated table workspace tab for exact sample editing. | High | Precision editing path |
+| FR-06 | The product shall support drag, insert, remove, and Gaussian brushing operations in the plot for numeric signals. | High | Differentiating editing capability |
+| FR-07 | The product shall support row-based sample editing, insertion, and removal in the table. | High | Complements plot editing |
+| FR-08 | The product shall expose interpolation control at workspace level so it is available from both plot and table workflows. | High | Signal-level property should not be hidden behind one editing mode |
+| FR-09 | The product shall allow creating new signals from waveform templates including constant, sine, cosine, pulse, sawtooth, triangle, ramp, and enumerated states. | High | Covers authoring workflow |
+| FR-10 | The product shall preserve interpolation metadata when supported by the persistence format. | High | Prevents semantic loss |
+| FR-11 | The product shall preserve enumerated label/value mappings when supported by the persistence format. | High | Required for readable state channels |
+| FR-12 | The product shall render enumerated values as human-readable labels in both plot and table contexts. | High | Usability requirement |
+| FR-13 | The product shall support active-document undo. | High | Required for safe interactive editing |
+| FR-14 | The product shall support drag-and-drop file opening in the GUI. | Medium | Important convenience feature |
+| FR-15 | The product shall show document state, signal context, and interaction hints in the workspace shell. | Medium | UX clarity requirement |
 
 ## Non-Functional Requirements
 
 | ID | Requirement | Priority |
 |----|-------------|----------|
-| NFR-01 | Core editing logic shall remain independent from Qt and direct filesystem calls. | High |
-| NFR-02 | The GUI shall communicate active workspace state clearly, including file status and edit affordances. | High |
-| NFR-03 | The repository shall build on Windows MinGW64 for the GUI and Linux GCC for core/test workflows. | High |
-| NFR-04 | Public module boundaries shall be documented with Doxygen-style comments. | Medium |
-| NFR-05 | Multi-format round-trip behavior for the supported repository formats shall be validated through automated tests. | High |
+| NFR-01 | Domain and use-case logic shall remain independent from Qt. | High |
+| NFR-02 | Persistence shall be abstracted behind repository ports. | High |
+| NFR-03 | The repository shall remain buildable on Windows MinGW64 for GUI workflows. | High |
+| NFR-04 | The repository shall remain buildable on Linux GCC for core and test workflows. | High |
+| NFR-05 | User-visible behavior changes shall be documented in repository docs and changelog entries. | High |
+| NFR-06 | Public module boundaries should remain documented with Doxygen comments. | Medium |
+| NFR-07 | UI changes should improve clarity and space efficiency rather than only changing surface styling. | Medium |
 
 ## Acceptance Criteria
 
-- [ ] Workspace loading, editing, and export flows are stable on the supported presets
-- [ ] Core use cases and CSV repository behaviors remain covered by unit tests
-- [ ] Product and architecture docs reflect the actual implementation
-- [ ] No scaffold placeholders remain in active project-facing documentation
+A meaningful product increment should satisfy all applicable criteria:
 
-## Open Decisions
+- the feature or fix is implemented coherently
+- format semantics are preserved or explicitly updated in docs
+- the workspace remains understandable in both plot and table modes
+- enumerated-state behavior remains readable and deterministic
+- automated tests cover the relevant logic where practical
+- documentation reflects the final behavior
 
-- Whether to add overlay/multi-signal comparison editing in a future release
-- Whether Linux GUI delivery becomes a first-class supported distribution target
+## Risks and Open Questions
+
+- Whether native `.xlsx` support is worth the dependency and maintenance cost
+- Whether future releases should support multi-signal overlay editing in the plot
+- Whether Linux GUI delivery should become a first-class supported runtime target
+- Whether future document/session persistence should extend beyond direct file edits

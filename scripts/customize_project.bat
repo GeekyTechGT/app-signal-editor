@@ -33,7 +33,7 @@ pushd "%PROJECT_ROOT%" >nul 2>&1 || (
 cls
 echo.
 echo !CYAN!======================================================!RESET!
-echo !CYAN!           MyProject - Customize Project!RESET!
+echo !CYAN!           Signal Editor - Customize Project!RESET!
 echo !CYAN!======================================================!RESET!
 echo.
 

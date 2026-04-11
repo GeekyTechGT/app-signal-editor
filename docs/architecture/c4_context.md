@@ -3,15 +3,15 @@
 ## System Context Diagram
 
 ```text
-┌──────────────────────────────────────────────────────────────┐
-│                    Signal Editor System                     │
-│  Desktop waveform editing tool for CSV-based signals        │
-└───────────────┬───────────────────────────────┬──────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                         Signal Editor System                       │
+│  Desktop waveform editing workspace for engineering signal data    │
+└───────────────┬───────────────────────────────┬────────────────────┘
                 │                               │
-        ┌───────v────────┐              ┌───────v────────┐
-        │ Engineer User  │              │ Local CSV Data │
-        │ edits signals  │              │ inputs/outputs │
-        └────────────────┘              └────────────────┘
+        ┌───────v────────┐              ┌───────v──────────────────┐
+        │ Engineer User  │              │ Local Signal Files       │
+        │ edits signals  │              │ CSV / TSV / JSON / XML   │
+        └────────────────┘              └──────────────────────────┘
                 │
         ┌───────v────────┐
         │ Build & Test   │
@@ -23,21 +23,23 @@
 
 | Actor / System | Role |
 |----------------|------|
-| Engineer user | Loads, edits, creates, and exports waveform data |
-| Local filesystem | Provides CSV inputs and receives exports |
-| Qt runtime | Hosts the graphical desktop interface |
+| Engineer user | Loads, inspects, edits, creates, and exports waveform data |
+| Local filesystem | Supplies and receives supported signal files |
+| Qt runtime | Hosts the desktop GUI and event loop |
 | Build and test toolchain | Builds the application and verifies behavior |
 
 ## System Purpose
 
 Signal Editor provides:
 
-- a focused desktop workflow for CSV-based waveform editing
-- direct manipulation and precise tabular editing of signal samples
-- a maintainable code structure that separates editing logic from the GUI
+- a focused local desktop workflow for waveform editing
+- visual and tabular editing paths over the same signal model
+- explicit handling of interpolation and enumerated state mappings
+- a maintainable implementation that separates domain logic from GUI concerns
 
 ## Constraints
 
-- Works primarily as a local desktop application
-- Depends on Qt 6 for the GUI build
-- Keeps network concerns out of the core editing model
+- operates primarily as a local desktop application
+- depends on Qt 6 for GUI delivery
+- keeps network concerns out of the core editing model
+- currently relies on engineering-friendly interchange formats rather than proprietary binary tool formats

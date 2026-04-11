@@ -1,4 +1,4 @@
-if(NOT MYPRJ_BUILD_GUI)
+if(NOT SIGNAL_EDITOR_BUILD_GUI)
     return()
 endif()
 

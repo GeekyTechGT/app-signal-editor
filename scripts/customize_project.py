@@ -18,9 +18,10 @@ BACKUP_ROOT = ROOT / ".scaffold-backups"
 LATEST_MANIFEST = BACKUP_ROOT / "latest_manifest.json"
 DEFAULT_REPORT = BACKUP_ROOT / "last_customize_report.json"
 DEFAULT_PLACEHOLDERS = {
-    "MyProject": "project_name",
+    "SignalEditor": "project_name",
+    "Signal Editor": "project_name",
     "myprj": "namespace_prefix",
-    "MYPRJ": "macro_prefix",
+    "SIGNAL_EDITOR": "macro_prefix",
     "my_module": "primary_module",
 }
 REQUIRED_KEYS = (
@@ -103,7 +104,7 @@ def validate_metadata(metadata: dict[str, Any]) -> None:
         if any(ch in value for ch in ('/', '\\')) and key in {"project_name", "project_slug", "namespace_prefix", "macro_prefix", "primary_module"}:
             raise SystemExit(f"[ERROR] Metadata field {key} must not contain path separators: {value}")
     if values["macro_prefix"] != values["macro_prefix"].upper():
-        raise SystemExit("[ERROR] macro_prefix must be uppercase, e.g. MYPRJ")
+        raise SystemExit("[ERROR] macro_prefix must be uppercase, e.g. SIGNAL_EDITOR")
     if not values["namespace_prefix"].islower():
         raise SystemExit("[ERROR] namespace_prefix must be lowercase, e.g. myprj")
     if not values["primary_module"].islower():

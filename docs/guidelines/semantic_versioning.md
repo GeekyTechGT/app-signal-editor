@@ -8,37 +8,49 @@ Signal Editor follows [Semantic Versioning 2.0.0](https://semver.org/).
 MAJOR.MINOR.PATCH
 ```
 
+## Version Meaning
+
 | Component | Increment when |
 |-----------|----------------|
-| `MAJOR` | introducing breaking API, format, or workflow changes |
-| `MINOR` | adding backward-compatible functionality |
-| `PATCH` | fixing bugs without changing expected compatibility |
+| `MAJOR` | introducing breaking changes to public behavior, persistence semantics, supported workflows, or integration expectations |
+| `MINOR` | adding backward-compatible functionality or materially expanding product capability |
+| `PATCH` | fixing defects, polishing UX, or improving documentation without breaking expected compatibility |
+
+## What Counts as Breaking in This Repository
+
+For Signal Editor, breaking change assessment is not limited to C++ API signatures.
+
+A change may justify a major version bump if it breaks expectations around:
+
+- supported import/export format semantics
+- interpolation behavior
+- enumerated signal encoding and decoding
+- user workflows that scripts or teams rely on operationally
+- build or packaging expectations for supported environments
 
 ## Authoritative Version Sources
 
-Keep these aligned:
+Keep these aligned whenever a release is cut:
 
 1. `VERSION`
-2. `CMakeLists.txt` project version
-3. `CHANGELOG.md` release entries
+2. top-level `CMakeLists.txt` project version
+3. `CHANGELOG.md`
 
-The repository also defines a module version through `MYPRJ_SIGNAL_EDITOR_VERSION` in `CMakeLists.txt`.
+## Release Documentation Policy
 
-## When a Version Bump Is Expected
-
-Increase the version when changes affect at least one of these areas:
-
-- public module APIs
-- CSV persistence semantics
-- user-visible GUI behavior
-- supported build/test workflows
-- packaging or deployment outputs
-
-## Changelog Policy
-
-Every release should describe:
+A release should communicate:
 
 - what changed
 - why it matters
-- whether compatibility was affected
-- whether user workflow or data format expectations changed
+- whether compatibility changed
+- whether user workflow or file-format expectations changed
+- whether any constraints or migration notes apply
+
+## Typical Version Decisions
+
+Examples:
+
+- adding JSON or SpreadsheetML support: usually `MINOR`
+- fixing a parsing bug without changing the supported contract: usually `PATCH`
+- changing the CSV metadata contract in a backward-incompatible way: likely `MAJOR`
+- reworking workspace navigation without breaking file semantics: usually `MINOR` or `PATCH`, depending on scope and release policy

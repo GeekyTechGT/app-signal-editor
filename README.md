@@ -1,16 +1,36 @@
 # Signal Editor
 
-Signal Editor is a desktop waveform editing application written in C++23 with a Qt 6 GUI and a hexagonal architecture. It is designed for engineers who need to inspect, shape, and export time-series data stored in engineering-friendly interchange files without mixing UI concerns into the domain layer.
+Signal Editor is a desktop waveform editing application built with C++23 and Qt 6 around a hexagonal architecture. It is intended for engineering workflows where time-series data must be inspected, corrected, generated, and exported quickly without pushing GUI concerns into the domain model or falling back to spreadsheet-driven editing.
 
-## Highlights
+The current product focuses on a pragmatic balance between interactive editing and long-term maintainability. The user experience is centered on a multi-document workspace, a direct-manipulation plot, a precise sample table, explicit interpolation control, and reliable persistence across engineering-friendly interchange formats.
 
-- Multi-file workspace with fast switching between loaded signal documents
-- Interactive plot editing with waypoint drag, add/remove, and Gaussian brushing
-- Tabular sample editing for precise numeric adjustments
-- Signal creation from numeric waveform templates and user-defined enumerated states
-- Multi-format import/export: CSV, JSON, TSV/TXT, and SpreadsheetML XML
-- Per-signal interpolation modes and enum mappings persisted across supported tabular formats
-- Undo support scoped to the active workspace document
+## Product Summary
+
+Signal Editor addresses a common workflow gap:
+
+- spreadsheets are flexible but error-prone for waveform manipulation
+- heavyweight simulation or calibration suites are often too slow for small correction loops
+- ad hoc scripts are powerful but usually inaccessible to non-developer users and difficult to audit
+
+Signal Editor provides a focused local desktop tool that lets engineers:
+
+- load one or more signal documents into a shared workspace
+- switch between active files without losing in-memory state
+- inspect and edit a selected signal in either a plot-first or table-first workflow
+- create synthetic signals from common templates
+- preserve interpolation semantics and enumerated state mappings across supported formats
+- save the result back to the filesystem in a form suitable for downstream tooling
+
+## Key Capabilities
+
+- Multi-document workspace with active-document switching
+- Interactive plot editing with drag, insert, remove, and Gaussian brushing for numeric signals
+- Dedicated table editing workflow with label-aware enumerated value support
+- Shared interpolation control available regardless of whether the user is in the plot or table view
+- Signal creation from constant, sine, cosine, pulse, sawtooth, triangle, ramp, and enumerated templates
+- Multi-format import and export for CSV, TSV/TXT, JSON, and SpreadsheetML XML
+- Enumerated signals rendered with textual state labels in the plot and table
+- Document-scoped undo support for interactive editing workflows
 - Clean separation between domain, use cases, ports, and adapters
 
 ## Repository Layout
@@ -18,35 +38,53 @@ Signal Editor is a desktop waveform editing application written in C++23 with a 
 ```text
 signal-editor/
 ├── apps/signal_editor/gui/              # GUI entry point and composition root
-├── cmake/                               # Shared CMake helpers and build options
-├── docs/                                # Product, requirements, and architecture docs
+├── cmake/                               # Shared CMake helpers and project options
+├── deploy/config/                       # Deployment metadata and packaging descriptors
+├── docs/                                # Product, architecture, specification, and guidelines
 ├── include/myprj/                       # Generated/public version headers
-├── scripts/                             # Build, test, deploy, and project manager helpers
-├── src/common/                          # Shared cross-module types
-├── src/signal_editor/                   # Signal Editor domain, use cases, adapters, API
-├── tests/                               # Unit tests and reusable test data
-├── CMakeLists.txt                       # Top-level build configuration
-└── CMakePresets.json                    # Windows and Linux configure/build/test presets
+├── scripts/                             # Build, packaging, and workflow helpers
+├── src/common/                          # Shared infrastructure-neutral support types
+├── src/signal_editor/                   # Domain, use cases, ports, adapters, and public API
+├── tests/                               # Unit tests and reusable fixtures
+├── CHANGELOG.md                         # Release-facing change history
+├── CONTRIBUTING.md                      # Engineering contribution guide
+├── GOVERNANCE.md                        # Repository governance and decision model
+├── SECURITY.md                          # Security policy and reporting guidance
+└── README.md                            # Project overview and onboarding entry point
 ```
 
-## Architecture Summary
+## Architecture at a Glance
 
-The implementation follows a ports-and-adapters style:
+Signal Editor uses a ports-and-adapters design with a deliberately narrow application shell.
 
-- `core/domain/`: waveform entities and invariants
-- `core/usecases/`: orchestration of load, save, edit, and generation flows
-- `ports/`: persistence abstraction (`ISignalRepository`)
-- `adapters/filesystem/`: CSV and multi-format filesystem repositories
-- `adapters/qt/`: Qt widgets, dialogs, and interactive editing surface
-- `api/`: compact facade for app composition roots
+```text
+apps/gui -> api -> core/usecases -> ports <- adapters
+                      |
+                      -> core/domain
+```
 
-Dependency rule: `apps -> api -> usecases -> ports <- adapters`
+This yields three practical benefits:
 
-## Supported CSV Format
+- waveform rules remain testable without Qt
+- persistence details remain replaceable without rewriting editing logic
+- UI evolution can continue without polluting the domain with framework types
 
-Signal Editor works with several persistence formats. The native mental model stays the same: the first column or field is time, and the remaining data represents signals with optional interpolation and enumeration metadata.
+The main architectural layers are:
 
-The simplest tabular layout is CSV:
+- `core/domain/`: waveform entities, interpolation semantics, enumerated-state invariants, and editing primitives
+- `core/usecases/`: orchestration of load, save, create, replace, rename, remove, and interpolation change flows
+- `ports/`: repository abstraction consumed by use cases
+- `adapters/filesystem/`: CSV and multi-format persistence implementations
+- `adapters/qt/`: workspace shell, plot widget, table widget, dialogs, and presentation logic
+- `api/`: composition-facing facade used by executables
+
+## Supported File Formats
+
+Signal Editor supports multiple interchange formats that map into the same internal signal model.
+
+### CSV
+
+The default tabular format uses the first column as time and all remaining columns as signals.
 
 ```csv
 time,throttle,brake,steer
@@ -55,7 +93,7 @@ time,throttle,brake,steer
 0.2,0.4,0.0,0.2
 ```
 
-When saving, the application emits metadata rows before the header so that interpolation and enumerated state mappings survive a round-trip. Enumerated signals can be declared explicitly through `# enum_map` or discovered from inline `label:value` cells during import.
+Metadata rows may be emitted before the header to preserve interpolation and enumeration details.
 
 ```csv
 # interpolation,step,linear
@@ -66,27 +104,79 @@ time,enable,torque
 1.0,FALSE,4.0
 ```
 
-Import also accepts inline bootstrapping tokens such as `TRUE:1` and `FALSE:0` in data cells when a mapping row is not present. In the GUI, enumerated signals are shown with label-aware table editing and textual Y-axis labels.
+### Inline Enumerated Bootstrap
 
-JSON uses an object/array-based representation with per-signal sample arrays, which is better suited for automation and scripting workflows. Tab-delimited `.tsv` / `.txt` files are supported as Excel-friendly plain-text tables, and `.xml` supports SpreadsheetML 2003 workbooks exported by Excel. Native `.xlsx` / `.xls` workbook binaries are not supported yet; export them from Excel as CSV, TSV/TXT, or SpreadsheetML XML first.
+When `# enum_map` is absent, CSV import can bootstrap enumeration mappings from inline `label:value` tokens.
+
+```csv
+time,enable,gear
+0.0,FALSE:0,PARK:0
+0.1,TRUE:1,DRIVE:3
+0.2,TRUE,DRIVE
+```
+
+### TSV / TXT
+
+Tab-delimited files are treated as spreadsheet-friendly plain-text equivalents of the CSV model and are useful for Excel-oriented workflows.
+
+### JSON
+
+JSON is intended for automation and tool integration. It supports explicit signal definitions, interpolation metadata, enumeration mappings, and sample arrays.
+
+### SpreadsheetML XML
+
+SpreadsheetML XML (Excel 2003 XML) is supported for import and export. It is a practical interoperability path for Excel users who need a structured workbook-like format without introducing native binary Excel parsing.
+
+### Explicitly Not Supported
+
+Native `.xlsx` and `.xls` workbook binaries are not currently supported. Convert those files to CSV, TSV/TXT, or SpreadsheetML XML before using them with Signal Editor.
+
+## Enumerated Signal Model
+
+Enumerated signals are first-class citizens in the current product.
+
+An enumerated signal associates human-readable labels with numeric values, for example:
+
+- `FALSE -> 0`
+- `TRUE -> 1`
+- `RUN -> 2`
+
+Important behavior:
+
+- enumerated mappings require unique labels and unique numeric values
+- enumerated signals always behave as `step` interpolated signals
+- table editing uses labels rather than raw numeric values when a mapping exists
+- plot rendering uses textual Y-axis state labels where possible
+- imported and exported tabular formats preserve mappings through `# enum_map` or inline bootstrap tokens
+
+Reusable fixtures are available in `tests/01.data/` for CSV, inline CSV, JSON, and SpreadsheetML XML enumerated examples.
+
+## Current Workspace UX Model
+
+The central editing workspace is organized around two dedicated tabs:
+
+- `Plot`: optimized for fast visual reshaping and direct manipulation
+- `Table`: optimized for exact sample-level edits and row-based reasoning
+
+The interpolation selector now lives outside the table-specific view so it remains accessible in both workflows. This was a deliberate product decision: interpolation is a signal-level property, not a table-only concern.
 
 ## Build
 
 ### Windows GUI
 
 ```bash
-cmake --preset windows-mingw64-debug
-cmake --build --preset windows-mingw64-debug
+cmake --preset windows-gcc-debug
+cmake --build --preset windows-gcc-debug
 ```
 
 Release:
 
 ```bash
-cmake --preset windows-mingw64-release
-cmake --build --preset windows-mingw64-release
+cmake --preset windows-gcc-release
+cmake --build --preset windows-gcc-release
 ```
 
-### Linux Core + Tests
+### Linux Core and Tests
 
 ```bash
 cmake --preset linux-gcc-debug
@@ -106,29 +196,32 @@ cmake --build --preset linux-gcc-release
 ctest --preset linux-gcc-debug --output-on-failure
 ```
 
-On Windows, use the matching `windows-mingw64-*` preset.
+Use the matching Windows preset when validating GUI-side integration on the Windows toolchain.
 
-## Runtime Notes
+## Development Expectations
 
-- GUI builds require Qt 6 Widgets and are enabled by `MYPRJ_BUILD_GUI=ON`.
-- Linux presets currently target the core library and tests with GUI disabled.
-- Files can be opened from the menu or via drag and drop onto the main window.
-
-## Workflow Expectations
-
-A complete change should include:
+A complete change should normally include every relevant artifact:
 
 - implementation
-- tests
-- user-facing documentation updates when behavior changes
-- architecture or requirements updates when design intent changes
-- changelog updates for visible or workflow-relevant changes
+- automated tests where behavior changed
+- documentation updates where user-facing or architectural behavior changed
+- specification or architecture updates when design intent changed
+- changelog updates for visible functionality or workflow changes
 
-## Related Documentation
+## Documentation Index
 
+- [Governance](GOVERNANCE.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security](SECURITY.md)
+- [Changelog](CHANGELOG.md)
 - [Product vision](docs/product/vision.md)
 - [Product requirements](docs/product/prd.md)
 - [Software requirements specification](docs/specs/srs.md)
 - [Architecture overview](docs/architecture/architecture_overview.md)
-- [Contributing guide](CONTRIBUTING.md)
-- [Security policy](SECURITY.md)
+- [C4 context](docs/architecture/c4_context.md)
+- [C4 container](docs/architecture/c4_container.md)
+- [C4 component](docs/architecture/c4_component.md)
+- [Hexagonal module structure](docs/architecture/hexagonal_skeleton_structure.md)
+- [Naming conventions](docs/guidelines/naming_conventions.md)
+- [Semantic versioning](docs/guidelines/semantic_versioning.md)
+- [Repository customization guidance](docs/guidelines/template_customization.md)

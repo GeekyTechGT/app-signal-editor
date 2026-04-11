@@ -8,7 +8,7 @@ Usage:
     python package_customer.py
         --profile  <path/to/customer.json>
         --catalog  <path/to/module_catalog.json>
-        --platform <windows|linux-ubuntu|linux-alpine>
+        --platform <windows|linux|docker>
         --deploy-root <path/to/build/artifacts>
         --configuration <debug|release>
         --output-dir <path/to/deploy/out>
@@ -61,7 +61,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Assemble a customer deployment package.")
     parser.add_argument("--profile",        required=True, help="Customer profile JSON")
     parser.add_argument("--catalog",        required=True, help="Module catalog JSON")
-    parser.add_argument("--platform",       required=True, help="Target platform")
+    parser.add_argument("--platform",       required=True, help="Target platform label such as windows, linux, or docker")
     parser.add_argument("--deploy-root",    required=True, help="Build artifacts root")
     parser.add_argument("--configuration",  default="release", help="debug or release")
     parser.add_argument("--output-dir",     required=True, help="Output base directory")

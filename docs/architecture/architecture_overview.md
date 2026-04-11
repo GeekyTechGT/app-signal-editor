@@ -2,11 +2,13 @@
 
 ## 1. Purpose
 
-This document explains the architecture of Signal Editor and the rationale behind the current design choices. It is intended to help developers extend the application without breaking editing behavior, UI responsiveness, or module boundaries.
+This document explains the current architecture of Signal Editor, the responsibilities of its major subsystems, and the design constraints that contributors are expected to preserve.
+
+It is written for developers, reviewers, and maintainers who need to understand not only where code lives, but why it is structured that way.
 
 ## 2. Architectural Style
 
-Signal Editor uses a hexagonal architecture with a narrow application shell.
+Signal Editor uses a hexagonal architecture with a thin desktop application shell.
 
 ```text
 apps/gui -> api -> core/usecases -> ports <- adapters
@@ -14,66 +16,97 @@ apps/gui -> api -> core/usecases -> ports <- adapters
                       -> core/domain
 ```
 
-The key rule is that the domain and use cases do not depend on Qt, filesystem code, or concrete persistence details.
+The governing rule is simple:
 
-## 3. Main Building Blocks
+- the domain and use cases must not depend on Qt
+- the domain and use cases must not depend on filesystem details
+- concrete format parsing and GUI behavior must remain outside the core
+
+## 3. Primary Building Blocks
 
 | Layer | Location | Responsibility |
 |-------|----------|----------------|
-| Composition root | `apps/signal_editor/gui/` | Creates the Qt application and wires dependencies |
-| API | `src/signal_editor/api/` | Re-exports the module surface used by apps |
-| Use cases | `src/signal_editor/core/usecases/` | Orchestrates load/save/edit workflows |
-| Domain | `src/signal_editor/core/domain/` | Owns waveform entities, invariants, and editing primitives |
-| Ports | `src/signal_editor/ports/` | Defines persistence contracts |
-| Adapters | `src/signal_editor/adapters/` | Implements Qt UI plus CSV and multi-format filesystem persistence |
-| Shared utilities | `src/common/` | Result types and reusable support code |
+| Composition root | `apps/signal_editor/gui/` | Creates the Qt application and wires service plus adapters |
+| API | `src/signal_editor/api/` | Exposes a compact module-facing surface for executables |
+| Use cases | `src/signal_editor/core/usecases/` | Coordinates load, save, create, replace, rename, remove, and interpolation workflows |
+| Domain | `src/signal_editor/core/domain/` | Owns waveform entities, invariants, interpolation rules, and enumerated-state semantics |
+| Ports | `src/signal_editor/ports/` | Defines repository abstractions consumed by the use-case layer |
+| Filesystem adapters | `src/signal_editor/adapters/filesystem/` | Implements CSV and multi-format persistence |
+| Qt adapters | `src/signal_editor/adapters/qt/` | Implements workspace shell, tabs, plot, table, dialogs, and interaction logic |
+| Shared support | `src/common/` | Provides common result/support utilities |
 
 ## 4. Why This Structure Matters
 
-This architecture keeps the project extensible in practical ways:
+The architecture exists to preserve practical engineering benefits:
 
-- the CSV adapter can evolve without touching waveform invariants
-- the GUI can become richer without pulling Qt types into the core
-- automated tests can exercise editing behavior without starting the UI
-- future adapters can reuse the same service and domain model
+- waveform rules remain testable without launching the GUI
+- persistence behavior can evolve without rewriting editing logic
+- UI refactors do not require domain rewrites
+- format-specific behavior stays explicit and auditable
+- future adapters can reuse the same core workflows
 
 ## 5. Key Runtime Flows
 
-### 5.1 Load
+### 5.1 Load Flow
 
-1. The main window asks `SignalEditorService` to load a path.
-2. The service delegates parsing to `ISignalRepository`.
-3. The filesystem adapter dispatches by extension and returns a `SignalLibrary` from CSV, JSON, TSV/TXT, or SpreadsheetML XML.
-4. The window binds the active document into the list, plot, and table widgets.
+1. The main window receives a load request from the menu or drag-and-drop.
+2. `SignalEditorService` delegates the path to the configured repository port.
+3. The filesystem adapter dispatches by file extension and parses CSV, TSV/TXT, JSON, or SpreadsheetML XML.
+4. The resulting `SignalLibrary` is bound into the workspace document model.
+5. The active signal is exposed to both the plot and table adapters.
 
-### 5.2 Edit
+### 5.2 Edit Flow
 
-1. The user edits either through the plot or the table.
-2. The window snapshots undo state at the document level.
-3. The bound `Signal` is mutated through domain operations or service calls.
-4. Enumerated signals stay constrained to their legal state map and expose labels back to the UI adapters.
-5. The plot, table, and workspace status are refreshed.
+1. The user edits the selected signal through either the plot tab or the table tab.
+2. The main window snapshots undo state for the active document.
+3. Domain entities apply edits while preserving ordering, interpolation, and enumerated-state invariants.
+4. The workspace refreshes plot, table, status, and signal summary state.
+5. Shared controls such as interpolation are synchronized from the active signal rather than being tied to a single editing surface.
 
-### 5.3 Save
+### 5.3 Save Flow
 
-1. The active document is synchronized back into the service.
-2. The service delegates persistence to the filesystem adapter selected at composition time.
-3. The adapter exports the union time axis, interpolation metadata, and enum mappings in the chosen target format.
-4. Enumerated values are written back as labels when the mapping is known, preserving human readability.
-5. The window clears dirty state and refreshes workspace summaries.
+1. The active document is synchronized into the service layer.
+2. The service delegates persistence to the selected repository implementation.
+3. The adapter exports a union time axis plus any supported metadata.
+4. Interpolation and enumerated-state semantics are preserved where the format allows them.
+5. Workspace dirty state is cleared after a successful save.
 
-## 6. Quality Attributes
+## 6. Current UI Architecture Notes
 
-The current design optimizes for:
+The Qt shell intentionally separates workspace concerns from editing surfaces.
 
-- maintainability through clear boundaries
-- testability of the core editing model
-- deterministic CSV round-trips
-- safe handling of enumerated state signals without leaking Qt concerns into the domain
-- UI responsiveness for day-to-day engineering work
+Key points:
 
-## 7. Known Constraints
+- file selection and signal selection remain in dedicated side panels
+- the center workspace is tab-driven rather than split vertically
+- plot and table are treated as alternative views over the same active signal
+- interpolation control is presented at workspace scope because it applies to the signal itself, not to the table only
+- enumerated signals constrain the UI by disabling inappropriate interpolation changes and exposing label-based values
 
-- GUI delivery is currently centered on the Windows MinGW64 preset.
-- Linux presets focus on core and test workflows.
-- Native `.xlsx` / `.xls` workbook binaries are not yet supported; Excel users must export to CSV, TSV/TXT, or SpreadsheetML XML.
+## 7. Quality Attributes
+
+The architecture is currently optimized for:
+
+- maintainability
+- testability
+- deterministic persistence semantics
+- explicit format behavior
+- safe handling of enumerated signals
+- UI clarity for day-to-day engineering usage
+
+## 8. Constraints and Known Limits
+
+- Windows MinGW64 remains the primary GUI delivery path
+- Linux currently focuses on core and test workflows
+- native `.xlsx` and `.xls` parsing is intentionally not present
+- the repository does not yet include collaborative or remote-backed persistence
+
+## 9. Architectural Change Rules
+
+If a change affects any of the following, the architecture documentation should be updated in the same change set:
+
+- dependency direction
+- supported runtime flows
+- adapter responsibilities
+- workspace navigation model
+- interpolation or enumerated-state behavior that changes the boundaries between core and UI

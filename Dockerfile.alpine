@@ -1,57 +1,28 @@
-# MyProject - Alpine Linux build environment
-# Produces fully static binaries with musl libc for maximum portability
-# These binaries run on ANY Linux system regardless of GLIBC version
+# Signal Editor - Alpine Linux build environment
 FROM alpine:3.19 AS builder
 
-# Install build dependencies
-# Alpine 3.19 has GCC 13 which supports C++23
-RUN apk add --no-cache \
-    build-base \
-    cmake \
-    ninja \
-    git \
-    python3 \
-    openssl-dev \
-    openssl-libs-static \
-    linux-headers
+RUN apk add --no-cache     build-base     clang     lld     cmake     ninja     git     python3     openssl-dev     openssl-libs-static     linux-headers
 
 WORKDIR /app
 COPY . .
 
+ARG COMPILER=gcc
 ARG BUILD_TYPE=Release
 ARG BUILD_TESTS=ON
 ARG BUILD_GUI=OFF
 ARG BUILD_SHARED=OFF
 
-# Configure with CMake for fully static build
-RUN cmake -B build -G Ninja \
-    -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
-    -DMYPRJ_BUILD_TESTS=${BUILD_TESTS} \
-    -DMYPRJ_BUILD_GUI=${BUILD_GUI} \
-    -DMYPRJ_BUILD_SHARED=${BUILD_SHARED} \
-    -DCMAKE_SKIP_INSTALL_RULES=ON \
-    -DCMAKE_EXE_LINKER_FLAGS="-static" \
-    -DCMAKE_FIND_LIBRARY_SUFFIXES=".a" \
-    -DBUILD_SHARED_LIBS=OFF \
-    -DOPENSSL_USE_STATIC_LIBS=ON
+RUN if [ "$COMPILER" = "clang" ]; then export CC=clang CXX=clang++; else export CC=gcc CXX=g++; fi     && cmake -B build -G Ninja     -DCMAKE_BUILD_TYPE=${BUILD_TYPE}     -DCMAKE_C_COMPILER=${CC}     -DCMAKE_CXX_COMPILER=${CXX}     -DSIGNAL_EDITOR_BUILD_TESTS=${BUILD_TESTS}     -DSIGNAL_EDITOR_BUILD_GUI=${BUILD_GUI}     -DSIGNAL_EDITOR_BUILD_SHARED=${BUILD_SHARED}     -DCMAKE_SKIP_INSTALL_RULES=ON     -DCMAKE_EXE_LINKER_FLAGS="-static"     -DCMAKE_FIND_LIBRARY_SUFFIXES=".a"     -DBUILD_SHARED_LIBS=OFF     -DOPENSSL_USE_STATIC_LIBS=ON
 
 RUN cmake --build build --parallel $(nproc)
 RUN cd build && ctest --output-on-failure
 
-# Minimal image with just the static binaries
 FROM scratch AS runtime
-
 COPY --from=builder /app/build/bin/* /usr/local/bin/
+CMD []
 
-# TODO: update with your main executable name
-ENTRYPOINT ["/usr/local/bin/my_module"]
-CMD ["--help"]
-
-# Alternative: Alpine runtime (useful for debugging)
 FROM alpine:3.19 AS runtime-debug
-
 COPY --from=builder /app/build/bin/* /usr/local/bin/
-CMD ["my_module", "--help"]
-
-LABEL description="MyProject - Alpine static build"
+CMD ["/bin/sh"]
+LABEL description="Signal Editor - Alpine build"
 LABEL version="0.1.0"

@@ -44,7 +44,7 @@ set "INIT_EXIT_CODE=0"
 cls
 echo.
 echo !CYAN!======================================================!RESET!
-echo !CYAN!         MyProject - Project Initialization!RESET!
+echo !CYAN!         Signal Editor - Project Initialization!RESET!
 echo !CYAN!======================================================!RESET!
 echo.
 

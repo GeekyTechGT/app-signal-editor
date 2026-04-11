@@ -1,7 +1,7 @@
 # =============================================================================
 # signal_editor — core (no Qt dependency)
 # =============================================================================
-add_library(myprj_signal_editor_core ${MYPRJ_LIBRARY_TYPE}
+add_library(myprj_signal_editor_core ${SIGNAL_EDITOR_LIBRARY_TYPE}
     # --- Domain ---
     core/domain/signal.cpp
     core/domain/signal_library.cpp
@@ -38,7 +38,7 @@ configure_file(
 # =============================================================================
 # signal_editor — Qt adapter (only built when GUI is enabled)
 # =============================================================================
-if(MYPRJ_BUILD_GUI)
+if(SIGNAL_EDITOR_BUILD_GUI)
     find_package(Qt6 REQUIRED COMPONENTS Widgets)
 
     set(CMAKE_AUTOMOC ON)

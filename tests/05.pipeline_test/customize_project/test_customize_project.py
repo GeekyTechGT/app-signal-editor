@@ -38,11 +38,11 @@ def _build_fixture(tmp_path: Path) -> tuple[Path, Path]:
     )
 
     (project_root / "README.md").write_text(
-        "# MyProject\nnamespace myprj\nmodule my_module\nmacro MYPRJ\n",
+        "# Signal Editor\nnamespace myprj\nmodule my_module\nmacro SIGNAL_EDITOR\n",
         encoding="utf-8",
     )
     (project_root / "include" / "myprj" / "version.h.in").write_text(
-        "#define MYPRJ_NAME \"MyProject\"\n",
+        "#define SIGNAL_EDITOR_NAME \"SignalEditor\"\n",
         encoding="utf-8",
     )
     (project_root / "src" / "my_module" / "main.cpp").write_text(
@@ -74,7 +74,7 @@ def test_dry_run_generates_report_without_mutating_files(tmp_path: Path) -> None
     assert report.exists()
     payload = json.loads(report.read_text(encoding="utf-8"))
     assert payload["status"] == "planned"
-    assert any(item["from"] == "MyProject" and item["to"] == "AcmeControl" for item in payload["replacements"])
+    assert any(item["from"] == "Signal Editor" and item["to"] == "AcmeControl" for item in payload["replacements"])
     assert (project_root / "README.md").read_text(encoding="utf-8") == readme_before
     assert (project_root / "include" / "myprj").exists()
     assert (project_root / "src" / "my_module").exists()
@@ -99,7 +99,7 @@ def test_apply_and_rollback_restore_fixture(tmp_path: Path) -> None:
     assert "AcmeControl" in readme_after
     assert "acmectl" in readme_after
     assert "control_core" in readme_after
-    assert "MYPRJ" not in readme_after
+    assert "SIGNAL_EDITOR" not in readme_after
     assert "myprj" not in readme_after
     assert "my_module" not in readme_after
 
@@ -115,6 +115,6 @@ def test_apply_and_rollback_restore_fixture(tmp_path: Path) -> None:
     assert not renamed_src.exists()
 
     readme_restored = (project_root / "README.md").read_text(encoding="utf-8")
-    assert "MyProject" in readme_restored
+    assert "Signal Editor" in readme_restored
     assert "myprj" in readme_restored
     assert "my_module" in readme_restored

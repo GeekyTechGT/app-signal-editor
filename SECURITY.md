@@ -2,58 +2,82 @@
 
 ## Supported Versions
 
-| Version line          | Status |
-|-----------------------|--------|
-| `0.1.x`               | Supported |
-| Older snapshots       | Best effort only |
+| Version line | Status |
+|--------------|--------|
+| `0.1.x` | Supported |
+| Older snapshots | Best effort only |
 | Experimental branches | Not supported |
 
 ## Reporting a Vulnerability
 
-Do not open a public issue for suspected vulnerabilities.
+Do not report suspected vulnerabilities through a public issue.
 
-Report security issues through an approved private channel:
+Use an approved private reporting path:
 
 1. Contact the repository maintainer or designated internal security owner.
 2. Use the approved confidential communication channel for your organization.
-3. Include enough technical detail to reproduce and triage the issue safely.
+3. Provide enough detail to reproduce and triage the issue safely.
 
-Your report should include:
+A useful report should include:
 
-- affected area or executable
-- affected version or branch
+- affected component or executable
+- affected branch or version
 - impact summary
 - reproduction steps
-- proof-of-concept input if it is safe to share
-- whether the issue affects confidentiality, integrity, availability, or supply-chain trust
+- representative input file or payload if it is safe to share
+- whether confidentiality, integrity, availability, or supply-chain trust is affected
 
-## Project-Specific Security Focus
+## Security Scope for Signal Editor
 
-Signal Editor primarily processes local CSV data. The most relevant risks are:
+Signal Editor is a local desktop engineering tool. Its most relevant security risks are not traditional internet-facing web threats, but local data handling and parser correctness issues.
 
-- malformed CSV input causing denial of service or undefined behavior
-- unsafe path handling during load and save operations
-- packaging or deployment workflows shipping unintended artifacts
-- accidental exposure of proprietary signal data in commits, logs, or test fixtures
+The most important repository-specific risk areas are:
+
+- malformed or adversarial input files causing crashes or undefined behavior
+- parser inconsistencies across CSV, TSV/TXT, JSON, and SpreadsheetML XML
+- unsafe path handling during load/save operations
+- accidental disclosure of proprietary waveform data in fixtures, logs, or commits
+- packaging or deployment steps distributing unintended or stale artifacts
 
 ## Secure Development Expectations
 
 All contributors are expected to:
 
-- validate untrusted file input aggressively
-- preserve deterministic parsing and export behavior
-- avoid logging sensitive file paths or proprietary sample data unnecessarily
-- add regression tests for security-relevant parser fixes
-- review dependency updates for both security and license impact
+- treat imported files as untrusted input
+- validate parser assumptions explicitly and fail clearly
+- add regression tests for security-relevant parsing fixes
+- avoid logging sensitive paths or sample values unless necessary for diagnosis
+- review new dependencies for both security and license impact
+- preserve deterministic behavior in persistence flows to reduce ambiguous parser outcomes
 
-## Secrets and Sensitive Material
+## Sensitive Material
 
 Never commit:
 
 - private keys
-- API tokens or passwords
-- customer data not approved as test data
-- confidential recordings or measurement files
-- environment-specific secrets
+- API tokens, passwords, or secrets
+- confidential customer measurement files
+- proprietary traces that are not explicitly approved as repository fixtures
+- internal-only credentials for packaging, deployment, or test infrastructure
 
-If such material is committed accidentally, stop, notify the maintainer immediately, and rotate or revoke the exposed material.
+If sensitive material is committed accidentally:
+
+1. stop normal work immediately
+2. notify the maintainer
+3. rotate or revoke the affected secret where applicable
+4. remove the material using an approved remediation workflow
+5. assess whether any downstream distribution or fork already contains it
+
+## Security Review Triggers
+
+Treat the following as changes that deserve explicit security attention:
+
+- new import or export formats
+- new parser logic for tabular metadata or enumerated state handling
+- changes to filesystem path resolution
+- changes to deployment configuration or packaging descriptors
+- dependency additions or major dependency upgrades
+
+## Disclosure and Remediation Expectations
+
+The repository should prefer responsible private handling first, followed by clear remediation notes once a fix is available. If a vulnerability results in a behavior change, the relevant documentation and changelog entries should be updated so downstream users understand the mitigation and any compatibility impact.

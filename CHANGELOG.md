@@ -7,19 +7,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 ## [Unreleased]
 
 ### Added
-- Richer workspace-oriented GUI presentation with document summaries and stronger visual hierarchy
-- Enumerated signal support across domain logic, CSV import/export, creation flows, table editing, and plot rendering
-- Multi-format file repository with JSON, TSV/TXT, and SpreadsheetML XML support for import/export
-- Expanded Doxygen coverage across the public Signal Editor module surface
-- Product, architecture, and requirements documents aligned with the actual application scope
+- Workspace tab navigation that separates plot and table workflows into dedicated views
+- Shared interpolation control positioned at workspace level so it remains available in both editing contexts
+- Multi-format enumerated signal fixtures in `tests/01.data/` for CSV, inline CSV, JSON, and SpreadsheetML XML
+- Explicit repository governance documentation through `GOVERNANCE.md`
+- Expanded repository guidance aligned with the real Signal Editor product rather than scaffold placeholders
 
 ### Changed
-- Refined the shared Qt theme to provide a more polished editor look and stronger affordances
-- Upgraded the waveform canvas with contextual badges, crosshair feedback, enum-aware Y-axis labels, and a more intentional rendering style
-- Reworked repository documentation from scaffold placeholders into Signal Editor-specific guidance, including the expanded file format contract
+- Refined the workspace UX to reduce header density, improve space usage, and replace the plot/table splitter with tab-based navigation
+- Updated documentation across product, architecture, governance, contribution, security, and guideline areas to describe the actual current implementation in detail
+- Tightened the tab presentation and transition behavior for a more polished and less intrusive workspace switch
+- Moved interpolation selection out of the table-specific panel into a shared workspace control area
+
+### Fixed
+- Resolved test warnings related to `nodiscard` usage in unit tests
+- Corrected Qt build regressions introduced during the workspace navigation refactor
+- Removed transient tab-transition bleed-through caused by transparent tab-page rendering
 
 ### Removed
-- Stale scaffold/template wording from primary project documentation
+- Stale scaffold and template-centric repository guidance from active documentation
+- Table-local interpolation control in favor of a shared workspace-level control
 
 ## [0.1.0] - 2026-04-10
 

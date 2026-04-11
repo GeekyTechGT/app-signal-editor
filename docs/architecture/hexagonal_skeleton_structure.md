@@ -1,80 +1,74 @@
-# Hexagonal Architecture — Skeleton Structure
+# Hexagonal Structure for Signal Editor
 
 ## Objective
 
-This document defines the canonical folder structure for modules in this repository. Every module follows the same pattern so developers can navigate any module with the same mental model.
+This document explains how the Signal Editor module is structured inside the repository and what belongs in each area. It serves as a navigation guide and as a guardrail for future changes.
 
-## Folder Layout (per module)
+## Module Layout
 
-```
-src/<module>/
+```text
+src/signal_editor/
 ├── core/
-│   ├── domain/        ← Pure entities and value objects (no I/O, no frameworks)
-│   └── usecases/      ← Business logic orchestration (depends only on ports)
-├── ports/             ← Abstract interfaces (pure virtual C++ classes)
+│   ├── domain/        # Pure waveform entities, invariants, and editing rules
+│   └── usecases/      # Application workflows expressed against ports
+├── ports/             # Repository abstractions consumed by the use-case layer
 ├── adapters/
-│   ├── cli/           ← argv parsing, exit-code mapping
-│   ├── filesystem/    ← File read/write implementations of ports
-│   ├── json/          ← JSON configuration reading
-│   └── gui/           ← Qt widget logic (no business logic)
-├── api/               ← Public module facade used by apps/
-└── schema/            ← JSON schemas for config validation
+│   ├── filesystem/    # CSV and multi-format file persistence
+│   └── qt/            # Qt widgets, dialogs, and workspace shell
+├── api/               # Public facade used by the GUI application
+└── schema/            # Structured validation assets when applicable
 
-apps/<module>/
-├── cli/
-│   ├── CMakeLists.txt
-│   └── main.cpp       ← Composition root: wire adapters → ports → api
-├── gui/
-│   ├── CMakeLists.txt
-│   └── main.cpp       ← Composition root for Qt app
-└── docs/
-    └── ABOUT.md       ← User-facing module documentation
+apps/signal_editor/gui/
+└── main.cpp           # Composition root for the Qt application
 ```
 
 ## Placement Rules
 
-### What belongs in `core/` (inside the hexagon)
+### What belongs inside the hexagon
 
-✅ Entities, value objects, domain invariants
-✅ Use case orchestration
-✅ Error model and domain-specific exceptions
-✅ Pure algorithmic logic with no I/O
+Inside `core/` you should place:
 
-❌ Qt, filesystem, JSON library dependencies
-❌ OS-specific code
-❌ `main()`
+- entities and value objects
+- invariants for sample ordering and signal naming
+- interpolation semantics
+- enumerated label/value rules
+- editing primitives
+- workflow orchestration that depends only on ports
 
-### What belongs in `adapters/` (outside the hexagon)
+### What belongs outside the hexagon
 
-✅ Filesystem read/write
-✅ GUI: Qt widgets, event handling, binding
-✅ CLI: argv parsing, help text, exit codes
-✅ JSON: loading and validating config files
+Inside `adapters/` you should place:
+
+- Qt widgets and signal-slot wiring
+- file parsing and serialization
+- extension-based repository dispatch
+- format-specific metadata handling
+- rendering and interaction logic
 
 ### What belongs in `apps/`
 
-✅ ONLY the composition root:
-- `main.cpp`
-- wiring: create adapters, inject into use cases via ports
-- zero business logic
+The application entry point should remain small and focused on composition:
 
-> Rule: `apps/*/main.cpp` should be short. If it grows beyond 50 lines of logic, extract a factory or builder.
+- create the Qt application
+- build concrete adapters
+- inject them into the core-facing API/service
+- start the event loop
 
 ## Dependency Rule
 
+```text
+apps -> api -> usecases -> ports <- adapters
+                |
+                -> domain
 ```
-apps/ → api/ → usecases/ → ports/ ← adapters/
-                ↓
-            domain/
-```
 
-Arrows point from dependents to dependencies. The domain and use cases have **no outbound arrows** to adapters or frameworks.
+The most important architectural prohibition is this: the domain must never depend on adapters or frameworks.
 
-## Adding a New Module
+## Practical Interpretation
 
-1. Create `src/<new_module>/` with the above sub-folders.
-2. Add `CMakeLists.txt` for the library target.
-3. Create `apps/<new_module>/cli/` and/or `apps/<new_module>/gui/` with `main.cpp`.
-4. Add `tests/03.unit_test/<new_module>/CMakeLists.txt`.
-5. Register subdirectories in the root `CMakeLists.txt`.
-6. Update `README.md` module inventory table.
+If you are unsure where logic belongs, use this test:
+
+- if it talks about what a signal means, it probably belongs in the domain
+- if it talks about how a signal is loaded or saved, it probably belongs in a filesystem adapter
+- if it talks about how a user edits or sees a signal, it probably belongs in a Qt adapter
+- if it coordinates operations between those pieces without becoming UI-specific, it probably belongs in a use case

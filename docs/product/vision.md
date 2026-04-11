@@ -1,38 +1,69 @@
 # Product Vision
 
-## Problem
+## Problem Statement
 
-Engineers often need to make small but precise adjustments to time-series signals without reopening a heavyweight modelling toolchain. Existing workflows are frequently slow, script-heavy, or tightly coupled to proprietary ecosystems.
+Engineering teams frequently need to make targeted changes to waveform data without reopening a full simulation, calibration, or measurement-processing toolchain. In practice, many teams fall back to spreadsheets, one-off scripts, or manual conversions between incompatible tools.
 
-## Vision
+Those workarounds create recurring problems:
 
-Signal Editor provides a focused desktop workspace for loading, inspecting, editing, and exporting waveform data with minimal friction. It aims to feel fast enough for quick correction loops while being structured enough for long-term maintainability and testability.
+- waveform semantics are obscured by generic table tooling
+- interpolation intent is easy to lose
+- boolean and state-machine style signals become harder to reason about once reduced to raw numeric codes
+- edits are difficult to validate visually and structurally at the same time
+- extension work becomes expensive when business rules are entangled with UI behavior
 
-## Primary Users
+## Vision Statement
 
-| User | Goal | Pain Point |
-|------|------|------------|
-| Controls engineer | Tweak reference or validation traces quickly | Full simulation tools are slower than the task warrants |
-| Test engineer | Clean and reshape measured CSV data before replay | Spreadsheet editing is error-prone and not waveform-aware |
-| Tooling developer | Extend the editor without coupling to Qt internals | Many desktop tools mix domain logic directly into UI code |
+Signal Editor provides a focused desktop workspace for loading, inspecting, generating, editing, and exporting engineering waveform data with minimal friction and strong structural discipline.
+
+The product should feel fast for day-to-day signal correction loops while remaining clean enough internally to support future growth in formats, workflows, and adapters.
+
+## Target Users
+
+| User | Primary Goal | Typical Friction Today |
+|------|--------------|------------------------|
+| Controls engineer | Tweak reference or validation traces quickly | Heavy tools are slower than the actual change needed |
+| Test engineer | Clean or reshape measured data before replay or reporting | Spreadsheet editing is not waveform-aware and can introduce silent mistakes |
+| Tooling engineer | Extend editing or persistence behavior safely | Many desktop tools mix domain logic directly into the UI layer |
+| Calibration or validation engineer | Work with state-based or boolean signals in a readable way | Raw numeric encodings hide the actual operating states |
 
 ## Product Goals
 
-1. Make waveform inspection and editing fast for day-to-day engineering tasks.
-2. Keep the core editing logic testable and independent from the GUI framework.
-3. Preserve round-trip fidelity when loading, editing, and exporting CSV signal sets.
-4. Provide a UI that communicates state clearly even for multi-file editing sessions.
+1. Make common waveform editing tasks fast and direct.
+2. Preserve semantic fidelity for interpolation and enumerated state signals.
+3. Provide both visual and table-based editing paths without forcing the user into one mode.
+4. Keep the domain and use-case logic testable and framework-independent.
+5. Make repository growth sustainable through explicit architecture and documentation.
+
+## User Experience Goals
+
+The interface should communicate the current editing context clearly.
+
+That means the product should make it obvious:
+
+- which document is active
+- which signal is active
+- whether the current signal is numeric or enumerated
+- which interpolation mode is in effect
+- whether the user is working in the plot or the sample table
+- whether the active document contains unsaved changes
 
 ## Non-Goals
 
-- Replace full simulation authoring suites
-- Provide collaborative or cloud-native workflows
-- Act as a generic spreadsheet or data science notebook
-- Support every proprietary waveform format in the first release
+The current product does not aim to:
+
+- replace full simulation authoring suites
+- become a generic spreadsheet editor
+- provide collaborative cloud workflows
+- support every proprietary waveform format in the near term
+- act as a scripting notebook or data science environment
 
 ## Success Signals
 
-- Common CSV edit loops can be completed without leaving the application
-- Engineers can understand the active workspace state at a glance
-- Core editing behavior stays covered by unit tests as features evolve
-- New adapters or UI improvements can be introduced without refactoring domain logic
+The product is moving in the right direction when:
+
+- engineers can complete routine correction loops without leaving the application
+- active workspace state is understandable at a glance
+- enumerated signals remain readable from import through export
+- new persistence or UI capabilities can be introduced without refactoring the domain model
+- documentation remains aligned with implementation rather than lagging behind it

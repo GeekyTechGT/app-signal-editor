@@ -26,7 +26,7 @@ call :discover_test_pipelines
 
 echo.
 echo !CYAN!====================================================!RESET!
-echo !CYAN!  Run Test Pipeline - MyProject!RESET!
+echo !CYAN!  Run Test Pipeline - Signal Editor!RESET!
 echo !CYAN!====================================================!RESET!
 echo.
 

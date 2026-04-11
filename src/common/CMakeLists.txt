@@ -1,4 +1,4 @@
-add_library(myprj_common ${MYPRJ_LIBRARY_TYPE}
+add_library(myprj_common ${SIGNAL_EDITOR_LIBRARY_TYPE}
     core/domain/common_types.cpp
     # adapters/filesystem/file_utils.cpp
 )

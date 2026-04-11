@@ -101,7 +101,7 @@ try {
 '</head>\n' +
 '<body>\n' +
 '    <div class="container">\n' +
-'        <h1>MyProject - Test Results</h1>\n' +
+'        <h1>Signal Editor - Test Results</h1>\n' +
 '        <div class="' + summaryClass + '">\n' +
 '            <p><strong>Configuration:</strong> ' + config + '</p>\n' +
 '            <p><strong>Date:</strong> ' + dateStr + '</p>\n' +

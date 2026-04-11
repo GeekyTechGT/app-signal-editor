@@ -19,7 +19,7 @@ set "RESET=!ESC![0m"
 cls
 echo.
 echo !CYAN!====================================================!RESET!
-echo !CYAN!  Git Hooks Status - MyProject!RESET!
+echo !CYAN!  Git Hooks Status - Signal Editor!RESET!
 echo !CYAN!====================================================!RESET!
 echo.
 
