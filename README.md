@@ -13,6 +13,9 @@
 </p>
 
 <p align="center">
+  <img src="https://github.com/GeekyTechGT/signal-editor/actions/workflows/ci.yml/badge.svg?branch=master" alt="Build status">
+  <img src="https://img.shields.io/github/last-commit/GeekyTechGT/signal-editor/master?style=flat-square" alt="Last commit">
+  <img src="https://img.shields.io/badge/License-Proprietary%20%7C%20Internal-C2410C?style=flat-square" alt="Proprietary license">
   <img src="https://img.shields.io/badge/Formats-CSV%20%7C%20TSV%20%7C%20JSON%20%7C%20SpreadsheetML-7C3AED?style=flat-square" alt="Supported formats">
   <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-0EA5E9?style=flat-square" alt="Platforms">
   <img src="https://img.shields.io/badge/UI-Plot%20%2B%20Table%20Workflows-F97316?style=flat-square" alt="UI workflows">
@@ -214,4 +217,6 @@ Start here:
 
 ## License
 
-No license file is currently published in the repository. Add one before distributing the project externally under a defined legal model.
+This project is proprietary and intended for internal or explicitly authorized use only. See [LICENSE.md](LICENSE.md) for the repository notice and handling restrictions.
+
+Because the repository is private and not distributed as open source, the README intentionally uses a proprietary license badge rather than an OSS license badge.
