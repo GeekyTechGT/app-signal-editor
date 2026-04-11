@@ -144,7 +144,7 @@ apps/gui -> api -> core/usecases -> ports <- adapters
 
 This separation keeps responsibilities clear:
 
-- `core/domain/` owns waveform invariants, interpolation semantics, and editing primitives
+- `core/domain/` owns waveform invariants, interpolation semantics, editing primitives, and the lightweight `Result` contract used across service boundaries
 - `core/usecases/` orchestrates application behavior around repositories and user actions
 - `ports/` defines the abstractions consumed by the use cases
 - `adapters/filesystem/` implements persistence and format mapping
@@ -161,7 +161,6 @@ signal-editor/
 ├── docs/                                # Product, architecture, specification, and guidelines
 ├── include/myprj/                       # Generated/public version headers
 ├── scripts/                             # Build, packaging, deployment, and workflow helpers
-├── src/common/                          # Shared infrastructure-neutral support types
 ├── src/signal_editor/                   # Domain, use cases, ports, adapters, and public API
 ├── tests/                               # Unit tests and reusable fixtures
 ├── CHANGELOG.md                         # Release-facing change history
@@ -197,6 +196,8 @@ ctest --preset linux-gcc-debug --output-on-failure
 
 Windows users can also drive build, test, deploy, and packaging flows through `project_manager.bat`.
 
+The repository includes GitHub Actions CI for Linux and Windows validation, GCC-based coverage artifact generation for debug builds, and a tag-driven packaging workflow for release candidates.
+
 ## Current Technical Baseline
 
 - Language standard: C++23
@@ -204,6 +205,9 @@ Windows users can also drive build, test, deploy, and packaging flows through `p
 - Build system: CMake 3.25+
 - JSON library: nlohmann/json
 - Unit test framework: GoogleTest
+- CI: GitHub Actions with Linux and Windows validation
+- Coverage reporting: gcovr on Linux GCC debug builds
+- Delivery workflow: tag-driven release packaging with archived artifacts
 - Primary architectural style: Hexagonal architecture
 
 ## Contributing

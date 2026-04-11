@@ -21,10 +21,6 @@
 │  │ Domain, use cases, ports, repositories, and public API facade       │   │
 │  └───────────────┬──────────────────────────────────────────────────────┘   │
 │                  │                                                         │
-│  ┌───────────────v──────────────┐                                          │
-│  │ signal_editor_common         │                                          │
-│  │ Shared result/support types  │                                          │
-│  └──────────────────────────────┘                                          │
 └────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -35,7 +31,6 @@
 | `signal_editor_gui` | C++23, Qt 6 | GUI executable and composition root |
 | `signal_editor_qt` | C++23, Qt 6 | Workspace shell, plot editing, table editing, dialogs, and presentation logic |
 | `signal_editor_core` | C++23 | Domain model, use cases, repository abstractions, filesystem repositories, and API surface |
-| `signal_editor_common` | C++23 | Shared support and result types |
 
 ## Key Dependencies
 

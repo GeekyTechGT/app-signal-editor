@@ -21,10 +21,10 @@ jobs:
       - name: Install toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build g++ clang cmake
+          sudo apt-get install -y ninja-build g++ clang cmake gcovr
 
       - name: Configure GCC debug
-        run: cmake --preset linux-gcc-debug -DSIGNAL_EDITOR_BUILD_GUI=OFF
+        run: cmake --preset linux-gcc-debug -DSIGNAL_EDITOR_BUILD_GUI=OFF -DSIGNAL_EDITOR_ENABLE_COVERAGE=ON
 
       - name: Build GCC debug
         run: cmake --build --preset linux-gcc-debug --parallel
@@ -32,11 +32,31 @@ jobs:
       - name: Run GCC tests
         run: ctest --preset linux-gcc-debug --output-on-failure
 
+      - name: Generate GCC coverage report
+        run: |
+          gcovr \
+            --root . \
+            --filter src \
+            --exclude 'build/.*' \
+            --xml-pretty --output build/linux-gcc-debug/coverage.xml \
+            --html-details build/linux-gcc-debug/coverage.html
+
+      - name: Upload GCC coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gcc-coverage-report
+          path: |
+            build/linux-gcc-debug/coverage.xml
+            build/linux-gcc-debug/coverage.html
+
       - name: Configure Clang debug
         run: cmake --preset linux-clang-debug -DSIGNAL_EDITOR_BUILD_GUI=OFF
 
       - name: Build Clang debug
         run: cmake --build --preset linux-clang-debug --parallel
+
+      - name: Run Clang tests
+        run: ctest --preset linux-clang-debug --output-on-failure
 
   windows-core:
     name: Windows Core and Tests

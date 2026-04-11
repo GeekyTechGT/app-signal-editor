@@ -90,6 +90,19 @@ TEST(SignalTest, EnumeratedSignalsResolveLabelsAndSnapInsertedValues) {
     EXPECT_DOUBLE_EQ(s.samples()[inserted].y, 0.0);
 }
 
+TEST(SignalTest, ClearEnumerationRestoresLinearInterpolation) {
+    Signal s = Signal::create_uniform("enum", 0.0, 1.0, 3, 0.0);
+    s.set_enumeration({{"FALSE", 0.0}, {"TRUE", 1.0}});
+
+    ASSERT_TRUE(s.is_enumerated());
+    ASSERT_EQ(s.interpolation(), Signal::InterpolationMode::Step);
+
+    s.clear_enumeration();
+
+    EXPECT_FALSE(s.is_enumerated());
+    EXPECT_EQ(s.interpolation(), Signal::InterpolationMode::Linear);
+}
+
 TEST(SignalTest, SetSampleValueUpdatesY) {
     auto s = Signal::from_vectors("s", {0.0, 1.0}, {0.0, 0.0});
     s.set_sample_value(1, 42.0);

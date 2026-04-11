@@ -144,12 +144,29 @@ function(myprj_enable_sanitizers target)
     endif()
 endfunction()
 
+function(myprj_enable_coverage target)
+    if(SIGNAL_EDITOR_ENABLE_COVERAGE
+       AND CMAKE_BUILD_TYPE STREQUAL "Debug"
+       AND NOT WIN32
+       AND (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
+        target_compile_options(${target} PRIVATE
+            --coverage
+            -O0
+            -g
+        )
+        target_link_options(${target} PRIVATE
+            --coverage
+        )
+    endif()
+endfunction()
+
 # =============================================================================
 # Combined function to apply all project options to a target
 # =============================================================================
 function(myprj_configure_target target)
     myprj_set_warnings(${target})
     myprj_enable_sanitizers(${target})
+    myprj_enable_coverage(${target})
     myprj_enable_static_cpp_runtime(${target})
     myprj_copy_runtime_dlls(${target})
 endfunction()

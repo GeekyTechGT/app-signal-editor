@@ -178,6 +178,7 @@ void Signal::set_enumeration(std::vector<EnumerationEntry> enumeration) {
 
 void Signal::clear_enumeration() noexcept {
     enumeration_.clear();
+    interpolation_ = InterpolationMode::Linear;
 }
 
 std::string Signal::label_for_value(double y) const {

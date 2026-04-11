@@ -62,6 +62,8 @@ A reviewer is responsible for:
 - checking whether the change respects repository boundaries
 - verifying that tests and docs match the implementation
 - identifying hidden workflow or compatibility risks
+- checking that verification scope and residual risks are stated clearly in review artifacts
+- checking that release and deployment implications are documented before delivery-oriented changes land
 
 ## Decision-Making Model
 

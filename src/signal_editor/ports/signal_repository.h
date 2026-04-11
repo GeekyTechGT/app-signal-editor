@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common/core/domain/common_types.h"
+#include "signal_editor/core/domain/result.h"
 #include "signal_editor/core/domain/signal_library.h"
 
 #include <filesystem>

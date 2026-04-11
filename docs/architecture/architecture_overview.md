@@ -33,7 +33,7 @@ The governing rule is simple:
 | Ports | `src/signal_editor/ports/` | Defines repository abstractions consumed by the use-case layer |
 | Filesystem adapters | `src/signal_editor/adapters/filesystem/` | Implements CSV and multi-format persistence |
 | Qt adapters | `src/signal_editor/adapters/qt/` | Implements workspace shell, tabs, plot, table, dialogs, and interaction logic |
-| Shared support | `src/common/` | Provides common result/support utilities |
+| Shared support | `src/signal_editor/core/domain/result.h` | Provides the lightweight result contract used by service and repository boundaries |
 
 ## 4. Why This Structure Matters
 

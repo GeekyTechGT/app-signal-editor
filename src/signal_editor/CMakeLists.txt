@@ -23,7 +23,6 @@ target_include_directories(signal_editor_core
 
 target_link_libraries(signal_editor_core
     PUBLIC
-        signal_editor_common
         nlohmann_json::nlohmann_json
 )
 

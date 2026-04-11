@@ -1,0 +1,47 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  package:
+    name: Package Release Artifacts
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build g++ cmake zip
+
+      - name: Configure release build
+        run: cmake --preset linux-gcc-release -DSIGNAL_EDITOR_BUILD_GUI=OFF
+
+      - name: Build release artifacts
+        run: cmake --build --preset linux-gcc-release --parallel
+
+      - name: Run release smoke tests
+        run: ctest --preset linux-gcc-release --output-on-failure
+
+      - name: Stage deliverables
+        run: |
+          mkdir -p build/release-package/bin
+          if [ -d build/linux-gcc-release/bin ]; then cp -R build/linux-gcc-release/bin/. build/release-package/bin/; fi
+          cp README.md LICENSE.md CHANGELOG.md build/release-package/
+
+      - name: Archive deliverables
+        run: |
+          cd build
+          zip -r signal-editor-release-${GITHUB_REF_NAME:-manual}.zip release-package
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: signal-editor-release-${{ github.ref_name }}
+          path: build/signal-editor-release-*.zip

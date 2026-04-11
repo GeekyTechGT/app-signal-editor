@@ -120,6 +120,9 @@ Typical expectations include:
 - service tests for workflow-level editing behavior
 - repository tests for round-trip persistence and format parsing
 - manual GUI validation when workspace or interaction behavior changed
+- CI green status before merge
+- release workflow expectations reviewed when packaging, versioning, or distribution mechanics change
+- coverage impact reviewed when core behavior changes
 
 ## Commit Guidance
 
@@ -141,3 +144,5 @@ Before opening a change for review, verify:
 - no stale scaffold language remains in active docs
 - no unrelated repository churn was introduced
 - user-visible changes are reflected in the changelog when appropriate
+
+The repository also uses `CODEOWNERS` and a pull request template so verification scope and review accountability are explicit during every merge.

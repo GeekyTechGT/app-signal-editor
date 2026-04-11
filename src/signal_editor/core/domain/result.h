@@ -2,12 +2,11 @@
 
 #include <string>
 #include <utility>
-#include <vector>
 
 namespace myprj {
 
 /**
- * @brief Generic success/error discriminator shared across project modules.
+ * @brief Generic success/error discriminator shared across Signal Editor workflows.
  */
 enum class Status { Ok, Error };
 
@@ -26,20 +25,20 @@ struct Result {
      * @brief Creates a successful result.
      * @return Result marked as `Status::Ok`.
      */
-    static Result ok() { return {Status::Ok, {}}; }
+    [[nodiscard]] static Result ok() { return {Status::Ok, {}}; }
 
     /**
      * @brief Creates a failing result carrying a human-readable explanation.
      * @param msg Failure details intended for logs or UI feedback.
      * @return Result marked as `Status::Error`.
      */
-    static Result error(std::string msg) { return {Status::Error, std::move(msg)}; }
+    [[nodiscard]] static Result error(std::string msg) { return {Status::Error, std::move(msg)}; }
 
     /**
      * @brief Convenience predicate used by callers that only need pass/fail.
      * @return `true` when the operation succeeded.
      */
-    bool is_ok() const { return status == Status::Ok; }
+    [[nodiscard]] bool is_ok() const noexcept { return status == Status::Ok; }
 };
 
 }  // namespace myprj

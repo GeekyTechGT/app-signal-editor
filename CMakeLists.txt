@@ -9,7 +9,7 @@ project(SignalEditor
 # =============================================================================
 # Module versions (independent from project version)
 # =============================================================================
-set(SIGNAL_EDITOR_SIGNAL_EDITOR_VERSION "0.1.0")
+set(SIGNAL_EDITOR_MODULE_VERSION "0.1.0")
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -20,6 +20,7 @@ option(SIGNAL_EDITOR_BUILD_TESTS       "Build unit tests"                       
 option(SIGNAL_EDITOR_BUILD_GUI         "Build GUI applications (requires Qt6)"               OFF)
 option(SIGNAL_EDITOR_BUILD_SHARED      "Build shared libraries"                              ON)
 option(SIGNAL_EDITOR_ENABLE_SANITIZERS "Enable sanitizers in debug builds"                   OFF)
+option(SIGNAL_EDITOR_ENABLE_COVERAGE   "Enable coverage instrumentation in supported debug builds" OFF)
 option(SIGNAL_EDITOR_STATIC_CPP_RUNTIME "Link C++ runtime statically on Windows"             OFF)
 
 # Include project options (warnings, sanitizers, MinGW helpers, etc.)
@@ -92,8 +93,6 @@ endif()
 # =============================================================================
 # Subdirectories — libraries
 # =============================================================================
-add_subdirectory(src/common)
-
 file(GLOB SIGNAL_EDITOR_MODULE_CMAKELISTS RELATIVE ${CMAKE_SOURCE_DIR} src/*/CMakeLists.txt)
 set(SIGNAL_EDITOR_DISCOVERED_MODULES)
 foreach(module_cmakelists ${SIGNAL_EDITOR_MODULE_CMAKELISTS})
