@@ -18,7 +18,7 @@ The current product scope includes:
 - loading one or more CSV files into a workspace
 - switching between loaded documents without closing the application
 - viewing and editing signals through both a plot and a sample table
-- creating new signals from common waveform templates
+- creating new signals from common waveform templates and enumerated state definitions
 - renaming and removing signals from the active document
 - changing interpolation mode between linear and step behavior
 - saving edited data back to CSV with interpolation metadata preserved
@@ -62,15 +62,19 @@ Signal Editor is a local desktop engineering tool. The core editing model is fra
 | FR-8 | The system shall allow the user to drag existing waypoints to new positions on the plot. |
 | FR-9 | The system shall allow the user to insert a waypoint by double-clicking on the plot. |
 | FR-10 | The system shall allow the user to remove a waypoint from the plot context menu. |
-| FR-11 | The system shall allow the user to apply Gaussian brushing by using `Shift` while dragging on the plot. |
+| FR-11 | The system shall allow the user to apply Gaussian brushing by using `Shift` while dragging on the plot for numeric signals. |
 | FR-12 | The system shall allow sample editing in tabular form. |
 | FR-13 | The system shall allow adding and removing samples in the table. |
-| FR-14 | The system shall allow creating a new signal from waveform templates such as constant, sine, cosine, pulse, sawtooth, triangle, and ramp. |
+| FR-14 | The system shall allow creating a new signal from waveform templates such as constant, sine, cosine, pulse, sawtooth, triangle, ramp, and enumerated states. |
 | FR-15 | The system shall allow renaming and removing signals in the active document. |
 | FR-16 | The system shall support per-signal interpolation modes of `linear` and `step`. |
-| FR-17 | The system shall save interpolation metadata when exporting CSV files. |
-| FR-18 | The system shall provide undo for edits made to the active document. |
-| FR-19 | The system shall surface cursor coordinates and workspace state in the UI. |
+| FR-17 | The system shall force enumerated signals to use `step` interpolation semantics. |
+| FR-18 | The system shall save interpolation metadata when exporting CSV files. |
+| FR-19 | The system shall save enumerated mapping metadata when exporting CSV files. |
+| FR-20 | The system shall accept enumerated values encoded either through `# enum_map` metadata or inline `label:value` tokens during CSV import. |
+| FR-21 | The system shall render enumerated signal values as labels on the plot Y axis and in tabular editing controls. |
+| FR-22 | The system shall provide undo for edits made to the active document. |
+| FR-23 | The system shall surface cursor coordinates and workspace state in the UI. |
 
 ## 4. Data Requirements
 
@@ -80,13 +84,16 @@ Signal Editor is a local desktop engineering tool. The core editing model is fra
 - Decimal separator: dot
 - First column: strictly increasing time values
 - Additional columns: signal values aligned to the row time
-- Optional first metadata row: interpolation descriptors
+- Optional metadata rows before the header: interpolation descriptors and enum mappings
 - Optional header row: signal names
+- Enumerated state values may be encoded as labels when a matching `# enum_map` row exists
+- Enumerated state values may also be bootstrapped inline through `label:value` cells
 
 ### 4.2 Export Rules
 
 - Exports shall contain the union of all timestamps across signals.
 - Signal values shall be interpolated according to the signal's interpolation mode.
+- Enumerated signals shall emit their label strings when the value matches a declared state mapping.
 - Empty libraries shall not be exported successfully.
 
 ## 5. Domain Invariants
@@ -95,6 +102,8 @@ Signal Editor is a local desktop engineering tool. The core editing model is fra
 - Samples within a signal shall remain ordered by increasing time.
 - Duplicate timestamps shall collapse into a single sample entry.
 - The library shall expose bounds-checked access for indexed operations.
+- Enumerated mappings shall use non-empty unique labels and unique numeric values.
+- Enumerated sample edits shall snap to the closest legal numeric state value.
 
 ## 6. Non-Functional Requirements
 

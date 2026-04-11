@@ -8,12 +8,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ### Added
 - Richer workspace-oriented GUI presentation with document summaries and stronger visual hierarchy
+- Enumerated signal support across domain logic, CSV import/export, creation flows, table editing, and plot rendering
 - Expanded Doxygen coverage across the public Signal Editor module surface
 - Product, architecture, and requirements documents aligned with the actual application scope
 
 ### Changed
 - Refined the shared Qt theme to provide a more polished editor look and stronger affordances
-- Upgraded the waveform canvas with contextual badges, crosshair feedback, and a more intentional rendering style
+- Upgraded the waveform canvas with contextual badges, crosshair feedback, enum-aware Y-axis labels, and a more intentional rendering style
 - Reworked repository documentation from scaffold placeholders into Signal Editor-specific guidance
 
 ### Removed

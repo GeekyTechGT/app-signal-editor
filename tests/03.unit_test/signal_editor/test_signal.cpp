@@ -54,6 +54,42 @@ TEST(SignalTest, StepInterpolationUsesPreviousSampleValue) {
     EXPECT_DOUBLE_EQ(s.interpolate(1.75), 17.5);
 }
 
+TEST(SignalTest, EnumeratedSignalsForceStepInterpolationAndSnapValues) {
+    auto s = Signal::from_vectors("bool", {0.0, 1.0, 2.0}, {0.2, 0.9, 0.1});
+    s.set_enumeration({{"FALSE", 0.0}, {"TRUE", 1.0}});
+
+    EXPECT_TRUE(s.is_enumerated());
+    EXPECT_EQ(s.interpolation(), Signal::InterpolationMode::Step);
+    EXPECT_DOUBLE_EQ(s.samples()[0].y, 0.0);
+    EXPECT_DOUBLE_EQ(s.samples()[1].y, 1.0);
+    EXPECT_DOUBLE_EQ(s.samples()[2].y, 0.0);
+
+    s.set_interpolation(Signal::InterpolationMode::Linear);
+    EXPECT_EQ(s.interpolation(), Signal::InterpolationMode::Step);
+    EXPECT_DOUBLE_EQ(s.interpolate(1.5), 1.0);
+}
+
+TEST(SignalTest, EnumeratedSignalsValidateMappings) {
+    Signal s = Signal::create_uniform("enum", 0.0, 1.0, 2, 0.0);
+    EXPECT_THROW(s.set_enumeration({{"", 0.0}}), std::invalid_argument);
+    EXPECT_THROW(s.set_enumeration({{"FALSE", 0.0}, {"FALSE", 1.0}}), std::invalid_argument);
+    EXPECT_THROW(s.set_enumeration({{"FALSE", 0.0}, {"TRUE", 0.0}}), std::invalid_argument);
+}
+
+TEST(SignalTest, EnumeratedSignalsResolveLabelsAndSnapInsertedValues) {
+    Signal s = Signal::create_uniform("enum", 0.0, 1.0, 2, 0.0);
+    s.set_enumeration({{"FALSE", 0.0}, {"TRUE", 1.0}, {"UNKNOWN", 2.0}});
+
+    EXPECT_EQ(s.label_for_value(1.0), "TRUE");
+    EXPECT_DOUBLE_EQ(s.value_for_label("UNKNOWN"), 2.0);
+    EXPECT_THROW(s.value_for_label("MISSING"), std::invalid_argument);
+
+    s.set_sample_value(0, 1.6);
+    EXPECT_DOUBLE_EQ(s.samples()[0].y, 2.0);
+    const std::size_t inserted = s.insert_sample(0.5, 0.4);
+    EXPECT_DOUBLE_EQ(s.samples()[inserted].y, 0.0);
+}
+
 TEST(SignalTest, SetSampleValueUpdatesY) {
     auto s = Signal::from_vectors("s", {0.0, 1.0}, {0.0, 0.0});
     s.set_sample_value(1, 42.0);
@@ -100,6 +136,12 @@ TEST(SignalTest, GaussianBrushPeaksAtCenter) {
     EXPECT_LT(s.samples()[0].y, 0.001);
     EXPECT_LT(s.samples()[10].y, 0.001);
     EXPECT_THROW(s.apply_gaussian_brush(0.5, 1.0, 0.0), std::invalid_argument);
+}
+
+TEST(SignalTest, EnumeratedSignalsRejectGaussianBrush) {
+    Signal s = Signal::create_uniform("enum", 0.0, 1.0, 3, 0.0);
+    s.set_enumeration({{"FALSE", 0.0}, {"TRUE", 1.0}});
+    EXPECT_THROW(s.apply_gaussian_brush(0.5, 1.0, 0.1), std::invalid_argument);
 }
 
 TEST(SignalTest, NearestIndex) {

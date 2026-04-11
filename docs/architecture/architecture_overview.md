@@ -51,14 +51,16 @@ This architecture keeps the project extensible in practical ways:
 1. The user edits either through the plot or the table.
 2. The window snapshots undo state at the document level.
 3. The bound `Signal` is mutated through domain operations or service calls.
-4. The plot, table, and workspace status are refreshed.
+4. Enumerated signals stay constrained to their legal state map and expose labels back to the UI adapters.
+5. The plot, table, and workspace status are refreshed.
 
 ### 5.3 Save
 
 1. The active document is synchronized back into the service.
 2. The service delegates persistence to the CSV adapter.
-3. The adapter exports the union time axis and interpolation metadata.
-4. The window clears dirty state and refreshes workspace summaries.
+3. The adapter exports the union time axis, interpolation metadata, and enum mappings.
+4. Enumerated values are written back as labels when the mapping is known, preserving human readability.
+5. The window clears dirty state and refreshes workspace summaries.
 
 ## 6. Quality Attributes
 
@@ -67,6 +69,7 @@ The current design optimizes for:
 - maintainability through clear boundaries
 - testability of the core editing model
 - deterministic CSV round-trips
+- safe handling of enumerated state signals without leaking Qt concerns into the domain
 - UI responsiveness for day-to-day engineering work
 
 ## 7. Known Constraints

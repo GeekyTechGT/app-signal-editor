@@ -32,6 +32,7 @@
 #include <QTextEdit>
 #include <QUrl>
 #include <QVBoxLayout>
+#include <QStringList>
 
 #include <algorithm>
 #include <array>
@@ -57,6 +58,7 @@ enum class WaveformKind {
     Sawtooth,
     Triangle,
     Ramp,
+    Enumerated,
 };
 
 const char* interpolation_label(Signal::InterpolationMode interpolation) {
@@ -218,6 +220,85 @@ Signal generate_ramp_signal(const QString& name,
     return Signal::from_vectors(name.toStdString(), time, values);
 }
 
+std::vector<Signal::EnumerationEntry> parse_enumeration_definition(const QString& text) {
+    std::vector<Signal::EnumerationEntry> entries;
+    const QStringList lines = text.split(QStringLiteral("\n"));
+    for (const QString& raw_line : lines) {
+        const QString line = raw_line.trimmed();
+        if (line.isEmpty()) {
+            continue;
+        }
+
+        const int separator = line.lastIndexOf(':');
+        if (separator <= 0 || separator >= line.size() - 1) {
+            throw std::invalid_argument("Each enumerated state must use the format LABEL:NUMERIC_VALUE");
+        }
+
+        bool ok = false;
+        const QString label = line.left(separator).trimmed();
+        const double value = line.mid(separator + 1).trimmed().toDouble(&ok);
+        if (label.isEmpty() || !ok) {
+            throw std::invalid_argument("Invalid enumerated state definition: " + line.toStdString());
+        }
+        entries.push_back(Signal::EnumerationEntry{label.toStdString(), value});
+    }
+
+    if (entries.empty()) {
+        throw std::invalid_argument("Define at least one enumerated state");
+    }
+    return entries;
+}
+
+Signal generate_enumerated_signal(const QString& name,
+                                  double t_start,
+                                  double t_end,
+                                  std::size_t num_samples,
+                                  const std::vector<Signal::EnumerationEntry>& enumeration,
+                                  const QString& initial_label) {
+    QString resolved_label = initial_label.trimmed();
+    if (resolved_label.isEmpty()) {
+        resolved_label = QString::fromStdString(enumeration.front().label);
+    }
+
+    Signal signal = Signal::create_uniform(name.toStdString(), t_start, t_end, num_samples, 0.0,
+                                           Signal::InterpolationMode::Step);
+    signal.set_enumeration(enumeration);
+    const double initial_value = signal.value_for_label(resolved_label.toStdString());
+    for (std::size_t index = 0; index < signal.size(); ++index) {
+        signal.set_sample_value(index, initial_value);
+    }
+    return signal;
+}
+
+QString format_signal_value(const Signal* signal, double y) {
+    if (signal != nullptr && signal->is_enumerated()) {
+        const std::string label = signal->label_for_value(y);
+        if (!label.empty()) {
+            return QStringLiteral("%1 (%2)")
+                .arg(QString::fromStdString(label))
+                .arg(y, 0, 'f', 4);
+        }
+    }
+    return QString::number(y, 'f', 4);
+}
+
+QString describe_signal_line(const Signal& signal) {
+    QString description = QStringLiteral("- %1 (%2 samples, %3)")
+        .arg(QString::fromStdString(signal.name()))
+        .arg(static_cast<qulonglong>(signal.size()))
+        .arg(QString::fromLatin1(interpolation_label(signal.interpolation())));
+    if (signal.is_enumerated()) {
+        QStringList states;
+        for (const auto& entry : signal.enumeration()) {
+            states.push_back(QStringLiteral("%1:%2")
+                .arg(QString::fromStdString(entry.label))
+                .arg(entry.value, 0, 'f', 3));
+        }
+        description += QStringLiteral(" | enum [%1]").arg(states.join(QStringLiteral(", ")));
+    }
+    return description;
+}
+
 Signal generate_waveform_signal(WaveformKind kind,
                                 const QString& name,
                                 double t_start,
@@ -245,6 +326,8 @@ Signal generate_waveform_signal(WaveformKind kind,
                                         params_a[0], params_a[1], params_a[2], params_a[3]);
     case WaveformKind::Ramp:
         return generate_ramp_signal(name, t_start, t_end, num_samples, params_a[0], params_a[1]);
+    case WaveformKind::Enumerated:
+        break;
     }
     throw std::invalid_argument("unsupported waveform");
 }
@@ -510,7 +593,7 @@ void MainWindow::onAbout() {
         QStringLiteral("About Signal Editor"),
         QStringLiteral("<h3>Signal Editor</h3>"
                        "<p>Multi-file waveform editor built with C++23 and Qt 6.</p>"
-                       "<p>Current implementation supports CSV workspaces, file switching, renaming, undo, waypoint drag/edit, point insertion and Gaussian brushing.</p>"));
+                       "<p>Current implementation supports CSV workspaces, enumerated-state signals, file switching, renaming, undo, waypoint drag/edit, point insertion and Gaussian brushing for numeric curves.</p>"));
 }
 
 void MainWindow::onFileSelectionChanged(int index) {
@@ -594,7 +677,7 @@ void MainWindow::onAddRequested() {
 
     QDialog dlg(this);
     dlg.setWindowTitle(QStringLiteral("New signal"));
-    dlg.resize(520, 420);
+    dlg.resize(560, 560);
     auto* layout = new QVBoxLayout(&dlg);
     auto* common_form = new QFormLayout();
 
@@ -612,6 +695,7 @@ void MainWindow::onAddRequested() {
     waveform_box->addItem(QStringLiteral("Sawtooth"));
     waveform_box->addItem(QStringLiteral("Triangle"));
     waveform_box->addItem(QStringLiteral("Ramp"));
+    waveform_box->addItem(QStringLiteral("Enumerated"));
     interpolation_box->addItem(QStringLiteral("Linear"));
     interpolation_box->addItem(QStringLiteral("Step"));
 
@@ -751,9 +835,37 @@ void MainWindow::onAddRequested() {
     ramp_form->addRow(QStringLiteral("End value"), ramp_end);
     params_stack->addWidget(ramp_page);
 
+    auto* enum_page = new QWidget(params_stack);
+    auto* enum_layout = new QVBoxLayout(enum_page);
+    enum_layout->setContentsMargins(0, 0, 0, 0);
+    enum_layout->setSpacing(10);
+    auto* enum_intro = new QLabel(
+        QStringLiteral("Define one state per line using LABEL:NUMERIC_VALUE. Example:\nTRUE:1\nFALSE:0\nThe initial state can be left empty to use the first mapping entry."),
+        enum_page);
+    enum_intro->setWordWrap(true);
+    auto* enum_mapping = new QTextEdit(enum_page);
+    enum_mapping->setPlaceholderText(QStringLiteral("TRUE:1\nFALSE:0"));
+    enum_mapping->setMinimumHeight(140);
+    auto* enum_initial_form = new QFormLayout();
+    auto* enum_initial_label = new QLineEdit(enum_page);
+    enum_initial_label->setPlaceholderText(QStringLiteral("TRUE"));
+    enum_initial_form->addRow(QStringLiteral("Initial state"), enum_initial_label);
+    enum_layout->addWidget(enum_intro);
+    enum_layout->addWidget(enum_mapping);
+    enum_layout->addLayout(enum_initial_form);
+    enum_layout->addStretch(1);
+    params_stack->addWidget(enum_page);
+
     layout->addWidget(params_stack);
-    connect(waveform_box, qOverload<int>(&QComboBox::currentIndexChanged),
-            params_stack, &QStackedWidget::setCurrentIndex);
+    QObject::connect(waveform_box, qOverload<int>(&QComboBox::currentIndexChanged),
+                     &dlg, [params_stack, interpolation_box](int index) {
+                         params_stack->setCurrentIndex(index);
+                         const bool is_enum = static_cast<WaveformKind>(index) == WaveformKind::Enumerated;
+                         if (is_enum) {
+                             interpolation_box->setCurrentIndex(static_cast<int>(Signal::InterpolationMode::Step));
+                         }
+                         interpolation_box->setEnabled(!is_enum);
+                     });
 
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
     connect(buttons, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
@@ -791,30 +903,46 @@ void MainWindow::onAddRequested() {
     case WaveformKind::Ramp:
         params_a = {ramp_start->value(), ramp_end->value(), 0.0, 0.0};
         break;
+    case WaveformKind::Enumerated:
+        break;
     }
 
-    Signal signal = generate_waveform_signal(
-        waveform,
-        name_edit->text(),
-        t_start->value(),
-        t_end->value(),
-        static_cast<std::size_t>(n_samples->value()),
-        params_a,
-        params_b);
-    signal.set_interpolation(static_cast<Signal::InterpolationMode>(interpolation_box->currentIndex()));
+    try {
+        Signal signal = waveform == WaveformKind::Enumerated
+            ? generate_enumerated_signal(name_edit->text(),
+                                         t_start->value(),
+                                         t_end->value(),
+                                         static_cast<std::size_t>(n_samples->value()),
+                                         parse_enumeration_definition(enum_mapping->toPlainText()),
+                                         enum_initial_label->text())
+            : generate_waveform_signal(
+                waveform,
+                name_edit->text(),
+                t_start->value(),
+                t_end->value(),
+                static_cast<std::size_t>(n_samples->value()),
+                params_a,
+                params_b);
 
-    push_undo_state();
-    const auto result = service_.add_signal(std::move(signal));
-    if (!result.is_ok()) {
-        discard_last_undo_state();
-        show_error(QStringLiteral("Create failed"), QString::fromStdString(result.message));
-        return;
+        if (!signal.is_enumerated()) {
+            signal.set_interpolation(static_cast<Signal::InterpolationMode>(interpolation_box->currentIndex()));
+        }
+
+        push_undo_state();
+        const auto result = service_.add_signal(std::move(signal));
+        if (!result.is_ok()) {
+            discard_last_undo_state();
+            show_error(QStringLiteral("Create failed"), QString::fromStdString(result.message));
+            return;
+        }
+
+        mark_active_document_dirty();
+        list_panel_->refresh();
+        list_panel_->select(static_cast<int>(service_.library().size()) - 1);
+        rebind_plot();
+    } catch (const std::exception& ex) {
+        show_error(QStringLiteral("Create failed"), QString::fromStdString(ex.what()));
     }
-
-    mark_active_document_dirty();
-    list_panel_->refresh();
-    list_panel_->select(static_cast<int>(service_.library().size()) - 1);
-    rebind_plot();
 }
 
 void MainWindow::onRemoveRequested(int index) {
@@ -872,6 +1000,9 @@ void MainWindow::onTableChanged() {
 
     const auto& current_signal = service_.library().at(static_cast<std::size_t>(signal_index));
     Signal replacement(current_signal.name(), table_panel_->samples(), current_signal.interpolation());
+    if (current_signal.is_enumerated()) {
+        replacement.set_enumeration(current_signal.enumeration());
+    }
     const auto result = service_.replace_signal(
         static_cast<std::size_t>(signal_index),
         std::move(replacement));
@@ -915,7 +1046,11 @@ void MainWindow::onSignalInterpolationChanged(int mode) {
 }
 
 void MainWindow::onCursorMoved(double t, double y) {
-    refresh_status(QStringLiteral("t = %1   y = %2").arg(t, 0, 'f', 4).arg(y, 0, 'f', 4));
+    const int signal_index = list_panel_->current_index();
+    const Signal* signal = (signal_index >= 0 && signal_index < static_cast<int>(service_.library().size()))
+        ? &service_.library().at(static_cast<std::size_t>(signal_index))
+        : nullptr;
+    refresh_status(QStringLiteral("t = %1   y = %2").arg(t, 0, 'f', 4).arg(format_signal_value(signal, y)));
 }
 
 void MainWindow::open_paths(const QStringList& paths) {
@@ -1055,11 +1190,7 @@ void MainWindow::show_file_details(int index) {
                 time_max = std::max(time_max, signal.t_max());
             }
         }
-        signal_summaries.push_back(
-            QStringLiteral("- %1 (%2 samples, %3)")
-                .arg(QString::fromStdString(signal.name()))
-                .arg(static_cast<qulonglong>(signal.size()))
-                .arg(QString::fromLatin1(interpolation_label(signal.interpolation()))));
+        signal_summaries.push_back(describe_signal_line(signal));
     }
 
     QString details;
@@ -1183,8 +1314,16 @@ void MainWindow::refresh_status(const QString& transient_message) {
             .arg(dirty_text)
             .arg(undo_text));
     }
+    const int signal_index = list_panel_->current_index();
+    const Signal* active_signal = (signal_index >= 0 && signal_index < static_cast<int>(service_.library().size()))
+        ? &service_.library().at(static_cast<std::size_t>(signal_index))
+        : nullptr;
     if (workspace_hint_label_ != nullptr) {
-        workspace_hint_label_->setText(QStringLiteral("Drag points, use Shift+drag for Gaussian brushing, or fine-tune samples in the table below."));
+        if (active_signal != nullptr && active_signal->is_enumerated()) {
+            workspace_hint_label_->setText(QStringLiteral("Enumerated signals snap to user-defined states, expose label-based editing in the table, and render the Y axis with textual states."));
+        } else {
+            workspace_hint_label_->setText(QStringLiteral("Drag points, use Shift+drag for Gaussian brushing, or fine-tune samples in the table below."));
+        }
     }
 
     if (transient_message.isEmpty()) {

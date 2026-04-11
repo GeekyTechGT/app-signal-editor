@@ -52,10 +52,22 @@ void format_axis_label(double v, QString& out) {
     }
 }
 
-QString format_coordinates(double t, double y) {
+QString format_signal_value(const Signal* signal, double y) {
+    if (signal != nullptr && signal->is_enumerated()) {
+        const std::string label = signal->label_for_value(y);
+        if (!label.empty()) {
+            return QStringLiteral("%1 (%2)")
+                .arg(QString::fromStdString(label))
+                .arg(y, 0, 'f', 4);
+        }
+    }
+    return QString::number(y, 'f', 4);
+}
+
+QString format_coordinates(const Signal* signal, double t, double y) {
     return QStringLiteral("x=%1  y=%2")
         .arg(t, 0, 'f', 4)
-        .arg(y, 0, 'f', 4);
+        .arg(format_signal_value(signal, y));
 }
 
 bool point_inside_plot(const QPointF& point, int width, int height) {
@@ -265,9 +277,19 @@ void SignalPlotWidget::paintEvent(QPaintEvent* /*event*/) {
     for (int i = 1; i < kDivs; ++i) {
         const double frac = static_cast<double>(i) / kDivs;
         const double x = plot_rect.left() + frac * plot_rect.width();
-        const double y = plot_rect.top() + frac * plot_rect.height();
         painter.drawLine(QPointF(x, plot_rect.top()), QPointF(x, plot_rect.bottom()));
-        painter.drawLine(QPointF(plot_rect.left(), y), QPointF(plot_rect.right(), y));
+    }
+    if (signal_ != nullptr && signal_->is_enumerated()) {
+        for (const auto& entry : signal_->enumeration()) {
+            const double y = data_to_pixel(view_t_min_, entry.value).y();
+            painter.drawLine(QPointF(plot_rect.left(), y), QPointF(plot_rect.right(), y));
+        }
+    } else {
+        for (int i = 1; i < kDivs; ++i) {
+            const double frac = static_cast<double>(i) / kDivs;
+            const double y = plot_rect.top() + frac * plot_rect.height();
+            painter.drawLine(QPointF(plot_rect.left(), y), QPointF(plot_rect.right(), y));
+        }
     }
 
     painter.setPen(kText);
@@ -279,15 +301,29 @@ void SignalPlotWidget::paintEvent(QPaintEvent* /*event*/) {
     for (int i = 0; i <= kDivs; ++i) {
         const double frac = static_cast<double>(i) / kDivs;
         const double t = view_t_min_ + frac * (view_t_max_ - view_t_min_);
-        const double y = view_y_max_ - frac * (view_y_max_ - view_y_min_);
         format_axis_label(t, label);
         painter.drawText(QPointF(plot_rect.left() + frac * plot_rect.width() - metrics.horizontalAdvance(label) / 2.0,
                                  plot_rect.bottom() + metrics.ascent() + 4),
                          label);
-        format_axis_label(y, label);
-        painter.drawText(QPointF(plot_rect.left() - metrics.horizontalAdvance(label) - 6,
-                                 plot_rect.top() + frac * plot_rect.height() + metrics.ascent() / 2.0),
-                         label);
+    }
+
+    if (signal_ != nullptr && signal_->is_enumerated()) {
+        for (const auto& entry : signal_->enumeration()) {
+            label = QString::fromStdString(entry.label);
+            const double y = data_to_pixel(view_t_min_, entry.value).y();
+            painter.drawText(QPointF(plot_rect.left() - metrics.horizontalAdvance(label) - 6,
+                                     y + metrics.ascent() / 2.0),
+                             label);
+        }
+    } else {
+        for (int i = 0; i <= kDivs; ++i) {
+            const double frac = static_cast<double>(i) / kDivs;
+            const double y = view_y_max_ - frac * (view_y_max_ - view_y_min_);
+            format_axis_label(y, label);
+            painter.drawText(QPointF(plot_rect.left() - metrics.horizontalAdvance(label) - 6,
+                                     plot_rect.top() + frac * plot_rect.height() + metrics.ascent() / 2.0),
+                             label);
+        }
     }
 
     painter.drawText(QPointF(plot_rect.center().x() - metrics.horizontalAdvance("time [s]") / 2.0,
@@ -296,7 +332,10 @@ void SignalPlotWidget::paintEvent(QPaintEvent* /*event*/) {
     painter.save();
     painter.translate(14, plot_rect.center().y());
     painter.rotate(-90);
-    painter.drawText(QPointF(-metrics.horizontalAdvance("amplitude") / 2.0, 0), "amplitude");
+    const QString y_axis_title = signal_ != nullptr && signal_->is_enumerated()
+        ? QStringLiteral("state")
+        : QStringLiteral("amplitude");
+    painter.drawText(QPointF(-metrics.horizontalAdvance(y_axis_title) / 2.0, 0), y_axis_title);
     painter.restore();
 
     if (signal_ == nullptr || signal_->empty()) {
@@ -336,7 +375,9 @@ void SignalPlotWidget::paintEvent(QPaintEvent* /*event*/) {
                QColor(223, 231, 239));
     draw_badge(painter,
                QPointF(plot_rect.left() + 18.0, plot_rect.bottom() - 36.0),
-               QStringLiteral("Drag points | Double-click to add | Shift+drag to brush"),
+               signal_->is_enumerated()
+                   ? QStringLiteral("Drag states | Double-click to add | Labels drive the Y axis")
+                   : QStringLiteral("Drag points | Double-click to add | Shift+drag to brush"),
                QColor(18, 28, 39, 205),
                QColor(116, 139, 162, 80),
                QColor(183, 197, 211));
@@ -381,7 +422,7 @@ void SignalPlotWidget::paintEvent(QPaintEvent* /*event*/) {
         painter.drawLine(QPointF(pinned_pixel.x() - 8.0, pinned_pixel.y()), QPointF(pinned_pixel.x() + 8.0, pinned_pixel.y()));
         painter.drawLine(QPointF(pinned_pixel.x(), pinned_pixel.y() - 8.0), QPointF(pinned_pixel.x(), pinned_pixel.y() + 8.0));
         draw_coordinate_bubble(painter, plot_rect, pinned_pixel,
-                               format_coordinates(pinned_data_point_.x(), pinned_data_point_.y()));
+                               format_coordinates(signal_, pinned_data_point_.x(), pinned_data_point_.y()));
     }
 
     for (std::size_t i = 0; i < samples.size(); ++i) {
@@ -403,7 +444,7 @@ void SignalPlotWidget::paintEvent(QPaintEvent* /*event*/) {
         painter.drawLine(QPointF(plot_rect.left(), hovered_pixel.y()), QPointF(plot_rect.right(), hovered_pixel.y()));
         painter.drawLine(QPointF(hovered_pixel.x(), plot_rect.top()), QPointF(hovered_pixel.x(), plot_rect.bottom()));
         draw_coordinate_bubble(painter, plot_rect, hovered_pixel,
-                               format_coordinates(sample.t, sample.y));
+                               format_coordinates(signal_, sample.t, sample.y));
     }
 }
 
@@ -430,7 +471,7 @@ void SignalPlotWidget::mousePressEvent(QMouseEvent* event) {
             return;
         }
 
-        if (event->modifiers().testFlag(Qt::ShiftModifier)) {
+        if (event->modifiers().testFlag(Qt::ShiftModifier) && !signal_->is_enumerated()) {
             emit editStarted();
             clear_selection();
             drag_mode_ = DragMode::GaussianBrush;

@@ -2,6 +2,7 @@
 
 #include "signal_editor/core/domain/signal.h"
 
+#include <QAbstractItemModel>
 #include <QAbstractItemView>
 #include <QComboBox>
 #include <QDoubleSpinBox>
@@ -14,29 +15,54 @@
 #include <QTableWidget>
 #include <QTableWidgetItem>
 #include <QVBoxLayout>
+#include <QVariant>
+#include <QMetaType>
 
 #include <cmath>
+#include <stdexcept>
 
 namespace myprj::signal_editor::adapters::qt {
 
 namespace {
-class DoubleItemDelegate : public QStyledItemDelegate {
+class SampleItemDelegate : public QStyledItemDelegate {
 public:
-    explicit DoubleItemDelegate(QObject* parent = nullptr)
+    explicit SampleItemDelegate(QObject* parent = nullptr)
         : QStyledItemDelegate(parent) {}
+
+    void set_signal(const Signal* signal) noexcept { signal_ = signal; }
 
     QWidget* createEditor(QWidget* parent,
                           const QStyleOptionViewItem&,
-                          const QModelIndex&) const override {
+                          const QModelIndex& index) const override {
+        if (index.column() == 1 && signal_ != nullptr && signal_->is_enumerated()) {
+            auto* editor = new QComboBox(parent);
+            for (const auto& entry : signal_->enumeration()) {
+                editor->addItem(QString::fromStdString(entry.label));
+            }
+            editor->setEditable(false);
+            return editor;
+        }
+
         auto* editor = new QDoubleSpinBox(parent);
         editor->setDecimals(6);
         editor->setRange(-1e12, 1e12);
-        editor->setSingleStep(0.1);
+        editor->setSingleStep(index.column() == 0 ? 0.01 : 0.1);
         editor->setFrame(false);
         return editor;
     }
 
     void setEditorData(QWidget* editor, const QModelIndex& index) const override {
+        if (index.column() == 1 && signal_ != nullptr && signal_->is_enumerated()) {
+            auto* combo = qobject_cast<QComboBox*>(editor);
+            if (combo == nullptr) {
+                return;
+            }
+            const QString label = index.data(Qt::EditRole).toString();
+            const int combo_index = combo->findText(label);
+            combo->setCurrentIndex(combo_index >= 0 ? combo_index : 0);
+            return;
+        }
+
         auto* spin = qobject_cast<QDoubleSpinBox*>(editor);
         if (spin == nullptr) {
             return;
@@ -47,6 +73,15 @@ public:
     void setModelData(QWidget* editor,
                       QAbstractItemModel* model,
                       const QModelIndex& index) const override {
+        if (index.column() == 1 && signal_ != nullptr && signal_->is_enumerated()) {
+            auto* combo = qobject_cast<QComboBox*>(editor);
+            if (combo == nullptr) {
+                return;
+            }
+            model->setData(index, combo->currentText(), Qt::EditRole);
+            return;
+        }
+
         auto* spin = qobject_cast<QDoubleSpinBox*>(editor);
         if (spin == nullptr) {
             return;
@@ -56,8 +91,17 @@ public:
     }
 
     QString displayText(const QVariant& value, const QLocale& locale) const override {
+        if (value.canConvert<QString>() && !value.canConvert<double>()) {
+            return value.toString();
+        }
+        if (value.typeId() == QMetaType::QString) {
+            return value.toString();
+        }
         return locale.toString(value.toDouble(), 'f', 6);
     }
+
+private:
+    const Signal* signal_{nullptr};
 };
 }  // namespace
 
@@ -106,7 +150,8 @@ SignalTablePanel::SignalTablePanel(QWidget* parent) : QWidget(parent) {
     table_->horizontalHeader()->setStretchLastSection(true);
     table_->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     table_->verticalHeader()->setVisible(false);
-    table_->setItemDelegate(new DoubleItemDelegate(table_));
+    item_delegate_ = new SampleItemDelegate(table_);
+    table_->setItemDelegate(item_delegate_);
     root->addWidget(table_, 1);
 
     auto* buttons = new QHBoxLayout();
@@ -133,6 +178,9 @@ SignalTablePanel::SignalTablePanel(QWidget* parent) : QWidget(parent) {
 
 void SignalTablePanel::set_signal(const Signal* signal) {
     signal_ = signal;
+    if (auto* delegate = dynamic_cast<SampleItemDelegate*>(item_delegate_); delegate != nullptr) {
+        delegate->set_signal(signal_);
+    }
     repopulate();
 }
 
@@ -151,7 +199,16 @@ std::vector<SamplePoint> SignalTablePanel::samples() const {
         const auto* time_item = table_->item(row, 0);
         const auto* value_item = table_->item(row, 1);
         const double t = time_item == nullptr ? 0.0 : time_item->data(Qt::EditRole).toDouble();
-        const double y = value_item == nullptr ? 0.0 : value_item->data(Qt::EditRole).toDouble();
+
+        double y = 0.0;
+        if (value_item != nullptr) {
+            const QVariant raw_value = value_item->data(Qt::EditRole);
+            if (signal_ != nullptr && signal_->is_enumerated()) {
+                y = signal_->value_for_label(raw_value.toString().toStdString());
+            } else {
+                y = raw_value.toDouble();
+            }
+        }
         out.push_back(SamplePoint{t, y});
     }
     return out;
@@ -178,9 +235,9 @@ void SignalTablePanel::onAddClicked() {
                    default_insert_value(current_row));
     suppress_item_changed_ = false;
 
-    table_->setCurrentCell(insert_row, 0);
+    table_->setCurrentCell(insert_row, signal_ != nullptr && signal_->is_enumerated() ? 1 : 0);
     remove_button_->setEnabled(true);
-    table_->editItem(table_->item(insert_row, 0));
+    table_->editItem(table_->item(insert_row, signal_ != nullptr && signal_->is_enumerated() ? 1 : 0));
     emit contentChanged();
 }
 
@@ -231,7 +288,8 @@ void SignalTablePanel::repopulate() {
     }
 
     const bool has_signal = signal_ != nullptr;
-    interpolation_box_->setEnabled(has_signal);
+    const bool enum_signal = has_signal && signal_->is_enumerated();
+    interpolation_box_->setEnabled(has_signal && !enum_signal);
     add_button_->setEnabled(has_signal);
     remove_button_->setEnabled(has_signal && table_->currentRow() >= 0);
     suppress_interpolation_changed_ = false;
@@ -252,7 +310,12 @@ void SignalTablePanel::set_row_values(int row, double t, double y) {
         value_item = new QTableWidgetItem();
         table_->setItem(row, 1, value_item);
     }
-    value_item->setData(Qt::EditRole, y);
+
+    if (signal_ != nullptr && signal_->is_enumerated()) {
+        value_item->setData(Qt::EditRole, QString::fromStdString(signal_->label_for_value(y)));
+    } else {
+        value_item->setData(Qt::EditRole, y);
+    }
 }
 
 double SignalTablePanel::default_insert_time(int row) const {
@@ -276,6 +339,16 @@ double SignalTablePanel::default_insert_time(int row) const {
 }
 
 double SignalTablePanel::default_insert_value(int row) const {
+    if (signal_ != nullptr && signal_->is_enumerated() && !signal_->enumeration().empty()) {
+        if (row >= 0) {
+            const auto current_samples = samples();
+            if (row < static_cast<int>(current_samples.size())) {
+                return current_samples[static_cast<std::size_t>(row)].y;
+            }
+        }
+        return signal_->enumeration().front().value;
+    }
+
     const auto current_samples = samples();
     if (current_samples.empty()) {
         return 0.0;
@@ -296,13 +369,22 @@ void SignalTablePanel::refresh_summary() const {
     const QString interpolation = signal_->interpolation() == Signal::InterpolationMode::Step
         ? QStringLiteral("step")
         : QStringLiteral("linear");
+    const QString enum_summary = signal_->is_enumerated()
+        ? QStringLiteral(" | %1 states").arg(signal_->enumeration().size())
+        : QString();
     stats_label_->setText(
-        QStringLiteral("%1 rows | range %2s to %3s | %4 interpolation")
+        QStringLiteral("%1 rows | range %2s to %3s | %4 interpolation%5")
             .arg(signal_->size())
             .arg(signal_->empty() ? 0.0 : signal_->t_min(), 0, 'f', 4)
             .arg(signal_->empty() ? 0.0 : signal_->t_max(), 0, 'f', 4)
-            .arg(interpolation));
-    hint_label_->setText(QStringLiteral("Use the table for precise edits. Changes are mirrored in the plot immediately."));
+            .arg(interpolation)
+            .arg(enum_summary));
+
+    if (signal_->is_enumerated()) {
+        hint_label_->setText(QStringLiteral("Enumerated signals use label-based editing in the value column and are always rendered with step interpolation."));
+    } else {
+        hint_label_->setText(QStringLiteral("Use the table for precise edits. Changes are mirrored in the plot immediately."));
+    }
 }
 
 }  // namespace myprj::signal_editor::adapters::qt

@@ -76,6 +76,44 @@ TEST(CsvRepositoryTest, LoadRejectsTooFewColumns) {
     std::filesystem::remove(p);
 }
 
+TEST(CsvRepositoryTest, LoadEnumeratedMetadataAndLabels) {
+    auto p = make_temp_path("se_test_enum_metadata.csv");
+    write_file(p,
+               "# interpolation,step\n"
+               "# enum_map,OFF:0|ON:1\n"
+               "time,mode\n"
+               "0.0,OFF\n"
+               "1.0,ON\n"
+               "2.0,OFF\n");
+    CsvSignalRepository repo;
+    auto lib = repo.load(p);
+    ASSERT_EQ(lib.size(), 1u);
+    const auto& signal = lib.at(0);
+    EXPECT_TRUE(signal.is_enumerated());
+    EXPECT_EQ(signal.interpolation(), Signal::InterpolationMode::Step);
+    ASSERT_EQ(signal.enumeration().size(), 2u);
+    EXPECT_EQ(signal.label_for_value(signal.samples()[1].y), "ON");
+    std::filesystem::remove(p);
+}
+
+TEST(CsvRepositoryTest, LoadInlineEnumeratedTokensWithoutMetadata) {
+    auto p = make_temp_path("se_test_enum_inline.csv");
+    write_file(p,
+               "time,state\n"
+               "0.0,FALSE:0\n"
+               "1.0,TRUE:1\n"
+               "2.0,FALSE\n");
+    CsvSignalRepository repo;
+    auto lib = repo.load(p);
+    ASSERT_EQ(lib.size(), 1u);
+    const auto& signal = lib.at(0);
+    EXPECT_TRUE(signal.is_enumerated());
+    ASSERT_EQ(signal.enumeration().size(), 2u);
+    EXPECT_EQ(signal.label_for_value(signal.samples()[0].y), "FALSE");
+    EXPECT_EQ(signal.label_for_value(signal.samples()[1].y), "TRUE");
+    std::filesystem::remove(p);
+}
+
 TEST(CsvRepositoryTest, RoundTripPreservesData) {
     auto src = make_temp_path("se_test_roundtrip_in.csv");
     auto dst = make_temp_path("se_test_roundtrip_out.csv");
@@ -118,6 +156,26 @@ TEST(CsvRepositoryTest, RoundTripPreservesInterpolationMetadata) {
     EXPECT_EQ(reloaded.at(0).interpolation(), Signal::InterpolationMode::Step);
     EXPECT_EQ(reloaded.at(1).interpolation(), Signal::InterpolationMode::Linear);
     std::filesystem::remove(src);
+    std::filesystem::remove(dst);
+}
+
+TEST(CsvRepositoryTest, RoundTripPreservesEnumeratedSignals) {
+    auto dst = make_temp_path("se_test_enum_roundtrip.csv");
+    Signal signal = Signal::create_uniform("state", 0.0, 2.0, 3, 0.0, Signal::InterpolationMode::Step);
+    signal.set_enumeration({{"FALSE", 0.0}, {"TRUE", 1.0}});
+    signal.set_sample_value(1, 1.0);
+
+    SignalLibrary library;
+    library.add(signal);
+
+    CsvSignalRepository repo;
+    ASSERT_TRUE(repo.save(dst, library).is_ok());
+    auto reloaded = repo.load(dst);
+    ASSERT_EQ(reloaded.size(), 1u);
+    const auto& restored = reloaded.at(0);
+    EXPECT_TRUE(restored.is_enumerated());
+    EXPECT_EQ(restored.label_for_value(restored.samples()[0].y), "FALSE");
+    EXPECT_EQ(restored.label_for_value(restored.samples()[1].y), "TRUE");
     std::filesystem::remove(dst);
 }
 

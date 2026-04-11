@@ -10,6 +10,7 @@
 class QComboBox;
 class QLabel;
 class QPushButton;
+class QStyledItemDelegate;
 class QTableWidget;
 class QTableWidgetItem;
 
@@ -74,6 +75,7 @@ private:
     QTableWidget* table_{nullptr};
     QPushButton* add_button_{nullptr};
     QPushButton* remove_button_{nullptr};
+    QStyledItemDelegate* item_delegate_{nullptr};
     bool suppress_item_changed_{false};
     bool suppress_interpolation_changed_{false};
 

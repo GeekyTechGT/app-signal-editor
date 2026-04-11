@@ -18,6 +18,7 @@ Signal Editor exists to cover the gap between heavyweight model-based tooling an
 - As an engineer, I want to open one or more CSV files and switch between them inside a single workspace.
 - As a test engineer, I want to edit signals directly on a plot so I can reshape traces faster than by editing raw CSV rows.
 - As a tooling engineer, I want the editing logic isolated from Qt so that the core stays testable and reusable.
+- As a calibration engineer, I want boolean or state-machine style signals to keep human-readable labels while remaining exportable as numeric CSV data.
 
 ## Functional Requirements
 
@@ -27,9 +28,11 @@ Signal Editor exists to cover the gap between heavyweight model-based tooling an
 | FR-02 | The product shall support a multi-file workspace with an active document concept. | High | Required for quick comparison/edit switching |
 | FR-03 | The product shall allow direct manipulation of plotted samples, including drag, insert, remove, and Gaussian brushing. | High | Main UX differentiator |
 | FR-04 | The product shall allow precise sample editing in tabular form. | High | Complements plot editing |
-| FR-05 | The product shall allow creating new signals from template waveforms. | Medium | Supports synthetic trace authoring |
+| FR-05 | The product shall allow creating new signals from template waveforms and user-defined enumerated state mappings. | Medium | Supports synthetic trace authoring and boolean/state signals |
 | FR-06 | The product shall preserve interpolation mode metadata when saving and reloading CSV files. | High | Prevents semantic loss |
-| FR-07 | The product shall provide undo at the active document level. | High | Guards interactive edits |
+| FR-07 | The product shall preserve enumerated state mappings when saving and reloading CSV files. | High | Required for readable state-based signals |
+| FR-08 | The product shall display enumerated signal values as labels in the table and on the plot Y axis. | High | Prevents users from reasoning in raw numeric codes only |
+| FR-09 | The product shall provide undo at the active document level. | High | Guards interactive edits |
 
 ## Non-Functional Requirements
 

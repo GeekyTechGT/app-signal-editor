@@ -7,8 +7,8 @@ Signal Editor is a desktop waveform editing application written in C++23 with a 
 - Multi-file workspace with fast switching between loaded CSV documents
 - Interactive plot editing with waypoint drag, add/remove, and Gaussian brushing
 - Tabular sample editing for precise numeric adjustments
-- Signal creation from common waveform templates
-- Per-signal interpolation modes persisted in CSV metadata
+- Signal creation from numeric waveform templates and user-defined enumerated states
+- Per-signal interpolation modes and enum mappings persisted in CSV metadata
 - Undo support scoped to the active workspace document
 - Clean separation between domain, use cases, ports, and adapters
 
@@ -52,7 +52,18 @@ time,throttle,brake,steer
 0.2,0.4,0.0,0.2
 ```
 
-When saving, the application also emits an interpolation metadata row before the header so that `linear` versus `step` rendering survives a round-trip.
+When saving, the application emits metadata rows before the header so that interpolation and enumerated state mappings survive a round-trip. Enumerated signals can be declared explicitly through `# enum_map` or discovered from inline `label:value` cells during import.
+
+```csv
+# interpolation,step,linear
+# enum_map,FALSE:0|TRUE:1,
+time,enable,torque
+0.0,FALSE,0.0
+0.5,TRUE,12.0
+1.0,FALSE,4.0
+```
+
+Import also accepts inline bootstrapping tokens such as `TRUE:1` and `FALSE:0` in data cells when a mapping row is not present. In the GUI, enumerated signals are shown with label-aware table editing and textual Y-axis labels.
 
 ## Build
 

@@ -25,6 +25,14 @@ public:
     enum class InterpolationMode { Linear = 0, Step };
 
     /**
+     * @brief User-defined enumerated state associated with a numeric value.
+     */
+    struct EnumerationEntry {
+        std::string label;
+        double value{0.0};
+    };
+
+    /**
      * @brief Builds a signal from a name and explicit sample collection.
      * @param name Human-readable signal identifier.
      * @param samples Sample sequence to take ownership of.
@@ -73,11 +81,17 @@ public:
     /** @brief Returns the ordered sample collection. */
     [[nodiscard]] const std::vector<SamplePoint>& samples() const noexcept { return samples_; }
 
+    /** @brief Returns the configured enumeration mapping. */
+    [[nodiscard]] const std::vector<EnumerationEntry>& enumeration() const noexcept { return enumeration_; }
+
     /** @brief Returns the number of samples in the signal. */
     [[nodiscard]] std::size_t size() const noexcept { return samples_.size(); }
 
     /** @brief Reports whether the signal contains no samples. */
     [[nodiscard]] bool empty() const noexcept { return samples_.empty(); }
+
+    /** @brief Reports whether the signal uses enumerated states. */
+    [[nodiscard]] bool is_enumerated() const noexcept { return !enumeration_.empty(); }
 
     /** @brief Returns the smallest timestamp or `0.0` when empty. */
     [[nodiscard]] double t_min() const noexcept;
@@ -109,6 +123,39 @@ public:
      * @param interpolation New interpolation strategy.
      */
     void set_interpolation(InterpolationMode interpolation) noexcept;
+
+    /**
+     * @brief Replaces the enumeration mapping used by the signal.
+     * @param enumeration Ordered label/value pairs defined by the user.
+     */
+    void set_enumeration(std::vector<EnumerationEntry> enumeration);
+
+    /**
+     * @brief Removes any enumeration mapping from the signal.
+     */
+    void clear_enumeration() noexcept;
+
+    /**
+     * @brief Resolves a numeric sample value back to its label.
+     * @param y Numeric value stored in the signal.
+     * @return Matching label when available, or an empty string.
+     */
+    [[nodiscard]] std::string label_for_value(double y) const;
+
+    /**
+     * @brief Resolves a label to its numeric value.
+     * @param label User-visible enumerated state label.
+     * @return Numeric value associated with the label.
+     * @throws std::invalid_argument When the label is unknown.
+     */
+    [[nodiscard]] double value_for_label(const std::string& label) const;
+
+    /**
+     * @brief Returns the nearest valid enum value for the given numeric input.
+     * @param y Raw numeric input.
+     * @return The closest mapped enumeration value, or `y` for non-enum signals.
+     */
+    [[nodiscard]] double snap_to_enumeration(double y) const noexcept;
 
     /**
      * @brief Updates the value of an existing sample.
@@ -159,8 +206,10 @@ private:
     std::string name_;
     InterpolationMode interpolation_{InterpolationMode::Linear};
     std::vector<SamplePoint> samples_;
+    std::vector<EnumerationEntry> enumeration_;
 
     static void validate_name(const std::string& name);
+    static void validate_enumeration(const std::vector<EnumerationEntry>& enumeration);
 };
 
 }  // namespace myprj::signal_editor
