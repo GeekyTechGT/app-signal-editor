@@ -7,7 +7,6 @@
 
 #include <vector>
 
-class QComboBox;
 class QLabel;
 class QPushButton;
 class QStyledItemDelegate;
@@ -50,34 +49,25 @@ public:
      */
     [[nodiscard]] std::vector<SamplePoint> samples() const;
 
-    /**
-     * @brief Returns the interpolation mode selected in the combo box.
-     * @return Current interpolation mode represented by the UI.
-     */
-    [[nodiscard]] Signal::InterpolationMode interpolation() const;
 
 signals:
     void editStarted();
     void contentChanged();
-    void interpolationChanged(int mode);
 
 private slots:
     void onItemChanged(QTableWidgetItem* item);
     void onAddClicked();
     void onRemoveClicked();
-    void onInterpolationIndexChanged(int index);
 
 private:
     const Signal* signal_{nullptr};
     QLabel* stats_label_{nullptr};
     QLabel* hint_label_{nullptr};
-    QComboBox* interpolation_box_{nullptr};
     QTableWidget* table_{nullptr};
     QPushButton* add_button_{nullptr};
     QPushButton* remove_button_{nullptr};
     QStyledItemDelegate* item_delegate_{nullptr};
     bool suppress_item_changed_{false};
-    bool suppress_interpolation_changed_{false};
 
     void repopulate();
     void set_row_values(int row, double t, double y);

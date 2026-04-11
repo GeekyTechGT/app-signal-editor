@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+  <Worksheet ss:Name="Signals">
+    <Table>
+      <Row><Cell><Data ss:Type="String"># interpolation</Data></Cell><Cell><Data ss:Type="String">step</Data></Cell><Cell><Data ss:Type="String">step</Data></Cell></Row>
+      <Row><Cell><Data ss:Type="String"># enum_map</Data></Cell><Cell><Data ss:Type="String">FALSE:0|TRUE:1</Data></Cell><Cell><Data ss:Type="String">OFF:0|IDLE:1|RUN:2</Data></Cell></Row>
+      <Row><Cell><Data ss:Type="String">time</Data></Cell><Cell><Data ss:Type="String">ignition</Data></Cell><Cell><Data ss:Type="String">mode</Data></Cell></Row>
+      <Row><Cell><Data ss:Type="Number">0.0</Data></Cell><Cell><Data ss:Type="String">FALSE</Data></Cell><Cell><Data ss:Type="String">OFF</Data></Cell></Row>
+      <Row><Cell><Data ss:Type="Number">0.1</Data></Cell><Cell><Data ss:Type="String">TRUE</Data></Cell><Cell><Data ss:Type="String">IDLE</Data></Cell></Row>
+      <Row><Cell><Data ss:Type="Number">0.2</Data></Cell><Cell><Data ss:Type="String">TRUE</Data></Cell><Cell><Data ss:Type="String">RUN</Data></Cell></Row>
+      <Row><Cell><Data ss:Type="Number">0.3</Data></Cell><Cell><Data ss:Type="String">FALSE</Data></Cell><Cell><Data ss:Type="String">IDLE</Data></Cell></Row>
+    </Table>
+  </Worksheet>
+</Workbook>

@@ -41,22 +41,22 @@ void apply_dark_fusion_theme(QApplication& app) {
         QWidget#WorkspaceHeader {
             background: rgba(16, 24, 33, 0.92);
             border: 1px solid rgba(102, 128, 153, 0.20);
-            border-radius: 18px;
+            border-radius: 16px;
         }
         QLabel#WorkspaceTitle {
             color: #f6f8fb;
-            font-size: 24px;
+            font-size: 20px;
             font-weight: 700;
             letter-spacing: 0.3px;
         }
         QLabel#WorkspaceMeta {
             color: #f4a64a;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
         }
         QLabel#WorkspaceHint {
             color: #a8b7c7;
-            font-size: 12px;
+            font-size: 11px;
         }
         QWidget#PanelCard {
             background: rgba(17, 25, 35, 0.92);
@@ -160,10 +160,51 @@ void apply_dark_fusion_theme(QApplication& app) {
             background: #f4a64a;
             color: #121820;
         }
+        QTabWidget#WorkspaceTabs::pane {
+            background: rgba(12, 18, 26, 0.98);
+            border: 1px solid rgba(118, 142, 166, 0.18);
+            border-radius: 14px;
+            margin-top: 6px;
+            padding: 8px;
+        }
+        QTabWidget#WorkspaceTabs QTabBar::tab {
+            background: rgba(19, 27, 38, 0.88);
+            color: #c6d2de;
+            border: 1px solid rgba(118, 142, 166, 0.18);
+            border-bottom: 0;
+            border-top-left-radius: 10px;
+            border-top-right-radius: 10px;
+            padding: 8px 18px;
+            margin-right: 6px;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.25px;
+        }
+        QTabWidget#WorkspaceTabs QTabBar::tab:selected {
+            color: #101720;
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                stop:0 #ffd089, stop:0.55 #f4a64a, stop:1 #ff8a5b);
+            border-color: rgba(255, 214, 153, 0.90);
+            margin-top: -2px;
+            padding-top: 10px;
+            padding-bottom: 10px;
+        }
+        QTabWidget#WorkspaceTabs QTabBar::tab:hover:!selected {
+            background: rgba(34, 45, 60, 0.98);
+            color: #f3f7fb;
+            border-color: rgba(244, 166, 74, 0.45);
+        }
+        QWidget#WorkspaceTabPage {
+            background: rgba(12, 18, 26, 0.98);
+            border-radius: 10px;
+        }
         QSplitter::handle {
             background: rgba(64, 82, 100, 0.55);
-            margin: 4px;
-            border-radius: 2px;
+            margin: 2px;
+            border-radius: 4px;
+        }
+        QSplitter::handle:hover {
+            background: rgba(244, 166, 74, 0.72);
         }
     )qss"));
 }

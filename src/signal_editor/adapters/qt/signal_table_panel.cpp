@@ -121,11 +121,6 @@ SignalTablePanel::SignalTablePanel(QWidget* parent) : QWidget(parent) {
     title->setFont(tf);
     title_row->addWidget(title);
     title_row->addStretch(1);
-
-    interpolation_box_ = new QComboBox(this);
-    interpolation_box_->addItem(QStringLiteral("Linear"));
-    interpolation_box_->addItem(QStringLiteral("Step"));
-    title_row->addWidget(interpolation_box_);
     root->addLayout(title_row);
 
     stats_label_ = new QLabel(QStringLiteral("No signal selected"), this);
@@ -164,8 +159,6 @@ SignalTablePanel::SignalTablePanel(QWidget* parent) : QWidget(parent) {
     root->addLayout(buttons);
 
     connect(table_, &QTableWidget::itemChanged, this, &SignalTablePanel::onItemChanged);
-    connect(interpolation_box_, qOverload<int>(&QComboBox::currentIndexChanged),
-            this, &SignalTablePanel::onInterpolationIndexChanged);
     connect(table_, &QTableWidget::currentCellChanged, this,
             [this](int current_row, int, int, int) {
                 remove_button_->setEnabled(signal_ != nullptr && current_row >= 0);
@@ -186,10 +179,6 @@ void SignalTablePanel::set_signal(const Signal* signal) {
 
 void SignalTablePanel::refresh() {
     repopulate();
-}
-
-Signal::InterpolationMode SignalTablePanel::interpolation() const {
-    return static_cast<Signal::InterpolationMode>(interpolation_box_->currentIndex());
 }
 
 std::vector<SamplePoint> SignalTablePanel::samples() const {
@@ -241,13 +230,6 @@ void SignalTablePanel::onAddClicked() {
     emit contentChanged();
 }
 
-void SignalTablePanel::onInterpolationIndexChanged(int index) {
-    if (suppress_interpolation_changed_) {
-        return;
-    }
-    emit interpolationChanged(index);
-}
-
 void SignalTablePanel::onRemoveClicked() {
     const int row = table_->currentRow();
     if (row < 0 || row >= table_->rowCount()) {
@@ -264,21 +246,17 @@ void SignalTablePanel::onRemoveClicked() {
 
 void SignalTablePanel::repopulate() {
     suppress_item_changed_ = true;
-    suppress_interpolation_changed_ = true;
     const int previous_row = table_->currentRow();
     table_->clearContents();
     table_->setRowCount(0);
 
     if (signal_ != nullptr) {
-        interpolation_box_->setCurrentIndex(static_cast<int>(signal_->interpolation()));
         const auto& signal_samples = signal_->samples();
         table_->setRowCount(static_cast<int>(signal_samples.size()));
         for (int row = 0; row < static_cast<int>(signal_samples.size()); ++row) {
             set_row_values(row, signal_samples[static_cast<std::size_t>(row)].t,
                            signal_samples[static_cast<std::size_t>(row)].y);
         }
-    } else {
-        interpolation_box_->setCurrentIndex(static_cast<int>(Signal::InterpolationMode::Linear));
     }
 
     if (previous_row >= 0 && previous_row < table_->rowCount()) {
@@ -288,11 +266,8 @@ void SignalTablePanel::repopulate() {
     }
 
     const bool has_signal = signal_ != nullptr;
-    const bool enum_signal = has_signal && signal_->is_enumerated();
-    interpolation_box_->setEnabled(has_signal && !enum_signal);
     add_button_->setEnabled(has_signal);
     remove_button_->setEnabled(has_signal && table_->currentRow() >= 0);
-    suppress_interpolation_changed_ = false;
     suppress_item_changed_ = false;
     refresh_summary();
 }

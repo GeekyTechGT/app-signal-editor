@@ -9,7 +9,9 @@
 #include <vector>
 
 class QAction;
+class QComboBox;
 class QLabel;
+class QTabWidget;
 
 namespace myprj::signal_editor {
 class SignalEditorService;
@@ -90,6 +92,8 @@ private:
     SignalListPanel* list_panel_{nullptr};
     SignalPlotWidget* plot_{nullptr};
     SignalTablePanel* table_panel_{nullptr};
+    QComboBox* interpolation_box_{nullptr};
+    QTabWidget* workspace_tabs_{nullptr};
     QAction* undo_action_{nullptr};
     QAction* rename_action_{nullptr};
     std::vector<LoadedDocument> documents_;
@@ -108,6 +112,7 @@ private:
     void show_file_details(int index);
     void rebind_plot();
     void update_undo_action();
+    void update_interpolation_box();
     void refresh_status(const QString& transient_message = {});
     void show_error(const QString& title, const QString& message);
 };

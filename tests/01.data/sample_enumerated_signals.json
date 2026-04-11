@@ -1,0 +1,33 @@
+{
+  "signals": [
+    {
+      "name": "ignition",
+      "interpolation": "step",
+      "enumeration": [
+        { "label": "FALSE", "value": 0 },
+        { "label": "TRUE", "value": 1 }
+      ],
+      "samples": [
+        { "t": 0.0, "label": "FALSE" },
+        { "t": 0.1, "label": "TRUE" },
+        { "t": 0.2, "label": "TRUE" },
+        { "t": 0.3, "label": "FALSE" }
+      ]
+    },
+    {
+      "name": "mode",
+      "interpolation": "step",
+      "enumeration": [
+        { "label": "OFF", "value": 0 },
+        { "label": "IDLE", "value": 1 },
+        { "label": "RUN", "value": 2 }
+      ],
+      "samples": [
+        { "t": 0.0, "label": "OFF" },
+        { "t": 0.1, "label": "IDLE" },
+        { "t": 0.2, "label": "RUN" },
+        { "t": 0.3, "label": "IDLE" }
+      ]
+    }
+  ]
+}

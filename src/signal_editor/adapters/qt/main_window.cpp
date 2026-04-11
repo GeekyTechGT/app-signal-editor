@@ -27,11 +27,16 @@
 #include <QSpinBox>
 #include <QSplitter>
 #include <QStackedWidget>
+#include <QGraphicsOpacityEffect>
+#include <QPropertyAnimation>
 #include <QStatusBar>
+#include <QTabBar>
+#include <QTabWidget>
 #include <QToolBar>
 #include <QTextEdit>
 #include <QUrl>
 #include <QVBoxLayout>
+#include <QSizePolicy>
 #include <QStringList>
 
 #include <algorithm>
@@ -45,6 +50,42 @@ namespace myprj::signal_editor::adapters::qt {
 
 namespace {
 constexpr double kPi = 3.14159265358979323846;
+
+constexpr int kTabRevealDurationMs = 220;
+
+void animate_tab_reveal(QTabWidget* tabs, int index) {
+    if (tabs == nullptr || index < 0 || index >= tabs->count()) {
+        return;
+    }
+
+    for (int i = 0; i < tabs->count(); ++i) {
+        if (auto* page = tabs->widget(i); page != nullptr) {
+            auto* effect = qobject_cast<QGraphicsOpacityEffect*>(page->graphicsEffect());
+            if (effect != nullptr) {
+                effect->setOpacity(1.0);
+            }
+        }
+    }
+
+    QWidget* page = tabs->widget(index);
+    if (page == nullptr) {
+        return;
+    }
+
+    auto* effect = qobject_cast<QGraphicsOpacityEffect*>(page->graphicsEffect());
+    if (effect == nullptr) {
+        effect = new QGraphicsOpacityEffect(page);
+        page->setGraphicsEffect(effect);
+    }
+
+    effect->setOpacity(0.0);
+    auto* animation = new QPropertyAnimation(effect, "opacity", page);
+    animation->setDuration(kTabRevealDurationMs);
+    animation->setStartValue(0.0);
+    animation->setEndValue(1.0);
+    animation->setEasingCurve(QEasingCurve::OutCubic);
+    animation->start(QAbstractAnimation::DeleteWhenStopped);
+}
 
 QString summarize_counts(const SignalLibrary& library) {
     return QStringLiteral("%1 signal(s)").arg(static_cast<qulonglong>(library.size()));
@@ -368,21 +409,21 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
 
     auto* central = new QWidget(this);
     auto* central_layout = new QVBoxLayout(central);
-    central_layout->setContentsMargins(16, 16, 16, 16);
-    central_layout->setSpacing(14);
+    central_layout->setContentsMargins(16, 14, 16, 14);
+    central_layout->setSpacing(10);
 
     auto* workspace_header = new QWidget(central);
     workspace_header->setObjectName(QStringLiteral("WorkspaceHeader"));
     auto* workspace_layout = new QVBoxLayout(workspace_header);
-    workspace_layout->setContentsMargins(20, 18, 20, 18);
-    workspace_layout->setSpacing(4);
+    workspace_layout->setContentsMargins(16, 12, 16, 12);
+    workspace_layout->setSpacing(2);
 
     workspace_title_label_ = new QLabel(QStringLiteral("Signal Editor Workspace"), workspace_header);
     workspace_title_label_->setObjectName(QStringLiteral("WorkspaceTitle"));
     workspace_meta_label_ = new QLabel(QStringLiteral("No active document"), workspace_header);
     workspace_meta_label_->setObjectName(QStringLiteral("WorkspaceMeta"));
     workspace_hint_label_ = new QLabel(
-        QStringLiteral("Load CSV, JSON, tab-delimited, or Excel-compatible XML files, then sculpt signals through the plot or table."),
+        QStringLiteral("Import a signal file or create one, then edit it through plot and table."),
         workspace_header);
     workspace_hint_label_->setObjectName(QStringLiteral("WorkspaceHint"));
     workspace_hint_label_->setWordWrap(true);
@@ -402,25 +443,66 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
     side_layout->addWidget(file_panel_, 1);
     side_layout->addWidget(list_panel_, 2);
 
-    auto* center_splitter = new QSplitter(Qt::Vertical, outer_splitter);
-    plot_ = new SignalPlotWidget(center_splitter);
-    table_panel_ = new SignalTablePanel(center_splitter);
-    center_splitter->addWidget(plot_);
-    center_splitter->addWidget(table_panel_);
-    center_splitter->setStretchFactor(0, 3);
-    center_splitter->setStretchFactor(1, 2);
-    center_splitter->setSizes({540, 280});
+    auto* center_panel = new QWidget(outer_splitter);
+    auto* center_layout = new QVBoxLayout(center_panel);
+    center_layout->setContentsMargins(0, 0, 0, 0);
+    center_layout->setSpacing(10);
+
+    auto* center_toolbar = new QHBoxLayout();
+    center_toolbar->setContentsMargins(0, 0, 0, 0);
+    center_toolbar->setSpacing(10);
+    auto* interpolation_label = new QLabel(QStringLiteral("Interpolation"), center_panel);
+    interpolation_label->setObjectName(QStringLiteral("PanelDetail"));
+    interpolation_box_ = new QComboBox(center_panel);
+    interpolation_box_->addItem(QStringLiteral("Linear"));
+    interpolation_box_->addItem(QStringLiteral("Step"));
+    center_toolbar->addWidget(interpolation_label);
+    center_toolbar->addWidget(interpolation_box_, 0);
+    center_toolbar->addStretch(1);
+    center_layout->addLayout(center_toolbar);
+
+    workspace_tabs_ = new QTabWidget(center_panel);
+    workspace_tabs_->setObjectName(QStringLiteral("WorkspaceTabs"));
+    workspace_tabs_->setDocumentMode(true);
+    workspace_tabs_->setTabPosition(QTabWidget::North);
+    workspace_tabs_->tabBar()->setExpanding(true);
+    workspace_tabs_->setUsesScrollButtons(false);
+
+    auto* plot_page = new QWidget(workspace_tabs_);
+    plot_page->setObjectName(QStringLiteral("WorkspaceTabPage"));
+    auto* plot_layout = new QVBoxLayout(plot_page);
+    plot_layout->setContentsMargins(0, 0, 0, 0);
+    plot_layout->setSpacing(0);
+    plot_ = new SignalPlotWidget(plot_page);
+    plot_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    plot_layout->addWidget(plot_);
+
+    auto* table_page = new QWidget(workspace_tabs_);
+    table_page->setObjectName(QStringLiteral("WorkspaceTabPage"));
+    auto* table_layout = new QVBoxLayout(table_page);
+    table_layout->setContentsMargins(0, 0, 0, 0);
+    table_layout->setSpacing(0);
+    table_panel_ = new SignalTablePanel(table_page);
+    table_layout->addWidget(table_panel_);
+
+    workspace_tabs_->addTab(plot_page, QStringLiteral("Plot"));
+    workspace_tabs_->addTab(table_page, QStringLiteral("Table"));
+    center_layout->addWidget(workspace_tabs_, 1);
+    animate_tab_reveal(workspace_tabs_, 0);
 
     outer_splitter->addWidget(side_panel);
-    outer_splitter->addWidget(center_splitter);
+    outer_splitter->addWidget(center_panel);
+    outer_splitter->setChildrenCollapsible(false);
+    outer_splitter->setHandleWidth(10);
     outer_splitter->setStretchFactor(0, 0);
     outer_splitter->setStretchFactor(1, 1);
-    outer_splitter->setSizes({340, 1080});
+    outer_splitter->setSizes({300, 1120});
     central_layout->addWidget(outer_splitter, 1);
     setCentralWidget(central);
 
     list_panel_->set_library(nullptr);
     table_panel_->set_signal(nullptr);
+    update_interpolation_box();
 
     auto* menu_file = menuBar()->addMenu(QStringLiteral("&File"));
     auto* act_open = menu_file->addAction(QStringLiteral("&Open signal files..."));
@@ -488,8 +570,12 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
             this, &MainWindow::onTableEditStarted);
     connect(table_panel_, &SignalTablePanel::contentChanged,
             this, &MainWindow::onTableChanged);
-    connect(table_panel_, &SignalTablePanel::interpolationChanged,
+    connect(interpolation_box_, qOverload<int>(&QComboBox::currentIndexChanged),
             this, &MainWindow::onSignalInterpolationChanged);
+    connect(workspace_tabs_, &QTabWidget::currentChanged,
+            this, [this](int index) {
+                animate_tab_reveal(workspace_tabs_, index);
+            });
 
     update_undo_action();
     refresh_status();
@@ -693,6 +779,7 @@ void MainWindow::onRenameRequested(int index, const QString& new_name) {
     mark_active_document_dirty();
     list_panel_->refresh();
     rebind_plot();
+    update_interpolation_box();
 }
 
 void MainWindow::onAddRequested() {
@@ -912,23 +999,23 @@ void MainWindow::onAddRequested() {
         params_a[0] = constant_level->value();
         break;
     case WaveformKind::Sine:
-        params_a = {sine_amplitude->value(), sine_offset->value(), sine_frequency->value(), sine_phase->value()};
+        params_a = std::array<double, 4>{sine_amplitude->value(), sine_offset->value(), sine_frequency->value(), sine_phase->value()};
         break;
     case WaveformKind::Cosine:
-        params_a = {cosine_amplitude->value(), cosine_offset->value(), cosine_frequency->value(), cosine_phase->value()};
+        params_a = std::array<double, 4>{cosine_amplitude->value(), cosine_offset->value(), cosine_frequency->value(), cosine_phase->value()};
         break;
     case WaveformKind::Pulse:
-        params_a = {pulse_low->value(), pulse_high->value(), pulse_frequency->value(), pulse_duty->value()};
+        params_a = std::array<double, 4>{pulse_low->value(), pulse_high->value(), pulse_frequency->value(), pulse_duty->value()};
         params_b[0] = pulse_phase->value();
         break;
     case WaveformKind::Sawtooth:
-        params_a = {saw_min->value(), saw_max->value(), saw_frequency->value(), saw_phase->value()};
+        params_a = std::array<double, 4>{saw_min->value(), saw_max->value(), saw_frequency->value(), saw_phase->value()};
         break;
     case WaveformKind::Triangle:
-        params_a = {triangle_min->value(), triangle_max->value(), triangle_frequency->value(), triangle_phase->value()};
+        params_a = std::array<double, 4>{triangle_min->value(), triangle_max->value(), triangle_frequency->value(), triangle_phase->value()};
         break;
     case WaveformKind::Ramp:
-        params_a = {ramp_start->value(), ramp_end->value(), 0.0, 0.0};
+        params_a = std::array<double, 4>{ramp_start->value(), ramp_end->value(), 0.0, 0.0};
         break;
     case WaveformKind::Enumerated:
         break;
@@ -1043,6 +1130,7 @@ void MainWindow::onTableChanged() {
     mark_active_document_dirty();
     list_panel_->refresh();
     rebind_plot();
+    update_interpolation_box();
 }
 
 void MainWindow::onSignalInterpolationChanged(int mode) {
@@ -1070,6 +1158,7 @@ void MainWindow::onSignalInterpolationChanged(int mode) {
     list_panel_->refresh();
     plot_->refresh();
     table_panel_->refresh();
+    update_interpolation_box();
 }
 
 void MainWindow::onCursorMoved(double t, double y) {
@@ -1289,6 +1378,7 @@ void MainWindow::rebind_plot() {
         plot_->set_signal(signal);
         table_panel_->set_signal(signal);
     }
+    update_interpolation_box();
     refresh_status();
 }
 
@@ -1300,6 +1390,28 @@ void MainWindow::update_undo_action() {
         active_document_index_ < static_cast<int>(documents_.size()) &&
         !documents_[static_cast<std::size_t>(active_document_index_)].undo_stack.empty();
     undo_action_->setEnabled(enabled);
+}
+
+void MainWindow::update_interpolation_box() {
+    if (interpolation_box_ == nullptr) {
+        return;
+    }
+
+    const int signal_index = list_panel_ == nullptr ? -1 : list_panel_->current_index();
+    const bool has_signal = signal_index >= 0 && signal_index < static_cast<int>(service_.library().size());
+    if (!has_signal) {
+        interpolation_box_->blockSignals(true);
+        interpolation_box_->setCurrentIndex(static_cast<int>(Signal::InterpolationMode::Linear));
+        interpolation_box_->blockSignals(false);
+        interpolation_box_->setEnabled(false);
+        return;
+    }
+
+    const auto& signal = service_.library().at(static_cast<std::size_t>(signal_index));
+    interpolation_box_->blockSignals(true);
+    interpolation_box_->setCurrentIndex(static_cast<int>(signal.interpolation()));
+    interpolation_box_->blockSignals(false);
+    interpolation_box_->setEnabled(!signal.is_enumerated());
 }
 
 void MainWindow::refresh_status(const QString& transient_message) {
@@ -1315,7 +1427,7 @@ void MainWindow::refresh_status(const QString& transient_message) {
             workspace_meta_label_->setText(QStringLiteral("No active document"));
         }
         if (workspace_hint_label_ != nullptr) {
-            workspace_hint_label_->setText(QStringLiteral("Load CSV, JSON, tab-delimited, or Excel-compatible XML files, then sculpt signals through the plot or table."));
+            workspace_hint_label_->setText(QStringLiteral("Import a signal file or create one, then edit it through plot and table."));
         }
         if (transient_message.isEmpty()) {
             statusBar()->showMessage(QStringLiteral("No file loaded"));
@@ -1347,9 +1459,9 @@ void MainWindow::refresh_status(const QString& transient_message) {
         : nullptr;
     if (workspace_hint_label_ != nullptr) {
         if (active_signal != nullptr && active_signal->is_enumerated()) {
-            workspace_hint_label_->setText(QStringLiteral("Enumerated signals snap to user-defined states, expose label-based editing in the table, and render the Y axis with textual states."));
+            workspace_hint_label_->setText(QStringLiteral("Enumerated signals snap to named states and render textual values on the Y axis."));
         } else {
-            workspace_hint_label_->setText(QStringLiteral("Drag points, use Shift+drag for Gaussian brushing, or fine-tune samples in the table below."));
+            workspace_hint_label_->setText(QStringLiteral("Drag points, use Shift+drag for Gaussian brushing, or refine samples in the table."));
         }
     }
 

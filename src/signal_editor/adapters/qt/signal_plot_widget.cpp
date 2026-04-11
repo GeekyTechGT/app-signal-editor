@@ -124,7 +124,7 @@ SignalPlotWidget::SignalPlotWidget(QWidget* parent) : QWidget(parent) {
     setAutoFillBackground(false);
     setMouseTracking(true);
     setFocusPolicy(Qt::StrongFocus);
-    setMinimumSize(400, 300);
+    setMinimumSize(360, 180);
 }
 
 void SignalPlotWidget::set_signal(Signal* signal) {

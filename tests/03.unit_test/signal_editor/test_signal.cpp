@@ -82,7 +82,7 @@ TEST(SignalTest, EnumeratedSignalsResolveLabelsAndSnapInsertedValues) {
 
     EXPECT_EQ(s.label_for_value(1.0), "TRUE");
     EXPECT_DOUBLE_EQ(s.value_for_label("UNKNOWN"), 2.0);
-    EXPECT_THROW(s.value_for_label("MISSING"), std::invalid_argument);
+    EXPECT_THROW([&]() { static_cast<void>(s.value_for_label("MISSING")); }(), std::invalid_argument);
 
     s.set_sample_value(0, 1.6);
     EXPECT_DOUBLE_EQ(s.samples()[0].y, 2.0);
