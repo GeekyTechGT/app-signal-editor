@@ -5,9 +5,12 @@
 namespace myprj::signal_editor::adapters {
 
 /**
- * @brief Multi-format filesystem repository used by the desktop application.
+ * @brief Dispatcher over format-specific filesystem repositories.
  *
- * The adapter dispatches persistence based on the file extension so the editor
+ * This adapter owns only format selection based on file extension. Concrete
+ * parsing and serialisation live in dedicated per-format adapters so each class
+ * has a single persistence responsibility.
+ *
  * can load and save engineering data in multiple interchange formats:
  * - `.csv` for the native shared time-axis layout;
  * - `.tsv` / `.txt` for Excel-friendly tab-delimited tables;

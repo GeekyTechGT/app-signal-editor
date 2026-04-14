@@ -1,16 +1,14 @@
-#include "signal_editor/adapters/filesystem/tabular_signal_codec.h"
+#include "signal_editor/adapters/filesystem/tabular_signal_rows.h"
 
 #include <algorithm>
 #include <cctype>
 #include <cmath>
-#include <fstream>
 #include <iomanip>
 #include <set>
 #include <sstream>
 #include <stdexcept>
-#include <string_view>
 
-namespace myprj::signal_editor::adapters::tabular {
+namespace myprj::signal_editor::adapters::tabular_rows {
 
 namespace {
 constexpr double kEnumValueEpsilon = 1e-9;
@@ -181,12 +179,6 @@ std::string trim_copy(std::string_view text) {
     return std::string(begin, end);
 }
 
-std::string to_lower_copy(std::string text) {
-    std::transform(text.begin(), text.end(), text.begin(),
-                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
-    return text;
-}
-
 std::optional<double> try_parse_double(const std::string& text) {
     if (text.empty()) {
         return std::nullopt;
@@ -201,6 +193,12 @@ std::optional<double> try_parse_double(const std::string& text) {
     } catch (const std::exception&) {
         return std::nullopt;
     }
+}
+
+std::string to_lower_copy(std::string text) {
+    std::transform(text.begin(), text.end(), text.begin(),
+                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+    return text;
 }
 
 Signal::InterpolationMode parse_interpolation_mode(const std::string& raw) {
@@ -398,95 +396,4 @@ std::vector<std::vector<std::string>> library_to_rows(const SignalLibrary& libra
     return rows;
 }
 
-std::vector<std::string> split_delimited_line(const std::string& line, char delimiter) {
-    std::vector<std::string> out;
-    std::string current;
-    bool in_quotes = false;
-
-    for (std::size_t index = 0; index < line.size(); ++index) {
-        const char ch = line[index];
-        if (ch == '\r') {
-            continue;
-        }
-        if (ch == '"') {
-            if (in_quotes && index + 1 < line.size() && line[index + 1] == '"') {
-                current.push_back('"');
-                ++index;
-            } else {
-                in_quotes = !in_quotes;
-            }
-            continue;
-        }
-        if (ch == delimiter && !in_quotes) {
-            out.push_back(trim_copy(current));
-            current.clear();
-            continue;
-        }
-        current.push_back(ch);
-    }
-
-    out.push_back(trim_copy(current));
-    return out;
-}
-
-std::string quote_delimited_cell(const std::string& cell, char delimiter) {
-    const bool requires_quotes = cell.find(delimiter) != std::string::npos ||
-        cell.find_first_of("\"\n\r") != std::string::npos ||
-        (!cell.empty() && (std::isspace(static_cast<unsigned char>(cell.front())) ||
-                           std::isspace(static_cast<unsigned char>(cell.back()))));
-    if (!requires_quotes) {
-        return cell;
-    }
-    std::string escaped;
-    escaped.reserve(cell.size() + 2);
-    escaped.push_back('"');
-    for (char ch : cell) {
-        if (ch == '"') {
-            escaped.push_back('"');
-        }
-        escaped.push_back(ch);
-    }
-    escaped.push_back('"');
-    return escaped;
-}
-
-SignalLibrary load_delimited_file(const std::filesystem::path& source, char delimiter) {
-    std::ifstream in(source);
-    if (!in.is_open()) {
-        throw std::runtime_error("Cannot open delimited file: " + source.string());
-    }
-    std::vector<std::vector<std::string>> rows;
-    std::string line;
-    while (std::getline(in, line)) {
-        if (!line.empty()) {
-            rows.push_back(split_delimited_line(line, delimiter));
-        }
-    }
-    return rows_to_library(rows);
-}
-
-myprj::Result save_delimited_file(const std::filesystem::path& destination,
-                                  const SignalLibrary& library,
-                                  char delimiter) {
-    try {
-        const auto rows = library_to_rows(library);
-        std::ofstream out(destination, std::ios::trunc);
-        if (!out.is_open()) {
-            return myprj::Result::error("Cannot open file for writing: " + destination.string());
-        }
-        for (const auto& row : rows) {
-            for (std::size_t index = 0; index < row.size(); ++index) {
-                if (index != 0) {
-                    out << delimiter;
-                }
-                out << quote_delimited_cell(row[index], delimiter);
-            }
-            out << '\n';
-        }
-        return myprj::Result::ok();
-    } catch (const std::exception& ex) {
-        return myprj::Result::error(ex.what());
-    }
-}
-
-}  // namespace myprj::signal_editor::adapters::tabular
+}  // namespace myprj::signal_editor::adapters::tabular_rows

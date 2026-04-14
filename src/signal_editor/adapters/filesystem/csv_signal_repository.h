@@ -5,11 +5,7 @@
 namespace myprj::signal_editor::adapters {
 
 /**
- * @brief CSV-specialized implementation of the signal repository port.
- *
- * This adapter is intentionally thin: it constrains persistence to CSV while
- * delegating the shared tabular parsing/export rules to the internal filesystem
- * tabular codec used by the multi-format repository as well.
+ * @brief CSV-specific implementation of the signal repository port.
  *
  * The adapter reads and writes libraries using a shared time-axis CSV layout:
  *

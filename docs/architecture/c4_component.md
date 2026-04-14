@@ -18,9 +18,13 @@
 │                               ^                                            │
 │                               │                                            │
 │      adapters/filesystem/SignalFileRepository                             │
-│          ├──────────────> adapters/filesystem/TabularSignalCodec          │
-│      adapters/filesystem/CsvSignalRepository                              │
-│          └──────────────> adapters/filesystem/TabularSignalCodec          │
+│          ├──────────────> adapters/filesystem/CsvSignalRepository         │
+│          ├──────────────> adapters/filesystem/DelimitedSignalRepository   │
+│          ├──────────────> adapters/filesystem/JsonSignalRepository        │
+│          └──────────────> adapters/filesystem/SpreadsheetXmlSignalRepository│
+│                                                                            │
+│      adapters/filesystem/*Tabular*Repository                              │
+│          └──────────────> adapters/filesystem/TabularSignalRows           │
 └────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -33,9 +37,12 @@
 | `Signal` | `core/domain/signal.*` | Enforces waveform invariants, interpolation behavior, and enumerated-state semantics |
 | `SamplePoint` | `core/domain/sample_point.h` | Value object representing time/value pairs |
 | `ISignalRepository` | `ports/signal_repository.h` | Persistence abstraction consumed by the use-case layer |
-| `SignalFileRepository` | `adapters/filesystem/signal_file_repository.*` | Primary filesystem adapter: dispatches by extension and owns JSON/XML persistence paths |
-| `CsvSignalRepository` | `adapters/filesystem/csv_signal_repository.*` | Narrow CSV-only wrapper used when a caller intentionally wants CSV-constrained persistence |
-| `TabularSignalCodec` | `adapters/filesystem/tabular_signal_codec.*` | Shared row/column parsing and export rules reused by CSV, TSV/TXT, and SpreadsheetML flows |
+| `SignalFileRepository` | `adapters/filesystem/signal_file_repository.*` | Thin dispatcher that selects the concrete repository adapter from the file extension |
+| `CsvSignalRepository` | `adapters/filesystem/csv_signal_repository.*` | CSV-specific parsing and export semantics |
+| `DelimitedSignalRepository` | `adapters/filesystem/delimited_signal_repository.*` | TSV/TXT parsing and export semantics |
+| `JsonSignalRepository` | `adapters/filesystem/json_signal_repository.*` | JSON-specific parsing and export semantics |
+| `SpreadsheetXmlSignalRepository` | `adapters/filesystem/spreadsheet_xml_signal_repository.*` | SpreadsheetML XML parsing and export semantics |
+| `TabularSignalRows` | `adapters/filesystem/tabular_signal_rows.*` | Shared row-model mapping used by tabular adapters after raw format decoding |
 | `signal_editor_api.h` | `api/signal_editor_api.h` | Public facade consumed by the application shell |
 
 ## Notes
