@@ -23,7 +23,7 @@ int main(int argc, char* argv[]) {
     myprj::signal_editor::api::Service service(repository);
 
     myprj::signal_editor::adapters::qt::MainWindow window(service);
-    window.show();
+    window.showMaximized();
 
     return app.exec();
 }
