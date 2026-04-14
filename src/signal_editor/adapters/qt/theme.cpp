@@ -110,6 +110,36 @@ void apply_dark_fusion_theme(QApplication& app) {
                 stop:0 #ffd089, stop:1 #f4a64a);
             color: #101720;
         }
+        QTableWidget#SignalSamplesTable QLineEdit,
+        QTableWidget#SignalSamplesTable QComboBox {
+            background: #fff4de;
+            color: #101720;
+            selection-background-color: #f4a64a;
+            selection-color: #101720;
+            border: 1px solid #ffcf85;
+            border-radius: 8px;
+            padding: 2px 8px;
+            margin: 0;
+        }
+        QTableWidget#SignalSamplesTable QLineEdit:focus,
+        QTableWidget#SignalSamplesTable QComboBox:focus {
+            background: #fff9ef;
+            border: 1px solid #ffb25c;
+        }
+        QTableWidget#SignalSamplesTable QComboBox::drop-down {
+            border: 0;
+            width: 20px;
+            background: transparent;
+        }
+        QTableWidget#SignalSamplesTable QComboBox QAbstractItemView {
+            background: #15202b;
+            color: #edf2f7;
+            selection-background-color: #f4a64a;
+            selection-color: #101720;
+            border: 1px solid rgba(116, 139, 162, 0.32);
+            outline: 0;
+            padding: 4px;
+        }
         QTableWidget#SignalSamplesTable QTableCornerButton::section {
             background: #17202b;
             border: 0;

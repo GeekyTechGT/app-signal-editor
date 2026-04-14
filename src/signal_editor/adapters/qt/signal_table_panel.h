@@ -71,8 +71,8 @@ private:
 
     void repopulate();
     void set_row_values(int row, double t, double y);
-    [[nodiscard]] double default_insert_time(int row) const;
-    [[nodiscard]] double default_insert_value(int row) const;
+    [[nodiscard]] double default_insert_time() const;
+    [[nodiscard]] double default_insert_value() const;
     void refresh_summary() const;
 };
 

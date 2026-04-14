@@ -5,16 +5,18 @@
 #include <QAbstractItemModel>
 #include <QAbstractItemView>
 #include <QComboBox>
-#include <QDoubleSpinBox>
+#include <QDoubleValidator>
 #include <QFont>
 #include <QFrame>
 #include <QHeaderView>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QLineEdit>
 #include <QPushButton>
 #include <QStyledItemDelegate>
 #include <QTableWidget>
 #include <QTableWidgetItem>
+#include <QTimer>
 #include <QVBoxLayout>
 #include <QVariant>
 #include <QMetaType>
@@ -25,6 +27,12 @@
 namespace myprj::signal_editor::adapters::qt {
 
 namespace {
+void configure_table_editor(QWidget* editor) {
+    editor->setAttribute(Qt::WA_StyledBackground, true);
+    editor->setAutoFillBackground(true);
+    editor->setFocusPolicy(Qt::StrongFocus);
+}
+
 class SampleItemDelegate : public QStyledItemDelegate {
 public:
     explicit SampleItemDelegate(QObject* parent = nullptr)
@@ -37,19 +45,31 @@ public:
                           const QModelIndex& index) const override {
         if (index.column() == 1 && signal_ != nullptr && signal_->is_enumerated()) {
             auto* editor = new QComboBox(parent);
+            configure_table_editor(editor);
             for (const auto& entry : signal_->enumeration()) {
                 editor->addItem(QString::fromStdString(entry.label));
             }
             editor->setEditable(false);
+            editor->setFrame(false);
+            editor->setMaxVisibleItems(12);
             return editor;
         }
 
-        auto* editor = new QDoubleSpinBox(parent);
-        editor->setDecimals(6);
-        editor->setRange(-1e12, 1e12);
-        editor->setSingleStep(index.column() == 0 ? 0.01 : 0.1);
+        auto* editor = new QLineEdit(parent);
+        configure_table_editor(editor);
+        editor->setAlignment(Qt::AlignRight);
         editor->setFrame(false);
+        auto* validator = new QDoubleValidator(-1e12, 1e12, 6, editor);
+        validator->setNotation(QDoubleValidator::StandardNotation);
+        validator->setLocale(editor->locale());
+        editor->setValidator(validator);
         return editor;
+    }
+
+    void updateEditorGeometry(QWidget* editor,
+                              const QStyleOptionViewItem& option,
+                              const QModelIndex&) const override {
+        editor->setGeometry(option.rect.adjusted(3, 3, -3, -3));
     }
 
     void setEditorData(QWidget* editor, const QModelIndex& index) const override {
@@ -64,11 +84,12 @@ public:
             return;
         }
 
-        auto* spin = qobject_cast<QDoubleSpinBox*>(editor);
-        if (spin == nullptr) {
+        auto* line_edit = qobject_cast<QLineEdit*>(editor);
+        if (line_edit == nullptr) {
             return;
         }
-        spin->setValue(index.data(Qt::EditRole).toDouble());
+        line_edit->setText(line_edit->locale().toString(index.data(Qt::EditRole).toDouble(), 'f', 6));
+        line_edit->selectAll();
     }
 
     void setModelData(QWidget* editor,
@@ -83,12 +104,16 @@ public:
             return;
         }
 
-        auto* spin = qobject_cast<QDoubleSpinBox*>(editor);
-        if (spin == nullptr) {
+        auto* line_edit = qobject_cast<QLineEdit*>(editor);
+        if (line_edit == nullptr) {
             return;
         }
-        spin->interpretText();
-        model->setData(index, spin->value(), Qt::EditRole);
+        bool ok = false;
+        const double value = line_edit->locale().toDouble(line_edit->text(), &ok);
+        if (!ok) {
+            return;
+        }
+        model->setData(index, value, Qt::EditRole);
     }
 
     QString displayText(const QVariant& value, const QLocale& locale) const override {
@@ -222,22 +247,39 @@ void SignalTablePanel::onItemChanged(QTableWidgetItem* item) {
 }
 
 void SignalTablePanel::onAddClicked() {
+    if (signal_ == nullptr) {
+        return;
+    }
+
     emit editStarted();
 
-    const int current_row = table_->currentRow();
-    const int insert_row = current_row >= 0 ? current_row + 1 : table_->rowCount();
+    const int insert_row = table_->rowCount();
+    const int edit_column = 0;
 
     suppress_item_changed_ = true;
     table_->insertRow(insert_row);
-    set_row_values(insert_row,
-                   default_insert_time(current_row),
-                   default_insert_value(current_row));
+    set_row_values(insert_row, default_insert_time(), default_insert_value());
     suppress_item_changed_ = false;
 
-    table_->setCurrentCell(insert_row, signal_ != nullptr && signal_->is_enumerated() ? 1 : 0);
+    table_->selectRow(insert_row);
+    table_->setCurrentCell(insert_row, edit_column);
+    table_->scrollToItem(table_->item(insert_row, edit_column), QAbstractItemView::PositionAtCenter);
     remove_button_->setEnabled(true);
-    table_->editItem(table_->item(insert_row, signal_ != nullptr && signal_->is_enumerated() ? 1 : 0));
     emit contentChanged();
+
+    QTimer::singleShot(0, this, [this, insert_row, edit_column]() {
+        if (insert_row < 0 || insert_row >= table_->rowCount()) {
+            return;
+        }
+        auto* item = table_->item(insert_row, edit_column);
+        if (item == nullptr) {
+            return;
+        }
+        table_->selectRow(insert_row);
+        table_->setCurrentItem(item);
+        table_->scrollToItem(item, QAbstractItemView::PositionAtCenter);
+        table_->editItem(item);
+    });
 }
 
 void SignalTablePanel::onRemoveClicked() {
@@ -303,45 +345,38 @@ void SignalTablePanel::set_row_values(int row, double t, double y) {
     }
 }
 
-double SignalTablePanel::default_insert_time(int row) const {
-    const auto current_samples = samples();
-    if (current_samples.empty()) {
+double SignalTablePanel::default_insert_time() const {
+    if (signal_ == nullptr || signal_->empty()) {
         return 0.0;
     }
-    if (row >= 0 && row + 1 < static_cast<int>(current_samples.size())) {
-        return 0.5 * (current_samples[static_cast<std::size_t>(row)].t +
-                      current_samples[static_cast<std::size_t>(row + 1)].t);
-    }
 
-    if (current_samples.size() >= 2) {
-        const double last = current_samples.back().t;
-        const double prev = current_samples[current_samples.size() - 2].t;
+    const auto& signal_samples = signal_->samples();
+    if (signal_samples.size() >= 2) {
+        const double last = signal_samples.back().t;
+        const double prev = signal_samples[signal_samples.size() - 2].t;
         const double step = std::fabs(last - prev) > 1e-9 ? (last - prev) : 1.0;
         return last + step;
     }
 
-    return current_samples.back().t + 1.0;
+    return signal_samples.back().t + 1.0;
 }
 
-double SignalTablePanel::default_insert_value(int row) const {
-    if (signal_ != nullptr && signal_->is_enumerated() && !signal_->enumeration().empty()) {
-        if (row >= 0) {
-            const auto current_samples = samples();
-            if (row < static_cast<int>(current_samples.size())) {
-                return current_samples[static_cast<std::size_t>(row)].y;
-            }
+double SignalTablePanel::default_insert_value() const {
+    if (signal_ == nullptr) {
+        return 0.0;
+    }
+
+    if (signal_->is_enumerated() && !signal_->enumeration().empty()) {
+        if (!signal_->empty()) {
+            return signal_->samples().back().y;
         }
         return signal_->enumeration().front().value;
     }
 
-    const auto current_samples = samples();
-    if (current_samples.empty()) {
+    if (signal_->empty()) {
         return 0.0;
     }
-    if (row >= 0 && row < static_cast<int>(current_samples.size())) {
-        return current_samples[static_cast<std::size_t>(row)].y;
-    }
-    return current_samples.back().y;
+    return signal_->samples().back().y;
 }
 
 void SignalTablePanel::refresh_summary() const {

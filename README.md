@@ -40,7 +40,7 @@ The project intentionally keeps the domain model independent from Qt so waveform
 
 - Multi-document workspace with active file switching
 - Interactive plot editing for numeric signals
-- Table-first editing with explicit sample control
+- Table-first editing with explicit sample control and guided row insertion
 - Enumerated signal support with label/value mappings
 - Shared interpolation control across plot and table workflows
 - Signal generation for constant, sine, cosine, pulse, sawtooth, triangle, ramp, and enumerated patterns
@@ -131,6 +131,15 @@ The repository currently supports enumerated behavior across:
 - new-signal creation in the UI
 - label-aware table editing
 - plot rendering with state labels on the Y axis
+
+## Table Editing Behavior
+
+The table workflow is designed to keep sample insertion predictable instead of behaving like a generic spreadsheet.
+
+- `+ Sample` appends a new row at the end of the active signal
+- the default time value is always greater than the last sample time
+- the default `y(t)` value copies the last sample value
+- the new row is selected immediately and opened in edit mode so the user can type the next value without extra clicks
 
 ## Architecture
 

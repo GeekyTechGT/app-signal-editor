@@ -65,7 +65,7 @@ Signal Editor is a local desktop engineering tool. It combines direct waveform m
 | FR-10 | The system shall allow removing a waypoint from the plot interaction flow. |
 | FR-11 | The system shall allow Gaussian brushing for numeric signals when the proper plot gesture is used. |
 | FR-12 | The system shall allow sample editing in tabular form. |
-| FR-13 | The system shall allow sample insertion and removal in the table. |
+| FR-13 | The system shall allow sample insertion and removal in the table, and inserted rows shall open as the active editable row. |
 | FR-14 | The system shall provide a shared interpolation selector that remains available in both plot and table workflows. |
 | FR-15 | The system shall allow creating signals from constant, sine, cosine, pulse, sawtooth, triangle, ramp, and enumerated templates. |
 | FR-16 | The system shall allow renaming and removing signals in the active document. |
@@ -106,6 +106,7 @@ Signal Editor is a local desktop engineering tool. It combines direct waveform m
 
 - decimal separator shall be `.`
 - time values are expected to be monotonically increasing inside a signal
+- table-driven sample insertion shall propose a timestamp greater than the current last sample timestamp
 - metadata rows may define interpolation and enumeration details before tabular data begins
 - enumerated values may be encoded as labels when a matching mapping exists
 - enumerated values may be bootstrapped inline through `label:value` tokens
@@ -124,6 +125,7 @@ Signal Editor is a local desktop engineering tool. It combines direct waveform m
 - signal names shall be non-empty
 - signal samples shall remain ordered by increasing time
 - duplicate timestamps shall collapse into a single logical sample entry
+- table-driven insertion defaults shall be derived from the current domain signal state, not from transient widget state
 - indexed access shall remain bounds-checked where defined by the API
 - enumerated labels shall be non-empty and unique
 - enumerated numeric values shall be unique within the mapping
