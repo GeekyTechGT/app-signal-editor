@@ -121,6 +121,7 @@ void draw_badge(QPainter& painter,
 }  // namespace
 
 SignalPlotWidget::SignalPlotWidget(QWidget* parent) : QWidget(parent) {
+    setAttribute(Qt::WA_OpaquePaintEvent, true);
     setAutoFillBackground(false);
     setMouseTracking(true);
     setFocusPolicy(Qt::StrongFocus);

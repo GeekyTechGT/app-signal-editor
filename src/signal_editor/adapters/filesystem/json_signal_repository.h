@@ -7,7 +7,7 @@ namespace myprj::signal_editor::adapters {
 class JsonSignalRepository : public ISignalRepository {
 public:
     SignalLibrary load(const std::filesystem::path& source) override;
-    myprj::Result save(const std::filesystem::path& destination,
+    Result save(const std::filesystem::path& destination,
                        const SignalLibrary& library) override;
 };
 

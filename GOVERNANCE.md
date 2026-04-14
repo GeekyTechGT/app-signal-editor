@@ -147,7 +147,7 @@ Specifically:
 
 ## Configuration and Deployment Artifacts
 
-Files in `deploy/config/` and other release-related areas should be treated as controlled project assets. They must not be deleted, replaced, or repurposed casually as part of unrelated feature work. If they need revision, the rationale should be explicit and the impact on packaging or delivery should be documented.
+Files in release-related areas should be treated as controlled project assets. They must not be deleted, replaced, or repurposed casually as part of unrelated feature work. If they need revision, the rationale should be explicit and the impact on packaging or delivery should be documented.
 
 ## Behavior for Unrelated Changes
 

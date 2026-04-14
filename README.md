@@ -157,7 +157,6 @@ This separation keeps responsibilities clear:
 signal-editor/
 ├── apps/signal_editor/gui/              # GUI entry point and composition root
 ├── cmake/                               # Shared CMake helpers and project options
-├── deploy/config/                       # Deployment metadata and packaging descriptors
 ├── docs/                                # Product, architecture, specification, and guidelines
 ├── include/myprj/                       # Generated/public version headers
 ├── scripts/                             # Build, packaging, deployment, and workflow helpers

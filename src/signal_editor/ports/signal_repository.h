@@ -32,7 +32,7 @@ public:
      * @param library In-memory library to serialise.
      * @return Success or failure information for UI and workflow code.
      */
-    virtual myprj::Result save(const std::filesystem::path& destination,
+    virtual Result save(const std::filesystem::path& destination,
                                const SignalLibrary& library) = 0;
 };
 

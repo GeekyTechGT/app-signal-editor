@@ -3,6 +3,9 @@ add_executable(test_signal_editor
     test_signal_library.cpp
     test_signal_editor_service.cpp
     test_csv_repository.cpp
+    test_delimited_signal_repository.cpp
+    test_json_signal_repository.cpp
+    test_spreadsheet_xml_signal_repository.cpp
     test_signal_file_repository.cpp
 )
 

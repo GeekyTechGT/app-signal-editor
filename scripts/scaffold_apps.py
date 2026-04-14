@@ -113,39 +113,6 @@ def copy_tree_with_replacements(source: Path, target: Path, source_module: str, 
     return created
 
 
-def ensure_module_catalog(apps: list[dict[str, Any]]) -> None:
-    catalog_path = ROOT / "deploy" / "config" / "module_catalog.json"
-    if not catalog_path.exists():
-        return
-
-    modules: list[dict[str, Any]] = []
-    for app in apps:
-        module = app["module"]
-        entry: dict[str, Any] = {
-            "id": module,
-            "display_name": module_to_display_name(module),
-            "version": "0.1.0",
-            "description": f"TODO: describe this module ({module})",
-        }
-        if app["cli"]:
-            entry["executables"] = {
-                "windows": [f"{module}.exe"],
-                "linux": [module],
-            }
-        if app["gui"]:
-            entry["gui_executables"] = {
-                "windows": [f"{module}-gui.exe"]
-            }
-        modules.append(entry)
-
-    payload = {
-        "$schema": "../schemas/module_catalog.schema.json",
-        "version": "1.0",
-        "modules": modules,
-    }
-    catalog_path.write_text(json.dumps(payload, indent=4) + "\n", encoding="utf-8")
-
-
 def scaffold_additional_apps(metadata: dict[str, Any]) -> dict[str, Any]:
     apps = normalize_apps(metadata)
     if not apps:
@@ -223,7 +190,6 @@ def scaffold_additional_apps(metadata: dict[str, Any]) -> dict[str, Any]:
         if not app["gui"]:
             shutil.rmtree(ROOT / "apps" / module / "gui")
 
-    ensure_module_catalog(apps)
     return {"status": "ok", "created": created, "skipped": skipped, "apps": apps}
 
 

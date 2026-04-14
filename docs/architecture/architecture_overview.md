@@ -52,6 +52,7 @@ The architecture exists to preserve practical engineering benefits:
 1. The main window receives a load request from the menu or drag-and-drop.
 2. `SignalEditorService` delegates the path to the configured repository port.
 3. `SignalFileRepository` dispatches by file extension to dedicated CSV, TSV/TXT, JSON, and SpreadsheetML XML adapters.
+   `DelimitedSignalRepository` covers the TSV/TXT family because those formats differ only by delimiter semantics, not by domain mapping rules.
 4. The resulting `SignalLibrary` is bound into the workspace document model.
 5. The active signal is exposed to both the plot and table adapters.
 

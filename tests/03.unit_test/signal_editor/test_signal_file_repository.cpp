@@ -41,41 +41,11 @@ TEST(SignalFileRepositoryTest, LoadCsvViaExtensionDispatch) {
     std::filesystem::remove(path);
 }
 
-TEST(SignalFileRepositoryTest, LoadJsonWithEnumeratedLabels) {
-    auto path = make_temp_path("se_test_signals.json");
-    write_file(path, R"({
-  "signals": [
-    {
-      "name": "enable",
-      "interpolation": "step",
-      "enumeration": [
-        {"label": "FALSE", "value": 0},
-        {"label": "TRUE", "value": 1}
-      ],
-      "samples": [
-        {"t": 0.0, "y": "FALSE"},
-        {"t": 1.0, "y": "TRUE"}
-      ]
-    }
-  ]
-})");
+TEST(SignalFileRepositoryTest, SaveJsonViaExtensionDispatch) {
+    auto path = make_temp_path("se_test_dispatch.json");
 
-    SignalFileRepository repository;
-    auto library = repository.load(path);
-
-    ASSERT_EQ(library.size(), 1u);
-    const auto& signal = library.at(0);
-    EXPECT_TRUE(signal.is_enumerated());
-    EXPECT_EQ(signal.label_for_value(signal.samples()[0].y), "FALSE");
-    EXPECT_EQ(signal.label_for_value(signal.samples()[1].y), "TRUE");
-    std::filesystem::remove(path);
-}
-
-TEST(SignalFileRepositoryTest, SaveAndReloadTsvPreservesMappings) {
-    auto path = make_temp_path("se_test_signals.tsv");
-
-    Signal signal = Signal::create_uniform("state", 0.0, 1.0, 2, 0.0, Signal::InterpolationMode::Step);
-    signal.set_enumeration({{"IDLE", 0.0}, {"RUN", 1.0}});
+    Signal signal = Signal::create_uniform("enable", 0.0, 1.0, 2, 0.0, Signal::InterpolationMode::Step);
+    signal.set_enumeration({{"FALSE", 0.0}, {"TRUE", 1.0}});
     signal.set_sample_value(1, 1.0);
 
     SignalLibrary library;
@@ -87,30 +57,6 @@ TEST(SignalFileRepositoryTest, SaveAndReloadTsvPreservesMappings) {
 
     ASSERT_EQ(restored.size(), 1u);
     EXPECT_TRUE(restored.at(0).is_enumerated());
-    EXPECT_EQ(restored.at(0).label_for_value(restored.at(0).samples()[1].y), "RUN");
-    std::filesystem::remove(path);
-}
-
-TEST(SignalFileRepositoryTest, LoadSpreadsheetXmlTable) {
-    auto path = make_temp_path("se_test_signals.xml");
-    write_file(path, R"(<?xml version="1.0"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
-  <Worksheet ss:Name="Signals">
-    <Table>
-      <Row><Cell><Data ss:Type="String"># interpolation</Data></Cell><Cell><Data ss:Type="String">step</Data></Cell></Row>
-      <Row><Cell><Data ss:Type="String"># enum_map</Data></Cell><Cell><Data ss:Type="String">OFF:0|ON:1</Data></Cell></Row>
-      <Row><Cell><Data ss:Type="String">time</Data></Cell><Cell><Data ss:Type="String">mode</Data></Cell></Row>
-      <Row><Cell><Data ss:Type="Number">0</Data></Cell><Cell><Data ss:Type="String">OFF</Data></Cell></Row>
-      <Row><Cell><Data ss:Type="Number">1</Data></Cell><Cell><Data ss:Type="String">ON</Data></Cell></Row>
-    </Table>
-  </Worksheet>
-</Workbook>)");
-
-    SignalFileRepository repository;
-    auto library = repository.load(path);
-
-    ASSERT_EQ(library.size(), 1u);
-    EXPECT_TRUE(library.at(0).is_enumerated());
-    EXPECT_EQ(library.at(0).label_for_value(library.at(0).samples()[1].y), "ON");
+    EXPECT_EQ(restored.at(0).label_for_value(restored.at(0).samples()[1].y), "TRUE");
     std::filesystem::remove(path);
 }

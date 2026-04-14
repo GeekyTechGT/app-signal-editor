@@ -39,7 +39,7 @@
 | `ISignalRepository` | `ports/signal_repository.h` | Persistence abstraction consumed by the use-case layer |
 | `SignalFileRepository` | `adapters/filesystem/signal_file_repository.*` | Thin dispatcher that selects the concrete repository adapter from the file extension |
 | `CsvSignalRepository` | `adapters/filesystem/csv_signal_repository.*` | CSV-specific parsing and export semantics |
-| `DelimitedSignalRepository` | `adapters/filesystem/delimited_signal_repository.*` | TSV/TXT parsing and export semantics |
+| `DelimitedSignalRepository` | `adapters/filesystem/delimited_signal_repository.*` | TSV/TXT parsing and export semantics for delimiter-based tabular files |
 | `JsonSignalRepository` | `adapters/filesystem/json_signal_repository.*` | JSON-specific parsing and export semantics |
 | `SpreadsheetXmlSignalRepository` | `adapters/filesystem/spreadsheet_xml_signal_repository.*` | SpreadsheetML XML parsing and export semantics |
 | `TabularSignalRows` | `adapters/filesystem/tabular_signal_rows.*` | Shared row-model mapping used by tabular adapters after raw format decoding |

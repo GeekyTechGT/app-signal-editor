@@ -36,7 +36,7 @@ public:
      * @param library Library to serialise.
      * @return Success or failure information for workflow code.
      */
-    myprj::Result save(const std::filesystem::path& destination,
+    Result save(const std::filesystem::path& destination,
                        const SignalLibrary& library) override;
 };
 

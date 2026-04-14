@@ -9,7 +9,7 @@ public:
     explicit DelimitedSignalRepository(char delimiter = '	') noexcept;
 
     SignalLibrary load(const std::filesystem::path& source) override;
-    myprj::Result save(const std::filesystem::path& destination,
+    Result save(const std::filesystem::path& destination,
                        const SignalLibrary& library) override;
 
 private:

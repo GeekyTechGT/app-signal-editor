@@ -27,8 +27,6 @@
 #include <QSpinBox>
 #include <QSplitter>
 #include <QStackedWidget>
-#include <QGraphicsOpacityEffect>
-#include <QPropertyAnimation>
 #include <QStatusBar>
 #include <QTabBar>
 #include <QTabWidget>
@@ -51,20 +49,9 @@ namespace myprj::signal_editor::adapters::qt {
 namespace {
 constexpr double kPi = 3.14159265358979323846;
 
-constexpr int kTabRevealDurationMs = 220;
-
 void animate_tab_reveal(QTabWidget* tabs, int index) {
     if (tabs == nullptr || index < 0 || index >= tabs->count()) {
         return;
-    }
-
-    for (int i = 0; i < tabs->count(); ++i) {
-        if (auto* page = tabs->widget(i); page != nullptr) {
-            auto* effect = qobject_cast<QGraphicsOpacityEffect*>(page->graphicsEffect());
-            if (effect != nullptr) {
-                effect->setOpacity(1.0);
-            }
-        }
     }
 
     QWidget* page = tabs->widget(index);
@@ -72,19 +59,12 @@ void animate_tab_reveal(QTabWidget* tabs, int index) {
         return;
     }
 
-    auto* effect = qobject_cast<QGraphicsOpacityEffect*>(page->graphicsEffect());
-    if (effect == nullptr) {
-        effect = new QGraphicsOpacityEffect(page);
-        page->setGraphicsEffect(effect);
+    page->raise();
+    page->update();
+    if (auto* current = tabs->currentWidget(); current != nullptr) {
+        current->setAttribute(Qt::WA_OpaquePaintEvent, true);
     }
-
-    effect->setOpacity(0.0);
-    auto* animation = new QPropertyAnimation(effect, "opacity", page);
-    animation->setDuration(kTabRevealDurationMs);
-    animation->setStartValue(0.0);
-    animation->setEndValue(1.0);
-    animation->setEasingCurve(QEasingCurve::OutCubic);
-    animation->start(QAbstractAnimation::DeleteWhenStopped);
+    tabs->tabBar()->update();
 }
 
 QString summarize_counts(const SignalLibrary& library) {
@@ -470,6 +450,9 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
 
     auto* plot_page = new QWidget(workspace_tabs_);
     plot_page->setObjectName(QStringLiteral("WorkspaceTabPage"));
+    plot_page->setAttribute(Qt::WA_StyledBackground, true);
+    plot_page->setAttribute(Qt::WA_OpaquePaintEvent, true);
+    plot_page->setAutoFillBackground(true);
     auto* plot_layout = new QVBoxLayout(plot_page);
     plot_layout->setContentsMargins(0, 0, 0, 0);
     plot_layout->setSpacing(0);
@@ -479,6 +462,9 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
 
     auto* table_page = new QWidget(workspace_tabs_);
     table_page->setObjectName(QStringLiteral("WorkspaceTabPage"));
+    table_page->setAttribute(Qt::WA_StyledBackground, true);
+    table_page->setAttribute(Qt::WA_OpaquePaintEvent, true);
+    table_page->setAutoFillBackground(true);
     auto* table_layout = new QVBoxLayout(table_page);
     table_layout->setContentsMargins(0, 0, 0, 0);
     table_layout->setSpacing(0);

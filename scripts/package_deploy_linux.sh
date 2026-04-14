@@ -5,7 +5,7 @@
 # Usage: package_deploy_linux.sh <distro> <config> <customer>
 #   distro:   ubuntu | alpine
 #   config:   debug | release
-#   customer: customer profile name (must match deploy/config/<customer>.json)
+#   customer: customer identifier used in the output package path/name
 
 set -euo pipefail
 

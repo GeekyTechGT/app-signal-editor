@@ -39,7 +39,7 @@ void apply_dark_fusion_theme(QApplication& app) {
             selection-color: #121820;
         }
         QWidget#WorkspaceHeader {
-            background: rgba(16, 24, 33, 0.92);
+            background: #101821;
             border: 1px solid rgba(102, 128, 153, 0.20);
             border-radius: 16px;
         }
@@ -59,7 +59,7 @@ void apply_dark_fusion_theme(QApplication& app) {
             font-size: 11px;
         }
         QWidget#PanelCard {
-            background: rgba(17, 25, 35, 0.92);
+            background: #111923;
             border: 1px solid rgba(118, 142, 166, 0.18);
             border-radius: 16px;
         }
@@ -79,7 +79,7 @@ void apply_dark_fusion_theme(QApplication& app) {
             line-height: 1.3em;
         }
         QListWidget, QTableWidget, QTextEdit {
-            background: rgba(9, 15, 22, 0.96);
+            background: #091017;
             border: 1px solid rgba(108, 132, 156, 0.22);
             border-radius: 12px;
             padding: 6px;
@@ -96,8 +96,27 @@ void apply_dark_fusion_theme(QApplication& app) {
                 stop:0 #f4a64a, stop:1 #ffd089);
             color: #101720;
         }
+        QTableWidget#SignalSamplesTable {
+            alternate-background-color: #111922;
+            selection-background-color: #f4a64a;
+            selection-color: #101720;
+        }
+        QTableWidget#SignalSamplesTable::item {
+            padding: 10px 8px;
+            border-bottom: 1px solid rgba(108, 132, 156, 0.10);
+        }
+        QTableWidget#SignalSamplesTable::item:selected {
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                stop:0 #ffd089, stop:1 #f4a64a);
+            color: #101720;
+        }
+        QTableWidget#SignalSamplesTable QTableCornerButton::section {
+            background: #17202b;
+            border: 0;
+            border-bottom: 1px solid rgba(118, 142, 166, 0.18);
+        }
         QHeaderView::section {
-            background: rgba(23, 31, 43, 0.98);
+            background: #17202b;
             color: #dfe6ee;
             border: 0;
             border-bottom: 1px solid rgba(118, 142, 166, 0.18);
@@ -105,7 +124,7 @@ void apply_dark_fusion_theme(QApplication& app) {
             font-weight: 600;
         }
         QPushButton, QComboBox, QLineEdit, QDoubleSpinBox, QSpinBox {
-            background: rgba(27, 36, 48, 0.94);
+            background: #1b2430;
             color: #edf2f7;
             border: 1px solid rgba(116, 139, 162, 0.28);
             border-radius: 10px;
@@ -122,8 +141,21 @@ void apply_dark_fusion_theme(QApplication& app) {
             background: #f4a64a;
             color: #121820;
         }
+        QPushButton#AccentButton {
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                stop:0 #ffd089, stop:1 #f4a64a);
+            color: #101720;
+            border-color: rgba(255, 214, 153, 0.85);
+        }
+        QPushButton#AccentButton:hover {
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                stop:0 #ffe0a7, stop:1 #ffb25c);
+        }
+        QPushButton#SubtleButton {
+            background: #16202b;
+        }
         QToolBar {
-            background: rgba(12, 18, 25, 0.82);
+            background: #0c1219;
             border: 1px solid rgba(102, 128, 153, 0.16);
             border-radius: 14px;
             spacing: 8px;
@@ -141,18 +173,18 @@ void apply_dark_fusion_theme(QApplication& app) {
             border-color: rgba(244, 166, 74, 0.40);
         }
         QStatusBar {
-            background: rgba(10, 15, 22, 0.92);
+            background: #0a0f16;
             color: #a8b7c7;
         }
         QMenuBar {
-            background: rgba(12, 18, 25, 0.82);
+            background: #0c1219;
             color: #dfe6ee;
         }
         QMenuBar::item:selected {
             background: rgba(36, 48, 64, 0.98);
         }
         QMenu {
-            background: rgba(20, 28, 38, 0.98);
+            background: #141c26;
             color: #e5ebf1;
             border: 1px solid rgba(108, 132, 156, 0.25);
         }
@@ -161,14 +193,14 @@ void apply_dark_fusion_theme(QApplication& app) {
             color: #121820;
         }
         QTabWidget#WorkspaceTabs::pane {
-            background: rgba(12, 18, 26, 0.98);
+            background: #0c121a;
             border: 1px solid rgba(118, 142, 166, 0.18);
             border-radius: 14px;
             margin-top: 6px;
             padding: 8px;
         }
         QTabWidget#WorkspaceTabs QTabBar::tab {
-            background: rgba(19, 27, 38, 0.88);
+            background: #131b26;
             color: #c6d2de;
             border: 1px solid rgba(118, 142, 166, 0.18);
             border-bottom: 0;
@@ -195,8 +227,11 @@ void apply_dark_fusion_theme(QApplication& app) {
             border-color: rgba(244, 166, 74, 0.45);
         }
         QWidget#WorkspaceTabPage {
-            background: rgba(12, 18, 26, 0.98);
+            background: #0c121a;
             border-radius: 10px;
+        }
+        QWidget#WorkspaceTabPage > QWidget#PanelCard {
+            border: 1px solid rgba(244, 166, 74, 0.10);
         }
         QSplitter::handle {
             background: rgba(64, 82, 100, 0.55);

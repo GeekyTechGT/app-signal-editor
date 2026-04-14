@@ -7,6 +7,7 @@
 #include <QComboBox>
 #include <QDoubleSpinBox>
 #include <QFont>
+#include <QFrame>
 #include <QHeaderView>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -107,6 +108,9 @@ private:
 
 SignalTablePanel::SignalTablePanel(QWidget* parent) : QWidget(parent) {
     setObjectName(QStringLiteral("PanelCard"));
+    setAttribute(Qt::WA_StyledBackground, true);
+    setAttribute(Qt::WA_OpaquePaintEvent, true);
+    setAutoFillBackground(true);
 
     auto* root = new QVBoxLayout(this);
     root->setContentsMargins(16, 16, 16, 16);
@@ -134,6 +138,7 @@ SignalTablePanel::SignalTablePanel(QWidget* parent) : QWidget(parent) {
     root->addWidget(hint_label_);
 
     table_ = new QTableWidget(this);
+    table_->setObjectName(QStringLiteral("SignalSamplesTable"));
     table_->setColumnCount(2);
     table_->setHorizontalHeaderLabels({QStringLiteral("time"), QStringLiteral("value")});
     table_->setAlternatingRowColors(true);
@@ -145,6 +150,9 @@ SignalTablePanel::SignalTablePanel(QWidget* parent) : QWidget(parent) {
     table_->horizontalHeader()->setStretchLastSection(true);
     table_->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     table_->verticalHeader()->setVisible(false);
+    table_->setShowGrid(false);
+    table_->setFrameShape(QFrame::NoFrame);
+    table_->viewport()->setAutoFillBackground(true);
     item_delegate_ = new SampleItemDelegate(table_);
     table_->setItemDelegate(item_delegate_);
     root->addWidget(table_, 1);
@@ -152,6 +160,8 @@ SignalTablePanel::SignalTablePanel(QWidget* parent) : QWidget(parent) {
     auto* buttons = new QHBoxLayout();
     add_button_ = new QPushButton(QStringLiteral("+ Sample"), this);
     remove_button_ = new QPushButton(QStringLiteral("- Sample"), this);
+    add_button_->setObjectName(QStringLiteral("AccentButton"));
+    remove_button_->setObjectName(QStringLiteral("SubtleButton"));
     add_button_->setCursor(Qt::PointingHandCursor);
     remove_button_->setCursor(Qt::PointingHandCursor);
     buttons->addWidget(add_button_);
