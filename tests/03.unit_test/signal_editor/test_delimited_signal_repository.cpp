@@ -4,7 +4,6 @@
 #include <gtest/gtest.h>
 
 #include <filesystem>
-#include <fstream>
 
 using namespace myprj::signal_editor;
 using namespace myprj::signal_editor::adapters;
@@ -15,11 +14,6 @@ std::filesystem::path make_temp_path(const std::string& name) {
     auto path = std::filesystem::temp_directory_path() / name;
     std::filesystem::remove(path);
     return path;
-}
-
-void write_file(const std::filesystem::path& path, const std::string& content) {
-    std::ofstream out(path);
-    out << content;
 }
 
 }  // namespace
