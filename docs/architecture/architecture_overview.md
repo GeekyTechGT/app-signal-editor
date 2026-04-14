@@ -31,7 +31,7 @@ The governing rule is simple:
 | Use cases | `src/signal_editor/core/usecases/` | Coordinates load, save, create, replace, rename, remove, and interpolation workflows |
 | Domain | `src/signal_editor/core/domain/` | Owns waveform entities, invariants, interpolation rules, and enumerated-state semantics |
 | Ports | `src/signal_editor/ports/` | Defines repository abstractions consumed by the use-case layer |
-| Filesystem adapters | `src/signal_editor/adapters/filesystem/` | Implements CSV and multi-format persistence |
+| Filesystem adapters | `src/signal_editor/adapters/filesystem/` | Implements `SignalFileRepository`, format-specific wrappers, and shared tabular codec support for file persistence |
 | Qt adapters | `src/signal_editor/adapters/qt/` | Implements workspace shell, tabs, plot, table, dialogs, and interaction logic |
 | Shared support | `src/signal_editor/core/domain/result.h` | Provides the lightweight result contract used by service and repository boundaries |
 
@@ -42,7 +42,7 @@ The architecture exists to preserve practical engineering benefits:
 - waveform rules remain testable without launching the GUI
 - persistence behavior can evolve without rewriting editing logic
 - UI refactors do not require domain rewrites
-- format-specific behavior stays explicit and auditable
+- format-specific behavior stays explicit and auditable without duplicating tabular persistence rules
 - future adapters can reuse the same core workflows
 
 ## 5. Key Runtime Flows
@@ -51,7 +51,7 @@ The architecture exists to preserve practical engineering benefits:
 
 1. The main window receives a load request from the menu or drag-and-drop.
 2. `SignalEditorService` delegates the path to the configured repository port.
-3. The filesystem adapter dispatches by file extension and parses CSV, TSV/TXT, JSON, or SpreadsheetML XML.
+3. `SignalFileRepository` dispatches by file extension and reuses a shared tabular codec for CSV/TSV/TXT while keeping JSON and SpreadsheetML XML handling in dedicated paths.
 4. The resulting `SignalLibrary` is bound into the workspace document model.
 5. The active signal is exposed to both the plot and table adapters.
 

@@ -23,6 +23,24 @@ void write_file(const std::filesystem::path& path, const std::string& content) {
 
 }  // namespace
 
+TEST(SignalFileRepositoryTest, LoadCsvViaExtensionDispatch) {
+    auto path = make_temp_path("se_test_signals.csv");
+    write_file(path,
+               "# interpolation,step\n"
+               "# enum_map,OFF:0|ON:1\n"
+               "time,mode\n"
+               "0.0,OFF\n"
+               "1.0,ON\n");
+
+    SignalFileRepository repository;
+    auto library = repository.load(path);
+
+    ASSERT_EQ(library.size(), 1u);
+    EXPECT_TRUE(library.at(0).is_enumerated());
+    EXPECT_EQ(library.at(0).label_for_value(library.at(0).samples()[1].y), "ON");
+    std::filesystem::remove(path);
+}
+
 TEST(SignalFileRepositoryTest, LoadJsonWithEnumeratedLabels) {
     auto path = make_temp_path("se_test_signals.json");
     write_file(path, R"({

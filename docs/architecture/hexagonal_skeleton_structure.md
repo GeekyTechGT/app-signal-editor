@@ -13,7 +13,7 @@ src/signal_editor/
 │   └── usecases/      # Application workflows expressed against ports
 ├── ports/             # Repository abstractions consumed by the use-case layer
 ├── adapters/
-│   ├── filesystem/    # CSV and multi-format file persistence
+│   ├── filesystem/    # file persistence adapters plus shared tabular codecs
 │   └── qt/            # Qt widgets, dialogs, and workspace shell
 ├── api/               # Public facade used by the GUI application
 └── schema/            # Structured validation assets when applicable
