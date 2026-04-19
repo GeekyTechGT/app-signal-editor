@@ -1,0 +1,3 @@
+[submodule "external/res-qt-themes"]
+	path = external/res-qt-themes
+	url = file:///D:/GeekyTechRepos/res-qt-themes
