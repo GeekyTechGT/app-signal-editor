@@ -33,8 +33,8 @@ target_link_libraries(signal_editor_core
 myprj_configure_target(signal_editor_core)
 
 configure_file(
-    ${CMAKE_SOURCE_DIR}/include/myprj/signal_editor_version.h.in
-    ${CMAKE_BINARY_DIR}/generated/myprj/signal_editor_version.h
+    ${CMAKE_SOURCE_DIR}/include/signal_editor/signal_editor_version.h.in
+    ${CMAKE_BINARY_DIR}/generated/signal_editor/signal_editor_version.h
     @ONLY
 )
 
@@ -75,13 +75,29 @@ if(SIGNAL_EDITOR_BUILD_GUI)
             Qt6::Widgets
     )
 
+    target_compile_definitions(signal_editor_qt
+        PUBLIC
+            SIGNAL_EDITOR_UI_APP_ID="${_SIGNAL_EDITOR_UI_APP_ID}"
+            SIGNAL_EDITOR_UI_SETTINGS_VERSION="v${SIGNAL_EDITOR_SETTINGS_STORAGE_VERSION}"
+    )
+
+    if(TARGET lib_qt_utils)
+        target_link_libraries(signal_editor_qt PUBLIC lib_qt_utils)
+        target_compile_definitions(signal_editor_qt PUBLIC LIB_QT_UTILS_AVAILABLE)
+    endif()
+
+    if(TARGET lib_qt_custom_widgets)
+        target_link_libraries(signal_editor_qt PUBLIC lib_qt_custom_widgets)
+        target_compile_definitions(signal_editor_qt PUBLIC LIB_QT_CUSTOM_WIDGETS_AVAILABLE)
+    endif()
+
     set_target_properties(signal_editor_qt PROPERTIES
         AUTOMOC ON
         POSITION_INDEPENDENT_CODE ON
     )
 
     myprj_configure_target(signal_editor_qt)
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         target_compile_options(signal_editor_qt PRIVATE
             -Wno-useless-cast
             -Wno-shadow

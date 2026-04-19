@@ -1,0 +1,84 @@
+# === TYPE ===
+# feat     -> nuova funzionalità
+# fix      -> bug fix
+# docs     -> documentazione
+# style    -> formatting (no logica)
+# refactor -> refactoring
+# test     -> test
+# chore    -> manutenzione
+
+<type>(<scope>): <short summary>
+
+# ------------------------
+# CONTEXT
+# Cosa cambia e perché (NON come)
+# ------------------------
+<detailed explanation>
+
+# ------------------------
+# CHANGES
+# Lista delle modifiche principali
+# ------------------------
+- ...
+- ...
+- ...
+
+# ------------------------
+# IMPACT
+# Breaking changes / effetti collaterali
+# ------------------------
+- ...
+
+# ------------------------
+# REFERENCES
+# Issue / ticket
+# ------------------------
+Closes: #
+Related: #
+
+# ------------------------
+# AI NOTES (opzionale, utile per Codex)
+# ------------------------
+# reasoning:
+# alternatives_considered:
+# next_steps:
+
+
+
+
+example:
+feat(auth): add JWT authentication
+
+Add JWT-based authentication system to improve security
+and support stateless sessions.
+
+- Implement login endpoint
+- Add token generation
+- Secure protected routes with middleware
+
+Breaking change: session-based auth removed
+
+Closes: #42
+
+
+-----------------------
+<type>(<scope>): <summary>
+
+CONTEXT:
+<why this change is needed>
+
+CHANGES:
+- <atomic change 1>
+- <atomic change 2>
+
+CONSTRAINTS:
+- <limitations>
+
+ALTERNATIVES:
+- <what was considered but rejected>
+
+IMPACT:
+- <side effects>
+
+NEXT_STEPS:
+- <future work>

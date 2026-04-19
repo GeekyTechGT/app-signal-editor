@@ -122,12 +122,12 @@ def scaffold_additional_apps(metadata: dict[str, Any]) -> dict[str, Any]:
     validate_module_name(primary_module, "primary_module")
 
     source_module = "my_module" if (ROOT / "src" / "my_module").exists() else primary_module
-    include_root_name = "myprj"
+    include_root_name = "signal_editor"
     namespace_prefix = str(metadata.get("namespace_prefix", "")).strip()
     if namespace_prefix and (ROOT / "include" / namespace_prefix).exists():
         include_root_name = namespace_prefix
-    elif (ROOT / "include" / "myprj").exists():
-        include_root_name = "myprj"
+    elif (ROOT / "include" / "signal_editor").exists():
+        include_root_name = "signal_editor"
 
     source_roots = {
         "src": ROOT / "src" / source_module,

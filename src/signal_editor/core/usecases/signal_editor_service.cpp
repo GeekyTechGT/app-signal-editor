@@ -3,16 +3,16 @@
 #include <stdexcept>
 #include <utility>
 
-namespace myprj::signal_editor {
+namespace signal_editor {
 
 namespace {
 template <typename Fn>
-myprj::Result guarded(Fn&& fn) {
+signal_editor::Result guarded(Fn&& fn) {
     try {
         std::forward<Fn>(fn)();
-        return myprj::Result::ok();
+        return signal_editor::Result::ok();
     } catch (const std::exception& ex) {
-        return myprj::Result::error(ex.what());
+        return signal_editor::Result::error(ex.what());
     }
 }
 }  // namespace
@@ -28,21 +28,21 @@ void SignalEditorService::clear() noexcept {
     library_.clear();
 }
 
-myprj::Result SignalEditorService::load_from(const std::filesystem::path& source) {
+signal_editor::Result SignalEditorService::load_from(const std::filesystem::path& source) {
     return guarded([&] {
         library_ = repository_.load(source);
     });
 }
 
-myprj::Result SignalEditorService::save_to(const std::filesystem::path& destination) const {
+signal_editor::Result SignalEditorService::save_to(const std::filesystem::path& destination) const {
     try {
         return repository_.save(destination, library_);
     } catch (const std::exception& ex) {
-        return myprj::Result::error(ex.what());
+        return signal_editor::Result::error(ex.what());
     }
 }
 
-myprj::Result SignalEditorService::create_signal(const std::string& name,
+signal_editor::Result SignalEditorService::create_signal(const std::string& name,
                                                  double t_start,
                                                  double t_end,
                                                  std::size_t num_samples,
@@ -52,34 +52,34 @@ myprj::Result SignalEditorService::create_signal(const std::string& name,
     });
 }
 
-myprj::Result SignalEditorService::add_signal(Signal signal) {
+signal_editor::Result SignalEditorService::add_signal(Signal signal) {
     return guarded([&] {
         library_.add(std::move(signal));
     });
 }
 
-myprj::Result SignalEditorService::remove_signal(std::size_t index) {
+signal_editor::Result SignalEditorService::remove_signal(std::size_t index) {
     return guarded([&] { library_.remove(index); });
 }
 
-myprj::Result SignalEditorService::replace_signal(std::size_t index, Signal signal) {
+signal_editor::Result SignalEditorService::replace_signal(std::size_t index, Signal signal) {
     return guarded([&] {
         library_.replace(index, std::move(signal));
     });
 }
 
-myprj::Result SignalEditorService::rename_signal(std::size_t index,
+signal_editor::Result SignalEditorService::rename_signal(std::size_t index,
                                                  const std::string& new_name) {
     return guarded([&] { library_.at(index).set_name(new_name); });
 }
 
-myprj::Result SignalEditorService::set_signal_interpolation(
+signal_editor::Result SignalEditorService::set_signal_interpolation(
     std::size_t index,
     Signal::InterpolationMode interpolation) {
     return guarded([&] { library_.at(index).set_interpolation(interpolation); });
 }
 
-myprj::Result SignalEditorService::move_sample(std::size_t signal_index,
+signal_editor::Result SignalEditorService::move_sample(std::size_t signal_index,
                                                std::size_t sample_index,
                                                double new_y) {
     return guarded([&] {
@@ -87,7 +87,7 @@ myprj::Result SignalEditorService::move_sample(std::size_t signal_index,
     });
 }
 
-myprj::Result SignalEditorService::insert_sample(std::size_t signal_index,
+signal_editor::Result SignalEditorService::insert_sample(std::size_t signal_index,
                                                  double t,
                                                  double y,
                                                  std::size_t* out_index) {
@@ -99,14 +99,14 @@ myprj::Result SignalEditorService::insert_sample(std::size_t signal_index,
     });
 }
 
-myprj::Result SignalEditorService::remove_sample(std::size_t signal_index,
+signal_editor::Result SignalEditorService::remove_sample(std::size_t signal_index,
                                                  std::size_t sample_index) {
     return guarded([&] {
         library_.at(signal_index).remove_sample(sample_index);
     });
 }
 
-myprj::Result SignalEditorService::apply_gaussian_brush(std::size_t signal_index,
+signal_editor::Result SignalEditorService::apply_gaussian_brush(std::size_t signal_index,
                                                         double t_center,
                                                         double delta_y,
                                                         double sigma) {
@@ -115,4 +115,4 @@ myprj::Result SignalEditorService::apply_gaussian_brush(std::size_t signal_index
     });
 }
 
-}  // namespace myprj::signal_editor
+}  // namespace signal_editor

@@ -3,7 +3,7 @@
 #include <string>
 #include <utility>
 
-namespace myprj {
+namespace signal_editor {
 
 /**
  * @brief Generic success/error discriminator shared across Signal Editor workflows.
@@ -41,4 +41,4 @@ struct Result {
     [[nodiscard]] bool is_ok() const noexcept { return status == Status::Ok; }
 };
 
-}  // namespace myprj
+}  // namespace signal_editor

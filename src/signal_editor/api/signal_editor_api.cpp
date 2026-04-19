@@ -4,8 +4,8 @@
 // compilation unit (matches the convention used by the rest of the
 // scaffold). All declarations are header-only and re-exported.
 
-namespace myprj::signal_editor::api {
+namespace signal_editor::api {
 
 // Intentionally empty.
 
-}  // namespace myprj::signal_editor::api
+}  // namespace signal_editor::api

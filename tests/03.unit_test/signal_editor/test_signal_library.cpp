@@ -2,7 +2,7 @@
 
 #include <gtest/gtest.h>
 
-using namespace myprj::signal_editor;
+using namespace signal_editor;
 
 TEST(SignalLibraryTest, AddRemoveAndAccess) {
     SignalLibrary lib;

@@ -2,7 +2,7 @@
 
 #include "signal_editor/ports/signal_repository.h"
 
-namespace myprj::signal_editor::adapters {
+namespace signal_editor::adapters {
 
 /**
  * @brief CSV-specific implementation of the signal repository port.
@@ -36,4 +36,4 @@ public:
                        const SignalLibrary& library) override;
 };
 
-}  // namespace myprj::signal_editor::adapters
+}  // namespace signal_editor::adapters

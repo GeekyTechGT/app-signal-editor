@@ -1,277 +1,332 @@
 #include "signal_editor/adapters/qt/theme.h"
 
 #include <QApplication>
+#include <QFile>
 #include <QPalette>
+#include <QStyle>
 #include <QStyleFactory>
 
-namespace myprj::signal_editor::adapters::qt {
+namespace signal_editor::adapters::qt {
 
-void apply_dark_fusion_theme(QApplication& app) {
-    app.setStyle(QStyleFactory::create("Fusion"));
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
-    QPalette palette;
-    palette.setColor(QPalette::Window, QColor(18, 24, 32));
-    palette.setColor(QPalette::WindowText, QColor(229, 235, 241));
-    palette.setColor(QPalette::Base, QColor(11, 17, 24));
-    palette.setColor(QPalette::AlternateBase, QColor(20, 28, 38));
-    palette.setColor(QPalette::ToolTipBase, QColor(245, 238, 225));
-    palette.setColor(QPalette::ToolTipText, QColor(18, 22, 28));
-    palette.setColor(QPalette::Text, QColor(229, 235, 241));
-    palette.setColor(QPalette::Button, QColor(24, 32, 44));
-    palette.setColor(QPalette::ButtonText, QColor(229, 235, 241));
-    palette.setColor(QPalette::BrightText, QColor(255, 111, 97));
-    palette.setColor(QPalette::Link, QColor(93, 211, 196));
-    palette.setColor(QPalette::Highlight, QColor(244, 166, 74));
-    palette.setColor(QPalette::HighlightedText, QColor(18, 24, 32));
-    palette.setColor(QPalette::Disabled, QPalette::Text, QColor(108, 120, 135));
-    palette.setColor(QPalette::Disabled, QPalette::ButtonText, QColor(108, 120, 135));
-    palette.setColor(QPalette::Disabled, QPalette::WindowText, QColor(108, 120, 135));
-    app.setPalette(palette);
+namespace {
 
-    app.setStyleSheet(QStringLiteral(R"qss(
-        QMainWindow {
-            background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                stop:0 #0b1118, stop:0.4 #111925, stop:1 #18202b);
-        }
-        QWidget {
-            color: #e5ebf1;
-            selection-background-color: #f4a64a;
-            selection-color: #121820;
-        }
-        QWidget#WorkspaceHeader {
-            background: #101821;
-            border: 1px solid rgba(102, 128, 153, 0.20);
-            border-radius: 16px;
-        }
-        QLabel#WorkspaceTitle {
-            color: #f6f8fb;
-            font-size: 20px;
-            font-weight: 700;
-            letter-spacing: 0.3px;
-        }
-        QLabel#WorkspaceMeta {
-            color: #f4a64a;
-            font-size: 11px;
-            font-weight: 600;
-        }
-        QLabel#WorkspaceHint {
-            color: #a8b7c7;
-            font-size: 11px;
-        }
-        QWidget#PanelCard {
-            background: #111923;
-            border: 1px solid rgba(118, 142, 166, 0.18);
-            border-radius: 16px;
-        }
-        QLabel#PanelTitle {
-            color: #f4f7fb;
-            padding: 0 0 2px 0;
-            letter-spacing: 0.4px;
-        }
-        QLabel#PanelSummary {
-            color: #f4a64a;
-            font-size: 12px;
-            font-weight: 600;
-        }
-        QLabel#PanelDetail {
-            color: #94a6b8;
-            font-size: 12px;
-            line-height: 1.3em;
-        }
-        QListWidget, QTableWidget, QTextEdit {
-            background: #091017;
-            border: 1px solid rgba(108, 132, 156, 0.22);
-            border-radius: 12px;
-            padding: 6px;
-            gridline-color: rgba(92, 110, 130, 0.35);
-            outline: 0;
-        }
-        QListWidget::item {
-            padding: 8px 10px;
-            margin: 2px 0;
-            border-radius: 8px;
-        }
-        QListWidget::item:selected {
-            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                stop:0 #f4a64a, stop:1 #ffd089);
-            color: #101720;
-        }
-        QTableWidget#SignalSamplesTable {
-            alternate-background-color: #111922;
-            selection-background-color: #f4a64a;
-            selection-color: #101720;
-        }
-        QTableWidget#SignalSamplesTable::item {
-            padding: 10px 8px;
-            border-bottom: 1px solid rgba(108, 132, 156, 0.10);
-        }
-        QTableWidget#SignalSamplesTable::item:selected {
-            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                stop:0 #ffd089, stop:1 #f4a64a);
-            color: #101720;
-        }
-        QTableWidget#SignalSamplesTable QLineEdit,
-        QTableWidget#SignalSamplesTable QComboBox {
-            background: #fff4de;
-            color: #101720;
-            selection-background-color: #f4a64a;
-            selection-color: #101720;
-            border: 1px solid #ffcf85;
-            border-radius: 8px;
-            padding: 2px 8px;
-            margin: 0;
-        }
-        QTableWidget#SignalSamplesTable QLineEdit:focus,
-        QTableWidget#SignalSamplesTable QComboBox:focus {
-            background: #fff9ef;
-            border: 1px solid #ffb25c;
-        }
-        QTableWidget#SignalSamplesTable QComboBox::drop-down {
-            border: 0;
-            width: 20px;
-            background: transparent;
-        }
-        QTableWidget#SignalSamplesTable QComboBox QAbstractItemView {
-            background: #15202b;
-            color: #edf2f7;
-            selection-background-color: #f4a64a;
-            selection-color: #101720;
-            border: 1px solid rgba(116, 139, 162, 0.32);
-            outline: 0;
-            padding: 4px;
-        }
-        QTableWidget#SignalSamplesTable QTableCornerButton::section {
-            background: #17202b;
-            border: 0;
-            border-bottom: 1px solid rgba(118, 142, 166, 0.18);
-        }
-        QHeaderView::section {
-            background: #17202b;
-            color: #dfe6ee;
-            border: 0;
-            border-bottom: 1px solid rgba(118, 142, 166, 0.18);
-            padding: 8px 10px;
-            font-weight: 600;
-        }
-        QPushButton, QComboBox, QLineEdit, QDoubleSpinBox, QSpinBox {
-            background: #1b2430;
-            color: #edf2f7;
-            border: 1px solid rgba(116, 139, 162, 0.28);
-            border-radius: 10px;
-            padding: 7px 12px;
-        }
-        QPushButton {
-            font-weight: 600;
-        }
-        QPushButton:hover, QComboBox:hover, QLineEdit:hover, QDoubleSpinBox:hover, QSpinBox:hover {
-            border-color: rgba(244, 166, 74, 0.60);
-            background: rgba(34, 45, 60, 0.98);
-        }
-        QPushButton:pressed {
-            background: #f4a64a;
-            color: #121820;
-        }
-        QPushButton#AccentButton {
-            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                stop:0 #ffd089, stop:1 #f4a64a);
-            color: #101720;
-            border-color: rgba(255, 214, 153, 0.85);
-        }
-        QPushButton#AccentButton:hover {
-            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                stop:0 #ffe0a7, stop:1 #ffb25c);
-        }
-        QPushButton#SubtleButton {
-            background: #16202b;
-        }
-        QToolBar {
-            background: #0c1219;
-            border: 1px solid rgba(102, 128, 153, 0.16);
-            border-radius: 14px;
-            spacing: 8px;
-            padding: 8px;
-        }
-        QToolButton {
-            color: #dce4ed;
-            background: transparent;
-            border: 1px solid transparent;
-            border-radius: 8px;
-            padding: 6px 10px;
-        }
-        QToolButton:hover {
-            background: rgba(34, 45, 60, 0.98);
-            border-color: rgba(244, 166, 74, 0.40);
-        }
-        QStatusBar {
-            background: #0a0f16;
-            color: #a8b7c7;
-        }
-        QMenuBar {
-            background: #0c1219;
-            color: #dfe6ee;
-        }
-        QMenuBar::item:selected {
-            background: rgba(36, 48, 64, 0.98);
-        }
-        QMenu {
-            background: #141c26;
-            color: #e5ebf1;
-            border: 1px solid rgba(108, 132, 156, 0.25);
-        }
-        QMenu::item:selected {
-            background: #f4a64a;
-            color: #121820;
-        }
-        QTabWidget#WorkspaceTabs::pane {
-            background: #0c121a;
-            border: 1px solid rgba(118, 142, 166, 0.18);
-            border-radius: 14px;
-            margin-top: 6px;
-            padding: 8px;
-        }
-        QTabWidget#WorkspaceTabs QTabBar::tab {
-            background: #131b26;
-            color: #c6d2de;
-            border: 1px solid rgba(118, 142, 166, 0.18);
-            border-bottom: 0;
-            border-top-left-radius: 10px;
-            border-top-right-radius: 10px;
-            padding: 8px 18px;
-            margin-right: 6px;
-            font-size: 12px;
-            font-weight: 700;
-            letter-spacing: 0.25px;
-        }
-        QTabWidget#WorkspaceTabs QTabBar::tab:selected {
-            color: #101720;
-            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                stop:0 #ffd089, stop:0.55 #f4a64a, stop:1 #ff8a5b);
-            border-color: rgba(255, 214, 153, 0.90);
-            margin-top: -2px;
-            padding-top: 10px;
-            padding-bottom: 10px;
-        }
-        QTabWidget#WorkspaceTabs QTabBar::tab:hover:!selected {
-            background: rgba(34, 45, 60, 0.98);
-            color: #f3f7fb;
-            border-color: rgba(244, 166, 74, 0.45);
-        }
-        QWidget#WorkspaceTabPage {
-            background: #0c121a;
-            border-radius: 10px;
-        }
-        QWidget#WorkspaceTabPage > QWidget#PanelCard {
-            border: 1px solid rgba(244, 166, 74, 0.10);
-        }
-        QSplitter::handle {
-            background: rgba(64, 82, 100, 0.55);
-            margin: 2px;
-            border-radius: 4px;
-        }
-        QSplitter::handle:hover {
-            background: rgba(244, 166, 74, 0.72);
-        }
-    )qss"));
+QString load_qss(const QString& resource_path) {
+    QFile file(resource_path);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return {};
+    }
+    return QString::fromUtf8(file.readAll());
 }
 
-}  // namespace myprj::signal_editor::adapters::qt
+// Returns a high-contrast text color for text rendered on top of `bg`.
+QColor contrast_text(const QColor& bg) {
+    const double lum = 0.299 * bg.redF() + 0.587 * bg.greenF() + 0.114 * bg.blueF();
+    return lum > 0.5 ? QColor(18, 18, 18) : QColor(245, 245, 245);
+}
+
+// App-specific widget-ID overrides (layered on top of the base QSS).
+// `accent` is the user-selected primary color; `on_accent` is the contrasting
+// text color computed for readability on top of the accent background.
+QString app_overrides_dark(const QColor& accent) {
+    const QString a  = accent.name();
+    const QString at = contrast_text(accent).name();
+    QString qss = QStringLiteral(R"qss(
+QWidget#WorkspaceHeader {
+    background: #101821;
+    border: 1px solid rgba(102, 128, 153, 0.20);
+    border-radius: 16px;
+}
+QLabel#WorkspaceTitle {
+    color: #f6f8fb;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+}
+QLabel#WorkspaceMeta {
+    color: #ACCENT#;
+    font-size: 11px;
+    font-weight: 600;
+}
+QLabel#WorkspaceHint {
+    color: #a8b7c7;
+    font-size: 11px;
+}
+QWidget#PanelCard {
+    background: #111923;
+    border: 1px solid rgba(118, 142, 166, 0.18);
+    border-radius: 16px;
+}
+QWidget#PlotControlCard {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                                stop:0 rgba(22, 32, 45, 0.96),
+                                stop:1 rgba(14, 22, 31, 0.92));
+    border: 1px solid rgba(118, 142, 166, 0.22);
+    border-radius: 14px;
+}
+QLabel#PanelTitle {
+    color: #f4f7fb;
+    padding: 0 0 2px 0;
+    letter-spacing: 0.4px;
+}
+QLabel#PanelSummary {
+    color: #ACCENT#;
+    font-size: 12px;
+    font-weight: 600;
+}
+QLabel#PanelDetail {
+    color: #94a6b8;
+    font-size: 12px;
+}
+QTableWidget#SignalSamplesTable {
+    alternate-background-color: #111922;
+    selection-background-color: #ACCENT#;
+    selection-color: #ACCENT_TEXT#;
+}
+QTableWidget#SignalSamplesTable::item {
+    padding: 10px 8px;
+    border-bottom: 1px solid rgba(108, 132, 156, 0.10);
+}
+QTableWidget#SignalSamplesTable::item:selected {
+    background-color: #ACCENT#;
+    color: #ACCENT_TEXT#;
+}
+QTableWidget#SignalSamplesTable QLineEdit,
+QTableWidget#SignalSamplesTable QComboBox {
+    background: #1E1E1E;
+    color: #F5F5F5;
+    border: 1px solid #3A3A3A;
+    border-radius: 6px;
+    padding: 2px 8px;
+    margin: 0;
+}
+QTableWidget#SignalSamplesTable QLineEdit:focus,
+QTableWidget#SignalSamplesTable QComboBox:focus {
+    border-color: #ACCENT#;
+}
+QTableWidget#SignalSamplesTable QComboBox::drop-down {
+    border: 0;
+    width: 20px;
+    background: transparent;
+}
+QTableWidget#SignalSamplesTable QComboBox QAbstractItemView {
+    background: #2A2A2A;
+    color: #F5F5F5;
+    selection-background-color: #ACCENT#;
+    selection-color: #ACCENT_TEXT#;
+    border: 1px solid #ACCENT#;
+    outline: 0;
+    padding: 4px;
+}
+QTabWidget#WorkspaceTabs::pane {
+    background: #1E1E1E;
+    border: 1px solid #3A3A3A;
+    border-radius: 8px;
+    top: -1px;
+}
+QTabWidget#WorkspaceTabs QTabBar::tab {
+    background: #2A2A2A;
+    color: #A0A0A0;
+    border: 1px solid #3A3A3A;
+    border-bottom: none;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    padding: 6px 16px;
+    margin-right: 4px;
+    font-weight: 700;
+}
+QTabWidget#WorkspaceTabs QTabBar::tab:selected {
+    background: #1E1E1E;
+    color: #ACCENT#;
+    border-bottom: 1px solid #1E1E1E;
+}
+QTabWidget#WorkspaceTabs QTabBar::tab:hover:!selected {
+    background: #333333;
+    color: #ACCENT#;
+}
+QWidget#WorkspaceTabPage {
+    background: #1E1E1E;
+    border-radius: 6px;
+}
+QLineEdit#PlotRangeEdit {
+    background: rgba(8, 14, 20, 0.82);
+    color: #f4f7fb;
+    border: 1px solid rgba(118, 142, 166, 0.26);
+    border-radius: 10px;
+    padding: 8px 12px;
+    min-width: 110px;
+}
+QLineEdit#PlotRangeEdit:focus {
+    border-color: #ACCENT#;
+}
+    )qss");
+    qss.replace(QStringLiteral("#ACCENT_TEXT#"), at);
+    qss.replace(QStringLiteral("#ACCENT#"), a);
+    return qss;
+}
+
+QString app_overrides_light(const QColor& accent) {
+    const QString a  = accent.name();
+    const QString at = contrast_text(accent).name();
+    QString qss = QStringLiteral(R"qss(
+QWidget#WorkspaceHeader {
+    background: #EEF2F8;
+    border: 1px solid rgba(100, 130, 170, 0.22);
+    border-radius: 16px;
+}
+QLabel#WorkspaceTitle {
+    color: #1A2236;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+}
+QLabel#WorkspaceMeta {
+    color: #ACCENT#;
+    font-size: 11px;
+    font-weight: 600;
+}
+QLabel#WorkspaceHint {
+    color: #6B7280;
+    font-size: 11px;
+}
+QWidget#PanelCard {
+    background: #FFFFFF;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 16px;
+}
+QWidget#PlotControlCard {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                                stop:0 rgba(255, 255, 255, 0.98),
+                                stop:1 rgba(239, 245, 251, 0.96));
+    border: 1px solid rgba(100, 130, 170, 0.18);
+    border-radius: 14px;
+}
+QLabel#PanelTitle {
+    color: #1A2236;
+    padding: 0 0 2px 0;
+    letter-spacing: 0.4px;
+}
+QLabel#PanelSummary {
+    color: #ACCENT#;
+    font-size: 12px;
+    font-weight: 600;
+}
+QLabel#PanelDetail {
+    color: #6B7280;
+    font-size: 12px;
+}
+QTableWidget#SignalSamplesTable {
+    alternate-background-color: #F8FAFC;
+    selection-background-color: #ACCENT#;
+    selection-color: #ACCENT_TEXT#;
+}
+QTableWidget#SignalSamplesTable::item:selected {
+    background-color: #ACCENT#;
+    color: #ACCENT_TEXT#;
+}
+QTabWidget#WorkspaceTabs QTabBar::tab:selected {
+    color: #ACCENT#;
+    font-weight: 700;
+}
+QLineEdit#PlotRangeEdit {
+    background: rgba(255, 255, 255, 0.94);
+    color: #1A2236;
+    border: 1px solid rgba(100, 130, 170, 0.22);
+    border-radius: 10px;
+    padding: 8px 12px;
+    min-width: 110px;
+}
+QLineEdit#PlotRangeEdit:focus {
+    border-color: #ACCENT#;
+}
+    )qss");
+    qss.replace(QStringLiteral("#ACCENT_TEXT#"), at);
+    qss.replace(QStringLiteral("#ACCENT#"), a);
+    return qss;
+}
+
+QPalette make_dark_palette(const QColor& accent) {
+    const QColor on_accent = contrast_text(accent);
+    QPalette p;
+    p.setColor(QPalette::Window,          QColor(18, 24, 32));
+    p.setColor(QPalette::WindowText,      QColor(245, 245, 245));
+    p.setColor(QPalette::Base,            QColor(30, 30, 30));
+    p.setColor(QPalette::AlternateBase,   QColor(42, 42, 42));
+    p.setColor(QPalette::ToolTipBase,     QColor(42, 42, 42));
+    p.setColor(QPalette::ToolTipText,     QColor(245, 245, 245));
+    p.setColor(QPalette::Text,            QColor(245, 245, 245));
+    p.setColor(QPalette::Button,          QColor(30, 30, 30));
+    p.setColor(QPalette::ButtonText,      QColor(245, 245, 245));
+    p.setColor(QPalette::BrightText,      QColor(255, 100, 100));
+    p.setColor(QPalette::Link,            accent);
+    p.setColor(QPalette::Highlight,       accent);
+    p.setColor(QPalette::HighlightedText, on_accent);
+    p.setColor(QPalette::Disabled, QPalette::Text,       QColor(90, 90, 90));
+    p.setColor(QPalette::Disabled, QPalette::ButtonText, QColor(90, 90, 90));
+    p.setColor(QPalette::Disabled, QPalette::WindowText, QColor(90, 90, 90));
+    return p;
+}
+
+QPalette make_light_palette(const QColor& accent) {
+    const QColor on_accent = contrast_text(accent);
+    QPalette p;
+    p.setColor(QPalette::Window,          QColor(240, 244, 250));
+    p.setColor(QPalette::WindowText,      QColor(18, 18, 18));
+    p.setColor(QPalette::Base,            QColor(255, 255, 255));
+    p.setColor(QPalette::AlternateBase,   QColor(248, 250, 252));
+    p.setColor(QPalette::ToolTipBase,     QColor(255, 255, 255));
+    p.setColor(QPalette::ToolTipText,     QColor(18, 18, 18));
+    p.setColor(QPalette::Text,            QColor(18, 18, 18));
+    p.setColor(QPalette::Button,          QColor(240, 244, 250));
+    p.setColor(QPalette::ButtonText,      QColor(18, 18, 18));
+    p.setColor(QPalette::BrightText,      QColor(220, 50, 50));
+    p.setColor(QPalette::Link,            accent);
+    p.setColor(QPalette::Highlight,       accent);
+    p.setColor(QPalette::HighlightedText, on_accent);
+    p.setColor(QPalette::Disabled, QPalette::Text,       QColor(160, 160, 160));
+    p.setColor(QPalette::Disabled, QPalette::ButtonText, QColor(160, 160, 160));
+    p.setColor(QPalette::Disabled, QPalette::WindowText, QColor(160, 160, 160));
+    return p;
+}
+
+}  // namespace
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+AppTheme theme_from_string(const QString& name) {
+    if (name == QStringLiteral("dark"))  { return AppTheme::Dark;  }
+    if (name == QStringLiteral("light")) { return AppTheme::Light; }
+    return AppTheme::System;
+}
+
+void apply_theme(QApplication& app, AppTheme theme, const QColor& accent) {
+    app.setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
+
+    switch (theme) {
+    case AppTheme::Dark: {
+        app.setPalette(make_dark_palette(accent));
+        QString qss = load_qss(QStringLiteral(":/themes/dark.qss"));
+        qss += app_overrides_dark(accent);
+        app.setStyleSheet(qss);
+        break;
+    }
+    case AppTheme::Light: {
+        app.setPalette(make_light_palette(accent));
+        QString qss = load_qss(QStringLiteral(":/themes/light.qss"));
+        qss += app_overrides_light(accent);
+        app.setStyleSheet(qss);
+        break;
+    }
+    case AppTheme::System:
+        app.setPalette(app.style()->standardPalette());
+        app.setStyleSheet({});
+        break;
+    }
+}
+
+}  // namespace signal_editor::adapters::qt

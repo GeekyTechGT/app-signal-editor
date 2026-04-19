@@ -4,7 +4,7 @@
 
 #include <stdexcept>
 
-using namespace myprj::signal_editor;
+using namespace signal_editor;
 
 TEST(SignalTest, FromVectorsBuildsSortedSamples) {
     auto s = Signal::from_vectors("sig", {0.0, 0.5, 1.0}, {0.0, 1.0, 0.0});

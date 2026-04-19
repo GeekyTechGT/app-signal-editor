@@ -9,7 +9,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace myprj::signal_editor::adapters {
+namespace signal_editor::adapters {
 
 namespace {
 std::string extension_lowercase(const std::filesystem::path& path) {
@@ -41,7 +41,7 @@ SignalLibrary SignalFileRepository::load(const std::filesystem::path& source) {
     throw std::runtime_error("Unsupported import format: " + source.extension().string());
 }
 
-myprj::Result SignalFileRepository::save(const std::filesystem::path& destination,
+signal_editor::Result SignalFileRepository::save(const std::filesystem::path& destination,
                                          const SignalLibrary& library) {
     const std::string extension = extension_lowercase(destination);
     if (extension == ".csv") {
@@ -61,10 +61,10 @@ myprj::Result SignalFileRepository::save(const std::filesystem::path& destinatio
         return repository.save(destination, library);
     }
     if (extension == ".xlsx" || extension == ".xls") {
-        return myprj::Result::error(
+        return signal_editor::Result::error(
             "Native Excel workbook binaries are not supported yet. Save as CSV, TSV/TXT, SpreadsheetML XML, or JSON.");
     }
-    return myprj::Result::error("Unsupported export format: " + destination.extension().string());
+    return signal_editor::Result::error("Unsupported export format: " + destination.extension().string());
 }
 
-}  // namespace myprj::signal_editor::adapters
+}  // namespace signal_editor::adapters

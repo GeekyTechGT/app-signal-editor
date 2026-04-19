@@ -8,7 +8,7 @@
 #include <utility>
 #include <vector>
 
-namespace myprj::signal_editor::adapters {
+namespace signal_editor::adapters {
 
 namespace {
 std::string read_text_file(const std::filesystem::path& source) {
@@ -169,13 +169,13 @@ SignalLibrary SpreadsheetXmlSignalRepository::load(const std::filesystem::path& 
     return tabular_rows::rows_to_library(spreadsheet_xml_to_rows(read_text_file(source)));
 }
 
-myprj::Result SpreadsheetXmlSignalRepository::save(const std::filesystem::path& destination,
+signal_editor::Result SpreadsheetXmlSignalRepository::save(const std::filesystem::path& destination,
                                                    const SignalLibrary& library) {
     try {
         const auto rows = tabular_rows::library_to_rows(library);
         std::ofstream out(destination, std::ios::trunc);
         if (!out.is_open()) {
-            return myprj::Result::error("Cannot open file for writing: " + destination.string());
+            return signal_editor::Result::error("Cannot open file for writing: " + destination.string());
         }
 
         out << "<?xml version=\"1.0\"?>\n";
@@ -195,10 +195,10 @@ myprj::Result SpreadsheetXmlSignalRepository::save(const std::filesystem::path& 
         out << "    </Table>\n";
         out << "  </Worksheet>\n";
         out << "</Workbook>\n";
-        return myprj::Result::ok();
+        return signal_editor::Result::ok();
     } catch (const std::exception& ex) {
-        return myprj::Result::error(ex.what());
+        return signal_editor::Result::error(ex.what());
     }
 }
 
-}  // namespace myprj::signal_editor::adapters
+}  // namespace signal_editor::adapters

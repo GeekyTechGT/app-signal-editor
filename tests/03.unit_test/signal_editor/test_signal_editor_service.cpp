@@ -5,8 +5,8 @@
 
 #include <gtest/gtest.h>
 
-using namespace myprj;
-using namespace myprj::signal_editor;
+using namespace signal_editor;
+using namespace signal_editor;
 
 namespace {
 

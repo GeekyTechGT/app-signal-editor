@@ -8,7 +8,7 @@
 #include <sstream>
 #include <stdexcept>
 
-namespace myprj::signal_editor::adapters::tabular_rows {
+namespace signal_editor::adapters::tabular_rows {
 
 namespace {
 constexpr double kEnumValueEpsilon = 1e-9;
@@ -396,4 +396,4 @@ std::vector<std::vector<std::string>> library_to_rows(const SignalLibrary& libra
     return rows;
 }
 
-}  // namespace myprj::signal_editor::adapters::tabular_rows
+}  // namespace signal_editor::adapters::tabular_rows

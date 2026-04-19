@@ -5,8 +5,8 @@
 #include <filesystem>
 #include <fstream>
 
-using namespace myprj::signal_editor;
-using namespace myprj::signal_editor::adapters;
+using namespace signal_editor;
+using namespace signal_editor::adapters;
 
 namespace {
 

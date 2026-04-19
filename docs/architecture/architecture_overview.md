@@ -72,6 +72,14 @@ The architecture exists to preserve practical engineering benefits:
 4. Interpolation and enumerated-state semantics are preserved where the format allows them.
 5. Workspace dirty state is cleared after a successful save.
 
+### 5.4 Settings Persistence Flow
+
+1. The GUI bootstrap sets the runtime application id from `project.json` and opens a version-scoped settings store.
+2. `MainWindow::load_persisted_settings()` restores window geometry/state plus UI settings through `QtUtils::AppState`.
+3. Theme, accent, font, density, behavior flags, and language are force-applied during startup so reopening the application reconstructs the last saved UI state.
+4. Settings are saved only when the user confirms `Save` in the settings dialog.
+5. The effective persistence scope is versioned (`signal-editor/v1.0.0`) so one application line does not silently overwrite another.
+
 ## 6. Current UI Architecture Notes
 
 The Qt shell intentionally separates workspace concerns from editing surfaces.
@@ -99,6 +107,7 @@ The architecture is currently optimized for:
 
 - Windows MinGW64 remains the primary GUI delivery path
 - Linux currently focuses on core and test workflows
+- GCC/MinGW is the only supported compiler family in the repository build matrix at this time
 - native `.xlsx` and `.xls` parsing is intentionally not present
 - the repository does not yet include collaborative or remote-backed persistence
 

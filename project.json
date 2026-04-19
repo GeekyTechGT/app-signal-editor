@@ -1,0 +1,30 @@
+{
+    "name": "signal-editor",
+    "version": "0.1.0",
+    "description": "C++23 / Qt6 desktop waveform editor — multi-document, plot & table editing",
+    "license": "MIT",
+    "shared_lib_base": "D:/GeekyTechRepos/_shared_lib",
+    "deploy_folder": "D:/GeekyTechRepos/_shared_lib",
+    "docker_image": "signal-editor-builder",
+    "qt_version": "6.10.1",
+    "qt_root": "C:/eng_apps/Qt",
+    "use_external_deps": false,
+    "preset_to_shared_lib_variant": {
+        "windows-mingw64-debug": "windows-mingw64-debug",
+        "windows-mingw64-release": "windows-mingw64-release",
+        "linux-gcc-debug":      "linux-gcc-debug",
+        "linux-gcc-release":    "linux-gcc-release",
+        "docker-gcc-debug":     "linux-gcc-debug",
+        "docker-gcc-release":   "linux-gcc-release"
+    },
+    "dependencies": [
+        {
+            "name": "lib-qt-utils",
+            "version": "1.0.0"
+        },
+        {
+            "name": "lib-qt-custom-widgets",
+            "version": "1.0.0"
+        }
+    ]
+}

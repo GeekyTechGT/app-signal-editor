@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-namespace myprj::signal_editor {
+namespace signal_editor {
 
 /**
  * @brief Domain entity representing a named, time-ordered waveform.
@@ -212,4 +212,4 @@ private:
     static void validate_enumeration(const std::vector<EnumerationEntry>& enumeration);
 };
 
-}  // namespace myprj::signal_editor
+}  // namespace signal_editor

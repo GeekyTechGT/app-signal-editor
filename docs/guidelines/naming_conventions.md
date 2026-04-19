@@ -13,7 +13,7 @@ Naming conventions in Signal Editor are intended to optimize:
 
 | Construct | Convention | Example |
 |-----------|------------|---------|
-| Namespace | `snake_case` | `myprj::signal_editor` |
+| Namespace | `snake_case` | `signal_editor` |
 | Class / Struct | `PascalCase` | `Signal`, `SignalLibrary`, `SignalEditorService` |
 | Interface / Port | `IPascalCase` | `ISignalRepository` |
 | Function / Method | `snake_case` | `load_from()`, `set_interpolation()` |

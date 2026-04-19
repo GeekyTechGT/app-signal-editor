@@ -2,7 +2,7 @@
 
 #include "signal_editor/ports/signal_repository.h"
 
-namespace myprj::signal_editor::adapters {
+namespace signal_editor::adapters {
 
 class DelimitedSignalRepository : public ISignalRepository {
 public:
@@ -16,4 +16,4 @@ private:
     char delimiter_;
 };
 
-}  // namespace myprj::signal_editor::adapters
+}  // namespace signal_editor::adapters

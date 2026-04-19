@@ -20,7 +20,7 @@ DEFAULT_REPORT = BACKUP_ROOT / "last_customize_report.json"
 DEFAULT_PLACEHOLDERS = {
     "SignalEditor": "project_name",
     "Signal Editor": "project_name",
-    "myprj": "namespace_prefix",
+    "signal_editor": "namespace_prefix",
     "SIGNAL_EDITOR": "macro_prefix",
     "my_module": "primary_module",
 }
@@ -106,7 +106,7 @@ def validate_metadata(metadata: dict[str, Any]) -> None:
     if values["macro_prefix"] != values["macro_prefix"].upper():
         raise SystemExit("[ERROR] macro_prefix must be uppercase, e.g. SIGNAL_EDITOR")
     if not values["namespace_prefix"].islower():
-        raise SystemExit("[ERROR] namespace_prefix must be lowercase, e.g. myprj")
+        raise SystemExit("[ERROR] namespace_prefix must be lowercase, e.g. signal_editor")
     if not values["primary_module"].islower():
         raise SystemExit("[ERROR] primary_module must be lowercase, e.g. my_module")
     if not re.fullmatch(r"[a-z0-9]+(?:[a-z0-9_-]*[a-z0-9])?", values["project_slug"]):

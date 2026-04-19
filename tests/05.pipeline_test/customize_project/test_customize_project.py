@@ -14,7 +14,7 @@ SCRIPT_SOURCE = REPO_ROOT / "scripts" / "customize_project.py"
 def _build_fixture(tmp_path: Path) -> tuple[Path, Path]:
     project_root = tmp_path / "fixture_project"
     (project_root / "scripts").mkdir(parents=True)
-    (project_root / "include" / "myprj").mkdir(parents=True)
+    (project_root / "include" / "signal_editor").mkdir(parents=True)
     (project_root / "src" / "my_module").mkdir(parents=True)
     (project_root / "docs").mkdir(parents=True)
 
@@ -38,15 +38,15 @@ def _build_fixture(tmp_path: Path) -> tuple[Path, Path]:
     )
 
     (project_root / "README.md").write_text(
-        "# Signal Editor\nnamespace myprj\nmodule my_module\nmacro SIGNAL_EDITOR\n",
+        "# Signal Editor\nnamespace signal_editor\nmodule my_module\nmacro SIGNAL_EDITOR\n",
         encoding="utf-8",
     )
-    (project_root / "include" / "myprj" / "version.h.in").write_text(
+    (project_root / "include" / "signal_editor" / "version.h.in").write_text(
         "#define SIGNAL_EDITOR_NAME \"SignalEditor\"\n",
         encoding="utf-8",
     )
     (project_root / "src" / "my_module" / "main.cpp").write_text(
-        "namespace myprj { }\nint main() { return 0; }\n",
+        "namespace signal_editor { }\nint main() { return 0; }\n",
         encoding="utf-8",
     )
 
@@ -76,7 +76,7 @@ def test_dry_run_generates_report_without_mutating_files(tmp_path: Path) -> None
     assert payload["status"] == "planned"
     assert any(item["from"] == "Signal Editor" and item["to"] == "AcmeControl" for item in payload["replacements"])
     assert (project_root / "README.md").read_text(encoding="utf-8") == readme_before
-    assert (project_root / "include" / "myprj").exists()
+    assert (project_root / "include" / "signal_editor").exists()
     assert (project_root / "src" / "my_module").exists()
 
 
@@ -92,7 +92,7 @@ def test_apply_and_rollback_restore_fixture(tmp_path: Path) -> None:
     renamed_src = project_root / "src" / "control_core"
     assert renamed_include.exists()
     assert renamed_src.exists()
-    assert not (project_root / "include" / "myprj").exists()
+    assert not (project_root / "include" / "signal_editor").exists()
     assert not (project_root / "src" / "my_module").exists()
 
     readme_after = (project_root / "README.md").read_text(encoding="utf-8")
@@ -100,7 +100,7 @@ def test_apply_and_rollback_restore_fixture(tmp_path: Path) -> None:
     assert "acmectl" in readme_after
     assert "control_core" in readme_after
     assert "SIGNAL_EDITOR" not in readme_after
-    assert "myprj" not in readme_after
+    assert "signal_editor" not in readme_after
     assert "my_module" not in readme_after
 
     manifest = project_root / ".scaffold-backups" / "latest_manifest.json"
@@ -109,12 +109,12 @@ def test_apply_and_rollback_restore_fixture(tmp_path: Path) -> None:
     rollback_result = _run(script, "--rollback", str(manifest), "--report-json", str(report))
     assert rollback_result.returncode == 0, rollback_result.stdout + rollback_result.stderr
     assert "Rollback completed." in rollback_result.stdout
-    assert (project_root / "include" / "myprj").exists()
+    assert (project_root / "include" / "signal_editor").exists()
     assert (project_root / "src" / "my_module").exists()
     assert not renamed_include.exists()
     assert not renamed_src.exists()
 
     readme_restored = (project_root / "README.md").read_text(encoding="utf-8")
     assert "Signal Editor" in readme_restored
-    assert "myprj" in readme_restored
+    assert "signal_editor" in readme_restored
     assert "my_module" in readme_restored

@@ -38,6 +38,7 @@ The most important repository-specific risk areas are:
 - unsafe path handling during load/save operations
 - accidental disclosure of proprietary waveform data in fixtures, logs, or commits
 - packaging or deployment steps distributing unintended or stale artifacts
+- stale settings from another application version being interpreted as current-version state
 
 ## Secure Development Expectations
 
@@ -77,6 +78,7 @@ Treat the following as changes that deserve explicit security attention:
 - changes to filesystem path resolution
 - changes to deployment configuration or packaging descriptors
 - dependency additions or major dependency upgrades
+- changes to settings persistence scope, migration, or cross-version reuse rules
 
 ## Disclosure and Remediation Expectations
 

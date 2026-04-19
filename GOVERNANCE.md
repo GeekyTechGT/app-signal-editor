@@ -103,6 +103,7 @@ The following changes require corresponding documentation updates before they sh
 - changes to workspace navigation or editing flows
 - changes to public module boundaries
 - changes to build/test support policy
+- changes to the settings persistence namespace or version-isolation strategy
 
 At minimum, the relevant updates should include some combination of:
 
@@ -133,6 +134,7 @@ A release candidate should satisfy all applicable conditions:
 - architectural changes are documented
 - changelog entries are updated
 - known limitations are stated honestly
+- supported toolchains and persistence scope are documented accurately
 
 ## Documentation Governance
 
@@ -144,6 +146,8 @@ Specifically:
 - examples should match the actual format contract used by the repository
 - UI descriptions should reflect the implemented workspace model
 - governance, contribution, and security files should stay actionable rather than ceremonial
+- build guidance should not mention unsupported toolchains
+- persistence guidance should identify the actual settings namespace used by the running application
 
 ## Configuration and Deployment Artifacts
 

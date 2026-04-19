@@ -1,6 +1,6 @@
 #pragma once
 
-namespace myprj::signal_editor {
+namespace signal_editor {
 
 /**
  * @brief Immutable-style value object that represents a single sample.
@@ -24,4 +24,4 @@ struct SamplePoint {
     }
 };
 
-}  // namespace myprj::signal_editor
+}  // namespace signal_editor

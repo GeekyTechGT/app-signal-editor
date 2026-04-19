@@ -2,7 +2,7 @@
 
 #include "signal_editor/ports/signal_repository.h"
 
-namespace myprj::signal_editor::adapters {
+namespace signal_editor::adapters {
 
 /**
  * @brief Dispatcher over format-specific filesystem repositories.
@@ -40,4 +40,4 @@ public:
                        const SignalLibrary& library) override;
 };
 
-}  // namespace myprj::signal_editor::adapters
+}  // namespace signal_editor::adapters

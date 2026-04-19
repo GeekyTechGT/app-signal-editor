@@ -124,6 +124,14 @@ Typical expectations include:
 - release workflow expectations reviewed when packaging, versioning, or distribution mechanics change
 - coverage impact reviewed when core behavior changes
 
+Current supported build matrix:
+
+- `windows-mingw64-*` for the GUI delivery path
+- `linux-gcc-*` for Linux-hosted core/test validation
+- `docker-gcc-*` for containerized validation
+
+Do not add Clang-specific presets, scripts, or docs back into the repository unless the supported build policy is intentionally expanded and the documentation is updated in the same change.
+
 ## Commit Guidance
 
 Use concise, professional English commit messages that communicate intent.

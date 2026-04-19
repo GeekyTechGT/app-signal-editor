@@ -52,6 +52,7 @@ Signal Editor exists to occupy this middle ground.
 - modifying interpolation behavior for non-enumerated signals
 - exporting the current document to supported file formats while preserving supported metadata
 - maintaining undo history for the active document during the current session
+- persisting UI settings per application version so releases do not trample each other's preferences
 
 ### Explicitly out of scope for now
 
@@ -80,6 +81,7 @@ Signal Editor exists to occupy this middle ground.
 | FR-13 | The product shall support active-document undo. | High | Required for safe interactive editing |
 | FR-14 | The product shall support drag-and-drop file opening in the GUI. | Medium | Important convenience feature |
 | FR-15 | The product shall show document state, signal context, and interaction hints in the workspace shell. | Medium | UX clarity requirement |
+| FR-16 | The product shall persist UI settings in a version-scoped store so each application line can restore its own preferences independently. | Medium | Prevents cross-version settings collisions |
 
 ## Non-Functional Requirements
 
@@ -89,9 +91,10 @@ Signal Editor exists to occupy this middle ground.
 | NFR-02 | Persistence shall be abstracted behind repository ports. | High |
 | NFR-03 | The repository shall remain buildable on Windows MinGW64 for GUI workflows. | High |
 | NFR-04 | The repository shall remain buildable on Linux GCC for core and test workflows. | High |
-| NFR-05 | User-visible behavior changes shall be documented in repository docs and changelog entries. | High |
-| NFR-06 | Public module boundaries should remain documented with Doxygen comments. | Medium |
-| NFR-07 | UI changes should improve clarity and space efficiency rather than only changing surface styling. | Medium |
+| NFR-05 | The repository shall remain aligned with a GCC/MinGW-only supported toolchain matrix unless governance explicitly changes that policy. | High |
+| NFR-06 | User-visible behavior changes shall be documented in repository docs and changelog entries. | High |
+| NFR-07 | Public module boundaries should remain documented with Doxygen comments. | Medium |
+| NFR-08 | UI changes should improve clarity and space efficiency rather than only changing surface styling. | Medium |
 
 ## Acceptance Criteria
 

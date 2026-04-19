@@ -101,7 +101,7 @@ endfunction()
 # Compiler warnings
 # =============================================================================
 function(myprj_set_warnings target)
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         target_compile_options(${target} PRIVATE
             -Wall
             -Wextra
@@ -132,7 +132,7 @@ endfunction()
 # =============================================================================
 function(myprj_enable_sanitizers target)
     if(SIGNAL_EDITOR_ENABLE_SANITIZERS AND CMAKE_BUILD_TYPE STREQUAL "Debug")
-        if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
             target_compile_options(${target} PRIVATE
                 -fsanitize=address,undefined
                 -fno-omit-frame-pointer
@@ -148,7 +148,7 @@ function(myprj_enable_coverage target)
     if(SIGNAL_EDITOR_ENABLE_COVERAGE
        AND CMAKE_BUILD_TYPE STREQUAL "Debug"
        AND NOT WIN32
-       AND (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
+       AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         target_compile_options(${target} PRIVATE
             --coverage
             -O0

@@ -5,7 +5,7 @@
 
 #include <filesystem>
 
-namespace myprj::signal_editor {
+namespace signal_editor {
 
 /**
  * @brief Output port responsible for persisting and restoring signal libraries.
@@ -36,4 +36,4 @@ public:
                                const SignalLibrary& library) = 0;
 };
 
-}  // namespace myprj::signal_editor
+}  // namespace signal_editor

@@ -6,7 +6,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace myprj::signal_editor {
+namespace signal_editor {
 
 namespace {
 constexpr double kTimeEpsilon = 1e-12;
@@ -280,4 +280,4 @@ std::size_t Signal::nearest_index(double t_query) const noexcept {
                : static_cast<std::size_t>(std::distance(samples_.begin(), it));
 }
 
-}  // namespace myprj::signal_editor
+}  // namespace signal_editor

@@ -1,5 +1,6 @@
 # Build directories
 build/
+deploy/
 out/
 cmake-build-*/
 
@@ -53,6 +54,7 @@ dist/
 .eggs/
 venv/
 .venv/
+scripts/.venv/
 ENV/
 
 # OS files

@@ -7,7 +7,7 @@
 #include <stdexcept>
 #include <vector>
 
-namespace myprj::signal_editor::adapters {
+namespace signal_editor::adapters {
 
 namespace {
 std::vector<std::string> split_csv_line(const std::string& line) {
@@ -82,13 +82,13 @@ SignalLibrary CsvSignalRepository::load(const std::filesystem::path& source) {
     return tabular_rows::rows_to_library(rows);
 }
 
-myprj::Result CsvSignalRepository::save(const std::filesystem::path& destination,
+signal_editor::Result CsvSignalRepository::save(const std::filesystem::path& destination,
                                         const SignalLibrary& library) {
     try {
         const auto rows = tabular_rows::library_to_rows(library);
         std::ofstream out(destination, std::ios::trunc);
         if (!out.is_open()) {
-            return myprj::Result::error("Cannot open file for writing: " + destination.string());
+            return signal_editor::Result::error("Cannot open file for writing: " + destination.string());
         }
         for (const auto& row : rows) {
             for (std::size_t index = 0; index < row.size(); ++index) {
@@ -99,10 +99,10 @@ myprj::Result CsvSignalRepository::save(const std::filesystem::path& destination
             }
             out << '\n';
         }
-        return myprj::Result::ok();
+        return signal_editor::Result::ok();
     } catch (const std::exception& ex) {
-        return myprj::Result::error(ex.what());
+        return signal_editor::Result::error(ex.what());
     }
 }
 
-}  // namespace myprj::signal_editor::adapters
+}  // namespace signal_editor::adapters

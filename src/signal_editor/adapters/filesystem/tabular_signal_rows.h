@@ -9,7 +9,7 @@
 #include <string_view>
 #include <vector>
 
-namespace myprj::signal_editor::adapters::tabular_rows {
+namespace signal_editor::adapters::tabular_rows {
 
 std::string trim_copy(std::string_view text);
 std::optional<double> try_parse_double(const std::string& text);
@@ -22,4 +22,4 @@ std::optional<double> resolve_enumerated_cell(const std::string& cell,
 SignalLibrary rows_to_library(const std::vector<std::vector<std::string>>& rows);
 std::vector<std::vector<std::string>> library_to_rows(const SignalLibrary& library);
 
-}  // namespace myprj::signal_editor::adapters::tabular_rows
+}  // namespace signal_editor::adapters::tabular_rows

@@ -9,7 +9,7 @@
 #include <filesystem>
 #include <string>
 
-namespace myprj::signal_editor {
+namespace signal_editor {
 
 /**
  * @brief Application service that orchestrates all editable signal workflows.
@@ -48,19 +48,19 @@ public:
      * @param source Source path understood by the repository.
      * @return Success or failure information.
      */
-    myprj::Result load_from(const std::filesystem::path& source);
+    signal_editor::Result load_from(const std::filesystem::path& source);
 
     /**
      * @brief Saves the current library.
      * @param destination Target path understood by the repository.
      * @return Success or failure information.
      */
-    myprj::Result save_to(const std::filesystem::path& destination) const;
+    signal_editor::Result save_to(const std::filesystem::path& destination) const;
 
     /**
      * @brief Creates and appends a uniformly sampled signal.
      */
-    myprj::Result create_signal(const std::string& name,
+    signal_editor::Result create_signal(const std::string& name,
                                 double t_start,
                                 double t_end,
                                 std::size_t num_samples,
@@ -69,36 +69,36 @@ public:
     /**
      * @brief Appends a fully formed signal to the active library.
      */
-    myprj::Result add_signal(Signal signal);
+    signal_editor::Result add_signal(Signal signal);
 
     /** @brief Removes a signal from the active library. */
-    myprj::Result remove_signal(std::size_t index);
+    signal_editor::Result remove_signal(std::size_t index);
 
     /** @brief Replaces a signal inside the active library. */
-    myprj::Result replace_signal(std::size_t index, Signal signal);
+    signal_editor::Result replace_signal(std::size_t index, Signal signal);
 
     /** @brief Renames a signal inside the active library. */
-    myprj::Result rename_signal(std::size_t index, const std::string& new_name);
+    signal_editor::Result rename_signal(std::size_t index, const std::string& new_name);
 
     /** @brief Updates the interpolation mode of a stored signal. */
-    myprj::Result set_signal_interpolation(std::size_t index, Signal::InterpolationMode interpolation);
+    signal_editor::Result set_signal_interpolation(std::size_t index, Signal::InterpolationMode interpolation);
 
     /** @brief Updates the value of an existing sample. */
-    myprj::Result move_sample(std::size_t signal_index,
+    signal_editor::Result move_sample(std::size_t signal_index,
                               std::size_t sample_index,
                               double new_y);
 
     /** @brief Inserts or merges a sample in the addressed signal. */
-    myprj::Result insert_sample(std::size_t signal_index,
+    signal_editor::Result insert_sample(std::size_t signal_index,
                                 double t,
                                 double y,
                                 std::size_t* out_index = nullptr);
 
     /** @brief Removes a sample from the addressed signal. */
-    myprj::Result remove_sample(std::size_t signal_index, std::size_t sample_index);
+    signal_editor::Result remove_sample(std::size_t signal_index, std::size_t sample_index);
 
     /** @brief Applies Gaussian deformation to the addressed signal. */
-    myprj::Result apply_gaussian_brush(std::size_t signal_index,
+    signal_editor::Result apply_gaussian_brush(std::size_t signal_index,
                                        double t_center,
                                        double delta_y,
                                        double sigma);
@@ -108,4 +108,4 @@ private:
     SignalLibrary library_;
 };
 
-}  // namespace myprj::signal_editor
+}  // namespace signal_editor

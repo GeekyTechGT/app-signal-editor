@@ -3,7 +3,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace myprj::signal_editor {
+namespace signal_editor {
 
 namespace {
 [[noreturn]] void throw_oor() {
@@ -48,4 +48,4 @@ void SignalLibrary::clear() noexcept {
     signals_.clear();
 }
 
-}  // namespace myprj::signal_editor
+}  // namespace signal_editor

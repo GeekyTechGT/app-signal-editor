@@ -27,6 +27,7 @@ A change may justify a major version bump if it breaks expectations around:
 - enumerated signal encoding and decoding
 - user workflows that scripts or teams rely on operationally
 - build or packaging expectations for supported environments
+- settings persistence scope or cross-version compatibility guarantees
 
 ## Authoritative Version Sources
 
@@ -45,6 +46,7 @@ A release should communicate:
 - whether compatibility changed
 - whether user workflow or file-format expectations changed
 - whether any constraints or migration notes apply
+- whether the settings namespace changed and whether preferences are intentionally isolated by version
 
 ## Typical Version Decisions
 

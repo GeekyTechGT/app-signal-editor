@@ -23,6 +23,7 @@ The current implementation scope includes:
 - creating new signals from numeric and enumerated templates
 - saving edited documents in supported formats while preserving supported metadata
 - undoing modifications inside the active document context
+- restoring and saving UI settings in a version-scoped persistence store
 
 The following are out of scope for the current product line:
 
@@ -48,6 +49,7 @@ Signal Editor is a local desktop engineering tool. It combines direct waveform m
 - Windows 10/11 with Qt 6 and MinGW64 for GUI delivery and full application usage
 - Linux with GCC for core library and automated test workflows
 - local filesystem access to supported input and output files
+- version-scoped local settings storage through Qt-backed application state
 
 ## 3. Functional Requirements
 
@@ -77,6 +79,7 @@ Signal Editor is a local desktop engineering tool. It combines direct waveform m
 | FR-22 | The system shall render enumerated signal values as labels in the plot and table. |
 | FR-23 | The system shall provide undo for edits within the active document. |
 | FR-24 | The system shall surface document state, active signal context, and interaction status in the workspace shell. |
+| FR-25 | The system shall persist UI settings in a version-scoped namespace so saved preferences are isolated per application line. |
 
 ## 4. Data Requirements
 
@@ -139,10 +142,11 @@ Signal Editor is a local desktop engineering tool. It combines direct waveform m
 | NFR-2 | Persistence shall remain abstracted behind repository ports. |
 | NFR-3 | The codebase shall preserve Windows MinGW64 GUI support. |
 | NFR-4 | The codebase shall preserve Linux GCC core/test support. |
-| NFR-5 | Public module boundaries should remain documented with Doxygen comments. |
-| NFR-6 | The UI shall clearly expose active document state and editing affordances. |
-| NFR-7 | Documentation shall be updated when format semantics, workspace behavior, or architecture changes. |
-| NFR-8 | Automated tests shall cover core domain, service orchestration, and repository behavior where practical. |
+| NFR-5 | The supported compiler matrix shall remain GCC/MinGW-only unless governance explicitly changes that policy. |
+| NFR-6 | Public module boundaries should remain documented with Doxygen comments. |
+| NFR-7 | The UI shall clearly expose active document state and editing affordances. |
+| NFR-8 | Documentation shall be updated when format semantics, workspace behavior, architecture, or persistence scope changes. |
+| NFR-9 | Automated tests shall cover core domain, service orchestration, and repository behavior where practical. |
 
 ## 7. Verification Strategy
 

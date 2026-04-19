@@ -11,7 +11,7 @@ Canonical identifiers:
 - Product name: `Signal Editor`
 - Primary module: `signal_editor`
 - CMake target family: `signal_editor_*`
-- Namespace root: `myprj::signal_editor`
+- Namespace root: `signal_editor`
 
 Do not reintroduce scaffold wording or template-oriented assumptions into code or documentation.
 
@@ -31,23 +31,23 @@ The current product emphasis is:
 
 ### Preset Matrix
 
-- Windows GUI presets: `windows-gcc-*`, `windows-clang-*`, `windows-MSVC-*`
-- Linux host presets: `linux-gcc-*`, `linux-clang-*`
-- Docker presets: `docker-gcc-*`, `docker-clang-*`
+- Windows GUI presets: `windows-mingw64-*`
+- Linux host presets: `linux-gcc-*`
+- Docker presets: `docker-gcc-*`
 
 
 ### Windows GUI
 
 ```bash
-cmake --preset windows-gcc-debug
-cmake --build --preset windows-gcc-debug
+cmake --preset windows-mingw64-debug
+cmake --build --preset windows-mingw64-debug
 ```
 
 Release:
 
 ```bash
-cmake --preset windows-gcc-release
-cmake --build --preset windows-gcc-release
+cmake --preset windows-mingw64-release
+cmake --build --preset windows-mingw64-release
 ```
 
 ### Linux Core and Tests
@@ -131,6 +131,12 @@ Typical targets:
 - `docs/product/*`
 - `docs/specs/srs.md`
 - `docs/architecture/*`
+
+Build and persistence changes must also keep these facts aligned:
+
+- the supported toolchain matrix is GCC/MinGW-only unless governance explicitly changes it
+- runtime settings are version-scoped under `signal-editor/<settings-version>`
+- `project.json` is the canonical source for the application id used by the UI layer
 
 ## Change Discipline
 

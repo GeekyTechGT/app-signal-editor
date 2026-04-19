@@ -5,7 +5,7 @@
 #include <cstddef>
 #include <vector>
 
-namespace myprj::signal_editor {
+namespace signal_editor {
 
 /**
  * @brief Aggregate root that owns the collection of editable signals.
@@ -76,4 +76,4 @@ private:
     std::vector<Signal> signals_;
 };
 
-}  // namespace myprj::signal_editor
+}  // namespace signal_editor

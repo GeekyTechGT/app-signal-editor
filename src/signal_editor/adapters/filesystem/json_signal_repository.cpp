@@ -10,7 +10,7 @@
 #include <utility>
 #include <vector>
 
-namespace myprj::signal_editor::adapters {
+namespace signal_editor::adapters {
 
 namespace {
 using nlohmann::json;
@@ -91,11 +91,11 @@ SignalLibrary JsonSignalRepository::load(const std::filesystem::path& source) {
     return library;
 }
 
-myprj::Result JsonSignalRepository::save(const std::filesystem::path& destination,
+signal_editor::Result JsonSignalRepository::save(const std::filesystem::path& destination,
                                          const SignalLibrary& library) {
     try {
         if (library.empty()) {
-            return myprj::Result::error("Cannot save an empty library");
+            return signal_editor::Result::error("Cannot save an empty library");
         }
 
         json document;
@@ -133,13 +133,13 @@ myprj::Result JsonSignalRepository::save(const std::filesystem::path& destinatio
 
         std::ofstream out(destination, std::ios::trunc);
         if (!out.is_open()) {
-            return myprj::Result::error("Cannot open file for writing: " + destination.string());
+            return signal_editor::Result::error("Cannot open file for writing: " + destination.string());
         }
         out << std::setw(2) << document << '\n';
-        return myprj::Result::ok();
+        return signal_editor::Result::ok();
     } catch (const std::exception& ex) {
-        return myprj::Result::error(ex.what());
+        return signal_editor::Result::error(ex.what());
     }
 }
 
-}  // namespace myprj::signal_editor::adapters
+}  // namespace signal_editor::adapters
