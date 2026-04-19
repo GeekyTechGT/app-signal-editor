@@ -13,7 +13,7 @@ class QStyledItemDelegate;
 class QTableWidget;
 class QTableWidgetItem;
 
-namespace myprj::signal_editor::adapters::qt {
+namespace signal_editor::adapters::qt {
 
 /**
  * @brief Editable sample table bound to the currently selected signal.
@@ -54,6 +54,9 @@ signals:
     void editStarted();
     void contentChanged();
 
+protected:
+    void changeEvent(QEvent* event) override;
+
 private slots:
     void onItemChanged(QTableWidgetItem* item);
     void onAddClicked();
@@ -61,6 +64,7 @@ private slots:
 
 private:
     const Signal* signal_{nullptr};
+    QLabel* title_label_{nullptr};
     QLabel* stats_label_{nullptr};
     QLabel* hint_label_{nullptr};
     QTableWidget* table_{nullptr};
@@ -69,6 +73,8 @@ private:
     QStyledItemDelegate* item_delegate_{nullptr};
     bool suppress_item_changed_{false};
 
+    void retranslate_ui();
+    void refresh_typography();
     void repopulate();
     void set_row_values(int row, double t, double y);
     [[nodiscard]] double default_insert_time() const;
@@ -76,4 +82,4 @@ private:
     void refresh_summary() const;
 };
 
-}  // namespace myprj::signal_editor::adapters::qt
+}  // namespace signal_editor::adapters::qt

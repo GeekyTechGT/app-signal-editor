@@ -1,3 +1,4 @@
+#include "signal_editor/adapters/qt/constants.hpp"
 #include "signal_editor/adapters/qt/main_window.h"
 
 #include "signal_editor/adapters/qt/file_list_panel.h"
@@ -10,6 +11,10 @@
 #include <QApplication>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QDoubleValidator>
+#include <QDir>
+#include <QEvent>
+#include <QFont>
 #include <QLabel>
 #include <QDoubleSpinBox>
 #include <QDragEnterEvent>
@@ -17,25 +22,37 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFormLayout>
+#include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QComboBox>
+#include <QCloseEvent>
 #include <QDateTime>
 #include <QLineEdit>
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QMimeData>
-#include <QSpinBox>
+#include <QPushButton>
+#include <QRegularExpression>
+#include <QRegularExpressionValidator>
+#include <QSettings>
+#include <QSignalBlocker>
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QStatusBar>
 #include <QTabBar>
 #include <QTabWidget>
 #include <QToolBar>
+#include <QToolButton>
 #include <QTextEdit>
+#include <QTranslator>
 #include <QUrl>
 #include <QVBoxLayout>
 #include <QSizePolicy>
 #include <QStringList>
+
+#ifdef LIB_QT_CUSTOM_WIDGETS_AVAILABLE
+#include <settings_panel_dialog.hpp>
+#endif
 
 #include <algorithm>
 #include <array>
@@ -44,35 +61,143 @@
 #include <stdexcept>
 #include <utility>
 
-namespace myprj::signal_editor::adapters::qt {
+namespace signal_editor::adapters::qt {
+namespace ui = signal_editor::adapters::qt::constants;
 
 namespace {
+#define tr qt_main_window_tr
+
+QString qt_main_window_tr(const char* source_text,
+                          const char* disambiguation = nullptr,
+                          int n = -1) {
+    return QCoreApplication::translate("MainWindow", source_text,
+                                       disambiguation, n);
+}
+
 constexpr double kPi = 3.14159265358979323846;
+constexpr double kSamplingEpsilon = 1e-9;
+constexpr std::size_t kMaxGeneratedSamples = 1'000'000;
+
+/**
+ * @brief Parses a floating-point value accepting both comma and dot decimals.
+ * @param text User-entered text to parse.
+ * @param ok Set to `true` when the conversion succeeds.
+ * @return Parsed numeric value or `0.0` on failure.
+ */
+double parse_flexible_double(const QString& text, bool* ok = nullptr) {
+    const QString trimmed = text.trimmed();
+    if (trimmed.isEmpty()) {
+        if (ok != nullptr) {
+            *ok = false;
+        }
+        return 0.0;
+    }
+
+    QString normalized = trimmed;
+    const int last_dot = normalized.lastIndexOf('.');
+    const int last_comma = normalized.lastIndexOf(',');
+    const int decimal_index = std::max(last_dot, last_comma);
+    for (int i = 0; i < normalized.size(); ++i) {
+        if (normalized[i] == '.' || normalized[i] == ',') {
+            normalized[i] = (i == decimal_index) ? QChar('.') : QChar();
+        }
+    }
+    normalized.remove(QChar());
+
+    bool local_ok = false;
+    const double value = normalized.toDouble(&local_ok);
+    if (ok != nullptr) {
+        *ok = local_ok;
+    }
+    return value;
+}
+
+/**
+ * @brief Formats a floating-point value for line-edit presentation.
+ * @param locale Locale used for output formatting.
+ * @param value Numeric value to display.
+ * @param decimals Fractional digits to expose.
+ * @return Locale-aware string without grouping separators.
+ */
+QString format_line_edit_double(const QLocale& locale, double value, int decimals) {
+    QLocale copy(locale);
+    copy.setNumberOptions(copy.numberOptions() | QLocale::OmitGroupSeparator);
+    return copy.toString(value, 'f', decimals);
+}
+
+QRegularExpression flexible_decimal_pattern(bool allow_empty = false) {
+    return QRegularExpression(
+        allow_empty
+            ? QStringLiteral(R"(^[+-]?(?:\d+([.,]\d*)?|[.,]\d+)?$)")
+            : QStringLiteral(R"(^[+-]?(?:\d+([.,]\d*)?|[.,]\d+)$)"));
+}
+
+QString escape_for_qss(QString value) {
+    value.replace(QStringLiteral("\\"), QStringLiteral("\\\\"));
+    value.replace(QStringLiteral("\""), QStringLiteral("\\\""));
+    return value;
+}
+
+QString build_accessibility_qss(const lib_qt_custom_widgets::AppSettings& settings) {
+    if (!settings.highContrastMode) {
+        return {};
+    }
+    return QStringLiteral(R"qss(
+QGroupBox, QLineEdit, QTextEdit, QPlainTextEdit, QComboBox, QSpinBox, QDoubleSpinBox,
+QTableWidget, QListWidget, QPushButton, QToolButton {
+    border-width: 2px;
+}
+QLabel {
+    color: palette(windowText);
+}
+)qss");
+}
+
+QString build_font_qss(const lib_qt_custom_widgets::AppSettings& settings) {
+    return QStringLiteral(R"qss(
+QWidget {
+    font-family: "%1";
+    font-size: %2pt;
+}
+)qss")
+        .arg(escape_for_qss(settings.fontFamily))
+        .arg(settings.fontSize);
+}
+
+void set_ui_effects_enabled(bool enabled) {
+    QApplication::setEffectEnabled(Qt::UI_AnimateMenu, enabled);
+    QApplication::setEffectEnabled(Qt::UI_FadeMenu, enabled);
+    QApplication::setEffectEnabled(Qt::UI_AnimateCombo, enabled);
+    QApplication::setEffectEnabled(Qt::UI_FadeTooltip, enabled);
+    QApplication::setEffectEnabled(Qt::UI_AnimateTooltip, enabled);
+}
+
+void remove_default_settings_panel_cache() {
+    QSettings settings;
+    settings.remove(QStringLiteral("AppSettings"));
+    settings.sync();
+}
 
 void animate_tab_reveal(QTabWidget* tabs, int index) {
     if (tabs == nullptr || index < 0 || index >= tabs->count()) {
         return;
     }
-
     QWidget* page = tabs->widget(index);
     if (page == nullptr) {
         return;
     }
-
     page->raise();
     page->update();
-    if (auto* current = tabs->currentWidget(); current != nullptr) {
-        current->setAttribute(Qt::WA_OpaquePaintEvent, true);
-    }
     tabs->tabBar()->update();
 }
 
 QString summarize_counts(const SignalLibrary& library) {
-    return QStringLiteral("%1 signal(s)").arg(static_cast<qulonglong>(library.size()));
+    return QCoreApplication::translate("MainWindow", "%n signal(s)", nullptr,
+                                       static_cast<int>(library.size()));
 }
 
 QString import_file_filter() {
-    return QStringLiteral(
+    return QCoreApplication::translate("MainWindow",
         "Supported signal files (*.csv *.tsv *.txt *.json *.xml);;"
         "CSV files (*.csv);;"
         "Tab-delimited files (*.tsv *.txt);;"
@@ -81,7 +206,7 @@ QString import_file_filter() {
 }
 
 QString export_file_filter() {
-    return QStringLiteral(
+    return QCoreApplication::translate("MainWindow",
         "Supported export files (*.csv *.tsv *.txt *.json *.xml);;"
         "CSV files (*.csv);;"
         "Tab-delimited files (*.tsv *.txt);;"
@@ -98,6 +223,56 @@ bool is_supported_import_path(const QString& path) {
            lowered == QStringLiteral("xml");
 }
 
+QString normalize_language_code(QString language) {
+    language = language.trimmed();
+    if (language.isEmpty()) {
+        return QStringLiteral("en");
+    }
+
+    language.replace(QLatin1Char('-'), QLatin1Char('_'));
+    const int separator = language.indexOf(QLatin1Char('_'));
+    if (separator > 0) {
+        language = language.left(separator);
+    }
+    return language.left(2).toLower();
+}
+
+bool translator_has_app_ui_strings(const QTranslator& translator) {
+    const QString main_window_text =
+        translator.translate("MainWindow", "&New from scratch...");
+    if (!main_window_text.isEmpty() &&
+        main_window_text != QStringLiteral("&New from scratch...")) {
+        return true;
+    }
+
+    const QString signal_list_text =
+        translator.translate("SignalListPanel", "+ New");
+    return !signal_list_text.isEmpty() &&
+           signal_list_text != QStringLiteral("+ New");
+}
+
+QStringList translation_candidates(const QString& app_dir,
+                                   const QString& translation_base) {
+    QStringList candidates;
+    const QDir current_dir(QDir::currentPath());
+    const auto add_candidate = [&candidates](const QString& path) {
+        const QString clean_path = QDir::cleanPath(path);
+        if (!clean_path.isEmpty() && !candidates.contains(clean_path)) {
+            candidates.push_back(clean_path);
+        }
+    };
+
+    add_candidate(QDir(app_dir).filePath(
+        QStringLiteral("translations/%1.qm").arg(translation_base)));
+    add_candidate(QDir(app_dir).filePath(QStringLiteral("%1.qm").arg(translation_base)));
+    add_candidate(QDir(app_dir).filePath(
+        QStringLiteral("../translations/%1.qm").arg(translation_base)));
+    add_candidate(current_dir.filePath(
+        QStringLiteral("translations/%1.qm").arg(translation_base)));
+    add_candidate(current_dir.filePath(QStringLiteral("%1.qm").arg(translation_base)));
+    return candidates;
+}
+
 enum class WaveformKind {
     Constant = 0,
     Sine,
@@ -111,10 +286,8 @@ enum class WaveformKind {
 
 const char* interpolation_label(Signal::InterpolationMode interpolation) {
     switch (interpolation) {
-    case Signal::InterpolationMode::Linear:
-        return "Linear";
-    case Signal::InterpolationMode::Step:
-        return "Step";
+    case Signal::InterpolationMode::Linear: return "Linear";
+    case Signal::InterpolationMode::Step:   return "Step";
     }
     return "Linear";
 }
@@ -124,76 +297,105 @@ double wrap_unit_phase(double x) {
     return wrapped < 0.0 ? wrapped + 1.0 : wrapped;
 }
 
-std::vector<double> build_uniform_time_axis(double t_start, double t_end, std::size_t num_samples) {
-    if (num_samples < 2) {
-        throw std::invalid_argument("num_samples must be >= 2");
+/**
+ * @brief Builds a time axis driven by the user-defined sampling interval.
+ *
+ * The helper preserves the requested `sampling_time` for every full interval
+ * starting at `t_start` and appends `t_end` when the range is not an exact
+ * multiple, so the generated signal always covers the full requested span.
+ *
+ * @param t_start Inclusive first timestamp.
+ * @param t_end Inclusive upper bound of the generated time range.
+ * @param sampling_time Positive sampling interval entered by the user.
+ * @return Ordered time vector containing at least two samples.
+ */
+std::vector<double> build_time_axis_from_sampling_time(double t_start,
+                                                       double t_end,
+                                                       double sampling_time) {
+    if (!(sampling_time > 0.0)) {
+        throw std::invalid_argument("sampling time must be > 0");
     }
     if (!(t_end > t_start)) {
         throw std::invalid_argument("t end must be greater than t start");
     }
 
+    const auto expected_samples =
+        static_cast<std::size_t>(std::ceil((t_end - t_start) / sampling_time)) + 1U;
+    if (expected_samples > kMaxGeneratedSamples) {
+        throw std::invalid_argument("sampling time generates too many samples");
+    }
+
     std::vector<double> time;
-    time.reserve(num_samples);
-    const double dt = (t_end - t_start) / static_cast<double>(num_samples - 1);
-    for (std::size_t i = 0; i < num_samples; ++i) {
-        time.push_back(t_start + dt * static_cast<double>(i));
+    time.reserve(expected_samples);
+    time.push_back(t_start);
+
+    double current = t_start + sampling_time;
+    while (current < (t_end - kSamplingEpsilon)) {
+        time.push_back(current);
+        current += sampling_time;
+    }
+
+    if ((t_end - time.back()) > kSamplingEpsilon) {
+        time.push_back(t_end);
+    } else {
+        time.back() = t_end;
+    }
+
+    if (time.size() < 2) {
+        throw std::invalid_argument("sampling time produced less than two samples");
     }
     return time;
 }
 
-Signal generate_constant_signal(const QString& name,
-                                double t_start,
-                                double t_end,
-                                std::size_t num_samples,
-                                double level) {
-    return Signal::create_uniform(name.toStdString(), t_start, t_end, num_samples, level);
+/**
+ * @brief Computes the number of samples implied by a sampling interval.
+ * @param t_start Inclusive first timestamp.
+ * @param t_end Inclusive upper bound of the generated time range.
+ * @param sampling_time Positive sampling interval entered by the user.
+ * @return Number of samples that will be generated for the dialog preview.
+ */
+[[nodiscard]] std::size_t compute_sample_count(double t_start,
+                                               double t_end,
+                                               double sampling_time) {
+    return build_time_axis_from_sampling_time(t_start, t_end, sampling_time).size();
 }
 
-Signal generate_periodic_signal(const QString& name,
-                                double t_start,
-                                double t_end,
-                                std::size_t num_samples,
-                                double amplitude,
-                                double offset,
-                                double frequency_hz,
-                                double phase_deg,
-                                bool use_cosine) {
+Signal generate_constant_signal(const QString& name, double t_start, double t_end,
+                                double sampling_time, double level) {
+    const auto time = build_time_axis_from_sampling_time(t_start, t_end, sampling_time);
+    std::vector<double> values(time.size(), level);
+    return Signal::from_vectors(name.toStdString(), time, values);
+}
+
+Signal generate_periodic_signal(const QString& name, double t_start, double t_end,
+                                double sampling_time, double amplitude, double offset,
+                                double frequency_hz, double phase_deg, bool use_cosine) {
     if (!(frequency_hz > 0.0)) {
         throw std::invalid_argument("frequency must be > 0");
     }
-
-    const auto time = build_uniform_time_axis(t_start, t_end, num_samples);
+    const auto time = build_time_axis_from_sampling_time(t_start, t_end, sampling_time);
     std::vector<double> values;
     values.reserve(time.size());
     const double phase_rad = phase_deg * kPi / 180.0;
     for (double t : time) {
-        const double angle = 2.0 * kPi * frequency_hz * (t - t_start) + phase_rad;
+        const double angle   = 2.0 * kPi * frequency_hz * (t - t_start) + phase_rad;
         const double carrier = use_cosine ? std::cos(angle) : std::sin(angle);
         values.push_back(offset + amplitude * carrier);
     }
     return Signal::from_vectors(name.toStdString(), time, values);
 }
 
-Signal generate_pulse_signal(const QString& name,
-                             double t_start,
-                             double t_end,
-                             std::size_t num_samples,
-                             double low_level,
-                             double high_level,
-                             double frequency_hz,
-                             double duty_cycle_pct,
-                             double phase_deg) {
-    if (!(frequency_hz > 0.0)) {
-        throw std::invalid_argument("frequency must be > 0");
-    }
+Signal generate_pulse_signal(const QString& name, double t_start, double t_end,
+                             double sampling_time, double low_level, double high_level,
+                             double frequency_hz, double duty_cycle_pct, double phase_deg) {
+    if (!(frequency_hz > 0.0)) { throw std::invalid_argument("frequency must be > 0"); }
     if (!(duty_cycle_pct > 0.0 && duty_cycle_pct < 100.0)) {
         throw std::invalid_argument("duty cycle must be between 0 and 100");
     }
-
-    const auto time = build_uniform_time_axis(t_start, t_end, num_samples);
+    const auto time = build_time_axis_from_sampling_time(t_start, t_end, sampling_time);
     std::vector<double> values;
     values.reserve(time.size());
-    const double duty = duty_cycle_pct / 100.0;
+    const double duty         = duty_cycle_pct / 100.0;
     const double phase_cycles = phase_deg / 360.0;
     for (double t : time) {
         const double unit_phase = wrap_unit_phase(frequency_hz * (t - t_start) + phase_cycles);
@@ -202,22 +404,14 @@ Signal generate_pulse_signal(const QString& name,
     return Signal::from_vectors(name.toStdString(), time, values);
 }
 
-Signal generate_sawtooth_signal(const QString& name,
-                                double t_start,
-                                double t_end,
-                                std::size_t num_samples,
-                                double min_value,
-                                double max_value,
-                                double frequency_hz,
-                                double phase_deg) {
-    if (!(frequency_hz > 0.0)) {
-        throw std::invalid_argument("frequency must be > 0");
-    }
-
-    const auto time = build_uniform_time_axis(t_start, t_end, num_samples);
+Signal generate_sawtooth_signal(const QString& name, double t_start, double t_end,
+                                double sampling_time, double min_value, double max_value,
+                                double frequency_hz, double phase_deg) {
+    if (!(frequency_hz > 0.0)) { throw std::invalid_argument("frequency must be > 0"); }
+    const auto time = build_time_axis_from_sampling_time(t_start, t_end, sampling_time);
     std::vector<double> values;
     values.reserve(time.size());
-    const double span = max_value - min_value;
+    const double span         = max_value - min_value;
     const double phase_cycles = phase_deg / 360.0;
     for (double t : time) {
         const double unit_phase = wrap_unit_phase(frequency_hz * (t - t_start) + phase_cycles);
@@ -226,39 +420,25 @@ Signal generate_sawtooth_signal(const QString& name,
     return Signal::from_vectors(name.toStdString(), time, values);
 }
 
-Signal generate_triangle_signal(const QString& name,
-                                double t_start,
-                                double t_end,
-                                std::size_t num_samples,
-                                double min_value,
-                                double max_value,
-                                double frequency_hz,
-                                double phase_deg) {
-    if (!(frequency_hz > 0.0)) {
-        throw std::invalid_argument("frequency must be > 0");
-    }
-
-    const auto time = build_uniform_time_axis(t_start, t_end, num_samples);
+Signal generate_triangle_signal(const QString& name, double t_start, double t_end,
+                                double sampling_time, double min_value, double max_value,
+                                double frequency_hz, double phase_deg) {
+    if (!(frequency_hz > 0.0)) { throw std::invalid_argument("frequency must be > 0"); }
+    const auto time = build_time_axis_from_sampling_time(t_start, t_end, sampling_time);
     std::vector<double> values;
     values.reserve(time.size());
     const double phase_cycles = phase_deg / 360.0;
     for (double t : time) {
         const double unit_phase = wrap_unit_phase(frequency_hz * (t - t_start) + phase_cycles);
-        const double shape = unit_phase < 0.5
-            ? unit_phase * 2.0
-            : 2.0 - unit_phase * 2.0;
+        const double shape = unit_phase < 0.5 ? unit_phase * 2.0 : 2.0 - unit_phase * 2.0;
         values.push_back(min_value + (max_value - min_value) * shape);
     }
     return Signal::from_vectors(name.toStdString(), time, values);
 }
 
-Signal generate_ramp_signal(const QString& name,
-                            double t_start,
-                            double t_end,
-                            std::size_t num_samples,
-                            double start_value,
-                            double end_value) {
-    const auto time = build_uniform_time_axis(t_start, t_end, num_samples);
+Signal generate_ramp_signal(const QString& name, double t_start, double t_end,
+                            double sampling_time, double start_value, double end_value) {
+    const auto time = build_time_axis_from_sampling_time(t_start, t_end, sampling_time);
     std::vector<double> values;
     values.reserve(time.size());
     for (std::size_t i = 0; i < time.size(); ++i) {
@@ -273,48 +453,47 @@ std::vector<Signal::EnumerationEntry> parse_enumeration_definition(const QString
     const QStringList lines = text.split(QStringLiteral("\n"));
     for (const QString& raw_line : lines) {
         const QString line = raw_line.trimmed();
-        if (line.isEmpty()) {
-            continue;
-        }
-
+        if (line.isEmpty()) { continue; }
         const int separator = line.lastIndexOf(':');
         if (separator <= 0 || separator >= line.size() - 1) {
-            throw std::invalid_argument("Each enumerated state must use the format LABEL:NUMERIC_VALUE");
+            throw std::invalid_argument(
+                "Each enumerated state must use the format LABEL:NUMERIC_VALUE");
         }
-
         bool ok = false;
         const QString label = line.left(separator).trimmed();
-        const double value = line.mid(separator + 1).trimmed().toDouble(&ok);
+        const double value  = parse_flexible_double(line.mid(separator + 1).trimmed(), &ok);
         if (label.isEmpty() || !ok) {
-            throw std::invalid_argument("Invalid enumerated state definition: " + line.toStdString());
+            throw std::invalid_argument(
+                "Invalid enumerated state definition: " + line.toStdString());
         }
         entries.push_back(Signal::EnumerationEntry{label.toStdString(), value});
     }
-
     if (entries.empty()) {
         throw std::invalid_argument("Define at least one enumerated state");
     }
     return entries;
 }
 
-Signal generate_enumerated_signal(const QString& name,
-                                  double t_start,
-                                  double t_end,
-                                  std::size_t num_samples,
+Signal generate_enumerated_signal(const QString& name, double t_start, double t_end,
+                                  double sampling_time,
                                   const std::vector<Signal::EnumerationEntry>& enumeration,
                                   const QString& initial_label) {
     QString resolved_label = initial_label.trimmed();
     if (resolved_label.isEmpty()) {
         resolved_label = QString::fromStdString(enumeration.front().label);
     }
-
-    Signal signal = Signal::create_uniform(name.toStdString(), t_start, t_end, num_samples, 0.0,
-                                           Signal::InterpolationMode::Step);
+    const auto time = build_time_axis_from_sampling_time(t_start, t_end, sampling_time);
+    const double initial_value = [&]() {
+        Signal preview = Signal::from_vectors(name.toStdString(), time,
+                                              std::vector<double>(time.size(), 0.0),
+                                              Signal::InterpolationMode::Step);
+        preview.set_enumeration(enumeration);
+        return preview.value_for_label(resolved_label.toStdString());
+    }();
+    std::vector<double> values(time.size(), initial_value);
+    Signal signal = Signal::from_vectors(name.toStdString(), time, values,
+                                         Signal::InterpolationMode::Step);
     signal.set_enumeration(enumeration);
-    const double initial_value = signal.value_for_label(resolved_label.toStdString());
-    for (std::size_t index = 0; index < signal.size(); ++index) {
-        signal.set_sample_value(index, initial_value);
-    }
     return signal;
 }
 
@@ -347,33 +526,31 @@ QString describe_signal_line(const Signal& signal) {
     return description;
 }
 
-Signal generate_waveform_signal(WaveformKind kind,
-                                const QString& name,
-                                double t_start,
-                                double t_end,
-                                std::size_t num_samples,
+Signal generate_waveform_signal(WaveformKind kind, const QString& name,
+                                double t_start, double t_end, double sampling_time,
                                 const std::array<double, 4>& params_a,
                                 const std::array<double, 4>& params_b) {
     switch (kind) {
     case WaveformKind::Constant:
-        return generate_constant_signal(name, t_start, t_end, num_samples, params_a[0]);
+        return generate_constant_signal(name, t_start, t_end, sampling_time, params_a[0]);
     case WaveformKind::Sine:
-        return generate_periodic_signal(name, t_start, t_end, num_samples,
+        return generate_periodic_signal(name, t_start, t_end, sampling_time,
                                         params_a[0], params_a[1], params_a[2], params_a[3], false);
     case WaveformKind::Cosine:
-        return generate_periodic_signal(name, t_start, t_end, num_samples,
+        return generate_periodic_signal(name, t_start, t_end, sampling_time,
                                         params_a[0], params_a[1], params_a[2], params_a[3], true);
     case WaveformKind::Pulse:
-        return generate_pulse_signal(name, t_start, t_end, num_samples,
+        return generate_pulse_signal(name, t_start, t_end, sampling_time,
                                      params_a[0], params_a[1], params_a[2], params_a[3], params_b[0]);
     case WaveformKind::Sawtooth:
-        return generate_sawtooth_signal(name, t_start, t_end, num_samples,
+        return generate_sawtooth_signal(name, t_start, t_end, sampling_time,
                                         params_a[0], params_a[1], params_a[2], params_a[3]);
     case WaveformKind::Triangle:
-        return generate_triangle_signal(name, t_start, t_end, num_samples,
+        return generate_triangle_signal(name, t_start, t_end, sampling_time,
                                         params_a[0], params_a[1], params_a[2], params_a[3]);
     case WaveformKind::Ramp:
-        return generate_ramp_signal(name, t_start, t_end, num_samples, params_a[0], params_a[1]);
+        return generate_ramp_signal(name, t_start, t_end, sampling_time,
+                                    params_a[0], params_a[1]);
     case WaveformKind::Enumerated:
         break;
     }
@@ -381,40 +558,67 @@ Signal generate_waveform_signal(WaveformKind kind,
 }
 }  // namespace
 
+// ============================================================================
+// Construction
+// ============================================================================
+
 MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
     : QMainWindow(parent), service_(service) {
-    setWindowTitle(QStringLiteral("Signal Editor"));
+    setWindowTitle(tr("Signal Editor"));
     resize(1400, 820);
     setAcceptDrops(true);
+    app_settings_.theme = QStringLiteral("light");
+    app_settings_.language = QStringLiteral("it");
+    visual_settings_ = app_settings_;
 
-    auto* central = new QWidget(this);
+#ifdef LIB_QT_UTILS_AVAILABLE
+    app_state_ = std::make_unique<QtUtils::AppState>(
+        ui::app_id(),
+        ui::settings_version_scope());
+
+    if (app_state_) {
+        app_settings_.language = app_state_->value(
+            QString::fromUtf8(ui::kSettingsKeyLanguage),
+            app_settings_.language).toString();
+    }
+#endif
+    visual_settings_ = app_settings_;
+    apply_language(app_settings_.language);
+
+    // ── Central layout ────────────────────────────────────────────────────────
+    auto* central        = new QWidget(this);
     auto* central_layout = new QVBoxLayout(central);
     central_layout->setContentsMargins(16, 14, 16, 14);
     central_layout->setSpacing(10);
 
+    // Workspace header
     auto* workspace_header = new QWidget(central);
     workspace_header->setObjectName(QStringLiteral("WorkspaceHeader"));
     auto* workspace_layout = new QVBoxLayout(workspace_header);
     workspace_layout->setContentsMargins(16, 12, 16, 12);
     workspace_layout->setSpacing(2);
 
-    workspace_title_label_ = new QLabel(QStringLiteral("Signal Editor Workspace"), workspace_header);
+    workspace_title_label_ = new QLabel(tr("Signal Editor Workspace"), workspace_header);
     workspace_title_label_->setObjectName(QStringLiteral("WorkspaceTitle"));
-    workspace_meta_label_ = new QLabel(QStringLiteral("No active document"), workspace_header);
+
+    workspace_meta_label_ = new QLabel(tr("No active document"), workspace_header);
     workspace_meta_label_->setObjectName(QStringLiteral("WorkspaceMeta"));
+
     workspace_hint_label_ = new QLabel(
-        QStringLiteral("Import a signal file or create one, then edit it through plot and table."),
+        tr("Import a signal file or create one, then edit it through plot and table."),
         workspace_header);
     workspace_hint_label_->setObjectName(QStringLiteral("WorkspaceHint"));
     workspace_hint_label_->setWordWrap(true);
+
     workspace_layout->addWidget(workspace_title_label_);
     workspace_layout->addWidget(workspace_meta_label_);
     workspace_layout->addWidget(workspace_hint_label_);
     central_layout->addWidget(workspace_header);
 
+    // ── Side panel ────────────────────────────────────────────────────────────
     auto* outer_splitter = new QSplitter(Qt::Horizontal, central);
-    auto* side_panel = new QWidget(outer_splitter);
-    auto* side_layout = new QVBoxLayout(side_panel);
+    auto* side_panel     = new QWidget(outer_splitter);
+    auto* side_layout    = new QVBoxLayout(side_panel);
     side_layout->setContentsMargins(0, 0, 0, 0);
     side_layout->setSpacing(12);
 
@@ -423,7 +627,8 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
     side_layout->addWidget(file_panel_, 1);
     side_layout->addWidget(list_panel_, 2);
 
-    auto* center_panel = new QWidget(outer_splitter);
+    // ── Center panel ──────────────────────────────────────────────────────────
+    auto* center_panel  = new QWidget(outer_splitter);
     auto* center_layout = new QVBoxLayout(center_panel);
     center_layout->setContentsMargins(0, 0, 0, 0);
     center_layout->setSpacing(10);
@@ -431,12 +636,12 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
     auto* center_toolbar = new QHBoxLayout();
     center_toolbar->setContentsMargins(0, 0, 0, 0);
     center_toolbar->setSpacing(10);
-    auto* interpolation_label = new QLabel(QStringLiteral("Interpolation"), center_panel);
-    interpolation_label->setObjectName(QStringLiteral("PanelDetail"));
+    interp_label_ = new QLabel(tr("Interpolation"), center_panel);
+    interp_label_->setObjectName(QStringLiteral("PanelDetail"));
     interpolation_box_ = new QComboBox(center_panel);
-    interpolation_box_->addItem(QStringLiteral("Linear"));
-    interpolation_box_->addItem(QStringLiteral("Step"));
-    center_toolbar->addWidget(interpolation_label);
+    interpolation_box_->addItem(tr("Linear"));
+    interpolation_box_->addItem(tr("Step"));
+    center_toolbar->addWidget(interp_label_);
     center_toolbar->addWidget(interpolation_box_, 0);
     center_toolbar->addStretch(1);
     center_layout->addLayout(center_toolbar);
@@ -448,22 +653,71 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
     workspace_tabs_->tabBar()->setExpanding(true);
     workspace_tabs_->setUsesScrollButtons(false);
 
-    auto* plot_page = new QWidget(workspace_tabs_);
+    auto* plot_page  = new QWidget(workspace_tabs_);
     plot_page->setObjectName(QStringLiteral("WorkspaceTabPage"));
     plot_page->setAttribute(Qt::WA_StyledBackground, true);
-    plot_page->setAttribute(Qt::WA_OpaquePaintEvent, true);
     plot_page->setAutoFillBackground(true);
     auto* plot_layout = new QVBoxLayout(plot_page);
     plot_layout->setContentsMargins(0, 0, 0, 0);
-    plot_layout->setSpacing(0);
+    plot_layout->setSpacing(12);
+    auto* plot_controls_card = new QWidget(plot_page);
+    plot_controls_card->setObjectName(QStringLiteral("PlotControlCard"));
+    plot_controls_card->setAttribute(Qt::WA_StyledBackground, true);
+    auto* plot_toolbar = new QHBoxLayout(plot_controls_card);
+    plot_toolbar->setContentsMargins(14, 12, 14, 12);
+    plot_toolbar->setSpacing(10);
+    plot_zoom_in_button_ = new QPushButton(tr("Zoom in"), plot_controls_card);
+    plot_zoom_out_button_ = new QPushButton(tr("Zoom out"), plot_controls_card);
+    plot_pan_mode_button_ = new QPushButton(tr("Pan mode"), plot_controls_card);
+    plot_rect_mode_button_ = new QPushButton(tr("Rect mode"), plot_controls_card);
+    plot_reset_view_button_ = new QPushButton(tr("Fit view"), plot_controls_card);
+    plot_t_start_edit_ = new QLineEdit(plot_controls_card);
+    plot_t_end_edit_ = new QLineEdit(plot_controls_card);
+    plot_zoom_in_button_->setObjectName(QStringLiteral("SubtleButton"));
+    plot_zoom_out_button_->setObjectName(QStringLiteral("SubtleButton"));
+    plot_pan_mode_button_->setObjectName(QStringLiteral("SubtleButton"));
+    plot_rect_mode_button_->setObjectName(QStringLiteral("SubtleButton"));
+    plot_reset_view_button_->setObjectName(QStringLiteral("AccentButton"));
+    plot_zoom_in_button_->setCursor(Qt::PointingHandCursor);
+    plot_zoom_out_button_->setCursor(Qt::PointingHandCursor);
+    plot_pan_mode_button_->setCursor(Qt::PointingHandCursor);
+    plot_rect_mode_button_->setCursor(Qt::PointingHandCursor);
+    plot_reset_view_button_->setCursor(Qt::PointingHandCursor);
+    plot_pan_mode_button_->setCheckable(true);
+    plot_rect_mode_button_->setCheckable(true);
+    plot_t_start_edit_->setValidator(
+        new QRegularExpressionValidator(flexible_decimal_pattern(false), plot_t_start_edit_));
+    plot_t_end_edit_->setValidator(
+        new QRegularExpressionValidator(flexible_decimal_pattern(false), plot_t_end_edit_));
+    plot_t_start_edit_->setPlaceholderText(tr("t start"));
+    plot_t_end_edit_->setPlaceholderText(tr("t end"));
+    plot_t_start_edit_->setAlignment(Qt::AlignRight);
+    plot_t_end_edit_->setAlignment(Qt::AlignRight);
+    plot_t_start_edit_->setObjectName(QStringLiteral("PlotRangeEdit"));
+    plot_t_end_edit_->setObjectName(QStringLiteral("PlotRangeEdit"));
+    plot_toolbar->addWidget(plot_zoom_in_button_);
+    plot_toolbar->addWidget(plot_zoom_out_button_);
+    plot_toolbar->addWidget(plot_pan_mode_button_);
+    plot_toolbar->addWidget(plot_rect_mode_button_);
+    plot_toolbar->addWidget(plot_reset_view_button_);
+    plot_toolbar->addSpacing(10);
+    plot_t_start_label_ = new QLabel(tr("Visible t start"), plot_controls_card);
+    plot_t_end_label_ = new QLabel(tr("Visible t end"), plot_controls_card);
+    plot_t_start_label_->setObjectName(QStringLiteral("PanelDetail"));
+    plot_t_end_label_->setObjectName(QStringLiteral("PanelDetail"));
+    plot_toolbar->addWidget(plot_t_start_label_);
+    plot_toolbar->addWidget(plot_t_start_edit_);
+    plot_toolbar->addWidget(plot_t_end_label_);
+    plot_toolbar->addWidget(plot_t_end_edit_);
+    plot_toolbar->addStretch(1);
+    plot_layout->addWidget(plot_controls_card);
     plot_ = new SignalPlotWidget(plot_page);
     plot_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     plot_layout->addWidget(plot_);
 
-    auto* table_page = new QWidget(workspace_tabs_);
+    auto* table_page   = new QWidget(workspace_tabs_);
     table_page->setObjectName(QStringLiteral("WorkspaceTabPage"));
     table_page->setAttribute(Qt::WA_StyledBackground, true);
-    table_page->setAttribute(Qt::WA_OpaquePaintEvent, true);
     table_page->setAutoFillBackground(true);
     auto* table_layout = new QVBoxLayout(table_page);
     table_layout->setContentsMargins(0, 0, 0, 0);
@@ -471,8 +725,8 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
     table_panel_ = new SignalTablePanel(table_page);
     table_layout->addWidget(table_panel_);
 
-    workspace_tabs_->addTab(plot_page, QStringLiteral("Plot"));
-    workspace_tabs_->addTab(table_page, QStringLiteral("Table"));
+    workspace_tabs_->addTab(plot_page,  tr("Plot"));
+    workspace_tabs_->addTab(table_page, tr("Table"));
     center_layout->addWidget(workspace_tabs_, 1);
     animate_tab_reveal(workspace_tabs_, 0);
 
@@ -490,50 +744,69 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
     table_panel_->set_signal(nullptr);
     update_interpolation_box();
 
-    auto* menu_file = menuBar()->addMenu(QStringLiteral("&File"));
-    auto* act_open = menu_file->addAction(QStringLiteral("&Open signal files..."));
-    auto* act_save = menu_file->addAction(QStringLiteral("&Save current file..."));
-    undo_action_ = menu_file->addAction(QStringLiteral("&Undo"));
-    menu_file->addSeparator();
-    auto* act_quit = menu_file->addAction(QStringLiteral("&Quit"));
-    act_open->setShortcut(QKeySequence::Open);
-    act_save->setShortcut(QKeySequence::Save);
+    // ── Menu bar ──────────────────────────────────────────────────────────────
+    menu_file_   = menuBar()->addMenu(tr("&File"));
+    act_open_    = menu_file_->addAction(tr("&Open signal files..."));
+    act_save_    = menu_file_->addAction(tr("&Save current file..."));
+    undo_action_ = menu_file_->addAction(tr("&Undo"));
+    menu_file_->addSeparator();
+    act_quit_    = menu_file_->addAction(tr("&Quit"));
+    act_open_->setShortcut(QKeySequence::Open);
+    act_save_->setShortcut(QKeySequence::Save);
     undo_action_->setShortcut(QKeySequence::Undo);
-    act_quit->setShortcut(QKeySequence::Quit);
+    act_quit_->setShortcut(QKeySequence::Quit);
 
-    auto* menu_signal = menuBar()->addMenu(QStringLiteral("&Signal"));
-    auto* act_new = menu_signal->addAction(QStringLiteral("&New from scratch..."));
-    rename_action_ = menu_signal->addAction(QStringLiteral("Re&name selected"));
-    auto* act_remove = menu_signal->addAction(QStringLiteral("&Remove selected"));
-    act_new->setShortcut(QKeySequence::New);
+    menu_signal_   = menuBar()->addMenu(tr("&Signal"));
+    act_new_       = menu_signal_->addAction(tr("&New from scratch..."));
+    rename_action_ = menu_signal_->addAction(tr("Re&name selected"));
+    act_remove_    = menu_signal_->addAction(tr("&Remove selected"));
+    act_new_->setShortcut(QKeySequence::New);
     rename_action_->setShortcut(Qt::Key_F2);
-    act_remove->setShortcut(QKeySequence::Delete);
+    act_remove_->setShortcut(QKeySequence::Delete);
 
-    auto* menu_help = menuBar()->addMenu(QStringLiteral("&Help"));
-    auto* act_about = menu_help->addAction(QStringLiteral("&About"));
+    menu_settings_   = menuBar()->addMenu(tr("&Settings"));
+    settings_action_ = menu_settings_->addAction(tr("&Preferences..."));
+    settings_action_->setShortcut(QKeySequence::Preferences);
 
-    auto* tb = addToolBar(QStringLiteral("Main"));
-    tb->setMovable(false);
-    tb->setIconSize(QSize(20, 20));
-    tb->addAction(act_open);
-    tb->addAction(act_save);
-    tb->addAction(undo_action_);
-    tb->addSeparator();
-    tb->addAction(act_new);
-    tb->addAction(rename_action_);
-    tb->addAction(act_remove);
+    menu_help_ = menuBar()->addMenu(tr("&Help"));
+    act_about_ = menu_help_->addAction(tr("&About"));
 
-    connect(act_open, &QAction::triggered, this, &MainWindow::onOpen);
-    connect(act_save, &QAction::triggered, this, &MainWindow::onSave);
-    connect(undo_action_, &QAction::triggered, this, &MainWindow::onUndo);
-    connect(act_new, &QAction::triggered, this, &MainWindow::onNewSignal);
-    connect(rename_action_, &QAction::triggered, this, &MainWindow::onRenameSignal);
-    connect(act_remove, &QAction::triggered, this, &MainWindow::onRemoveSignal);
-    connect(act_about, &QAction::triggered, this, &MainWindow::onAbout);
-    connect(act_quit, &QAction::triggered, qApp, &QApplication::quit);
+    // ── Toolbar ───────────────────────────────────────────────────────────────
+    main_toolbar_ = addToolBar(tr("Main"));
+    main_toolbar_->setMovable(false);
+    main_toolbar_->setIconSize(QSize(20, 20));
+    main_toolbar_->addAction(act_open_);
+    main_toolbar_->addAction(act_save_);
+    main_toolbar_->addAction(undo_action_);
+    main_toolbar_->addSeparator();
+    main_toolbar_->addAction(act_new_);
+    main_toolbar_->addAction(rename_action_);
+    main_toolbar_->addAction(act_remove_);
+
+    // ── Status bar — settings button (permanent area, never covered) ─────────
+    settings_btn_ = new QToolButton(this);
+    settings_btn_->setText(QStringLiteral("\u2699 ") + tr("Settings"));  // ⚙
+    settings_btn_->setToolTip(tr("Open application settings"));
+    settings_btn_->setAutoRaise(true);
+    settings_btn_->setCursor(Qt::PointingHandCursor);
+    statusBar()->addPermanentWidget(settings_btn_, 0);
+
+    // ── Connections ───────────────────────────────────────────────────────────
+    connect(act_open_,     &QAction::triggered, this, &MainWindow::onOpen);
+    connect(act_save_,     &QAction::triggered, this, &MainWindow::onSave);
+    connect(undo_action_,  &QAction::triggered, this, &MainWindow::onUndo);
+    connect(act_new_,      &QAction::triggered, this, &MainWindow::onNewSignal);
+    connect(rename_action_,&QAction::triggered, this, &MainWindow::onRenameSignal);
+    connect(act_remove_,   &QAction::triggered, this, &MainWindow::onRemoveSignal);
+    connect(act_about_,    &QAction::triggered, this, &MainWindow::onAbout);
+    connect(act_quit_,     &QAction::triggered, qApp, &QApplication::quit);
+    connect(settings_action_, &QAction::triggered, this, &MainWindow::onOpenSettings);
+    connect(settings_btn_, &QToolButton::clicked, this, &MainWindow::onOpenSettings);
 
     connect(file_panel_, &FileListPanel::selectionChanged,
             this, &MainWindow::onFileSelectionChanged);
+    connect(file_panel_, &FileListPanel::renameRequested,
+            this, &MainWindow::onFileRenameRequested);
     connect(file_panel_, &FileListPanel::removeRequested,
             this, &MainWindow::onFileRemoveRequested);
     connect(file_panel_, &FileListPanel::detailsRequested,
@@ -552,25 +825,43 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
             this, &MainWindow::onPlotChanged);
     connect(plot_, &SignalPlotWidget::cursorMoved,
             this, &MainWindow::onCursorMoved);
+    connect(plot_, &SignalPlotWidget::timeViewChanged,
+            this, &MainWindow::onPlotTimeViewChanged);
     connect(table_panel_, &SignalTablePanel::editStarted,
             this, &MainWindow::onTableEditStarted);
     connect(table_panel_, &SignalTablePanel::contentChanged,
             this, &MainWindow::onTableChanged);
     connect(interpolation_box_, qOverload<int>(&QComboBox::currentIndexChanged),
             this, &MainWindow::onSignalInterpolationChanged);
+    connect(plot_zoom_in_button_, &QPushButton::clicked,
+            this, &MainWindow::onPlotZoomInRequested);
+    connect(plot_zoom_out_button_, &QPushButton::clicked,
+            this, &MainWindow::onPlotZoomOutRequested);
+    connect(plot_pan_mode_button_, &QPushButton::toggled,
+            this, &MainWindow::onPlotPanModeToggled);
+    connect(plot_rect_mode_button_, &QPushButton::toggled,
+            this, &MainWindow::onPlotRectModeToggled);
+    connect(plot_reset_view_button_, &QPushButton::clicked,
+            plot_, &SignalPlotWidget::reset_time_view);
+    connect(plot_t_start_edit_, &QLineEdit::editingFinished,
+            this, &MainWindow::onPlotRangeEditingFinished);
+    connect(plot_t_end_edit_, &QLineEdit::editingFinished,
+            this, &MainWindow::onPlotRangeEditingFinished);
     connect(workspace_tabs_, &QTabWidget::currentChanged,
-            this, [this](int index) {
-                animate_tab_reveal(workspace_tabs_, index);
-            });
+            this, [this](int index) { animate_tab_reveal(workspace_tabs_, index); });
 
+    load_persisted_settings();
+    sync_plot_view_controls();
     update_undo_action();
     refresh_status();
 }
 
+// ============================================================================
+// Qt event overrides
+// ============================================================================
+
 void MainWindow::dragEnterEvent(QDragEnterEvent* event) {
-    if (!event->mimeData()->hasUrls()) {
-        return;
-    }
+    if (!event->mimeData()->hasUrls()) { return; }
     for (const QUrl& url : event->mimeData()->urls()) {
         if (is_supported_import_path(url.toLocalFile())) {
             event->acceptProposedAction();
@@ -600,58 +891,92 @@ void MainWindow::keyPressEvent(QKeyEvent* event) {
     QMainWindow::keyPressEvent(event);
 }
 
+void MainWindow::changeEvent(QEvent* event) {
+    if (event->type() == QEvent::LanguageChange) {
+        retranslate_ui();
+    }
+    QMainWindow::changeEvent(event);
+}
+
+void MainWindow::closeEvent(QCloseEvent* event) {
+#ifdef LIB_QT_UTILS_AVAILABLE
+    if (app_state_) {
+        app_state_->saveWindowGeometry(QStringLiteral("main_window"), saveGeometry());
+        app_state_->saveWindowState(QStringLiteral("main_window"), saveState());
+        app_state_->sync();
+    }
+#endif
+    QMainWindow::closeEvent(event);
+}
+
+// ============================================================================
+// File slots
+// ============================================================================
+
 void MainWindow::onOpen() {
+#ifdef LIB_QT_UTILS_AVAILABLE
+    const QString initial_dir = app_state_ ? app_state_->lastOpenedFolder() : QString{};
+#else
+    const QString initial_dir;
+#endif
     const QStringList paths = QFileDialog::getOpenFileNames(
-        this,
-        QStringLiteral("Open signal files"),
-        {},
-        import_file_filter());
+        this, tr("Open signal files"), initial_dir, import_file_filter());
+    if (!paths.isEmpty()) {
+#ifdef LIB_QT_UTILS_AVAILABLE
+        if (app_state_) {
+            app_state_->setLastOpenedFolder(QFileInfo(paths.front()).absolutePath());
+            app_state_->sync();
+        }
+#endif
+    }
     open_paths(paths);
 }
 
 void MainWindow::onSave() {
     if (active_document_index_ < 0 || active_document_index_ >= static_cast<int>(documents_.size())) {
-        show_error(QStringLiteral("Nothing to save"),
-                   QStringLiteral("Load a supported signal file first."));
+        show_error(tr("Nothing to save"), tr("Load a supported signal file first."));
         return;
     }
-
     sync_active_document_from_service();
     auto& document = documents_[static_cast<std::size_t>(active_document_index_)];
-    const QString initial_path = document.path.isEmpty() ? QStringLiteral("signals.csv") : document.path;
+    const QString initial_path = document.path.isEmpty()
+        ? QStringLiteral("%1.csv").arg(
+              document.display_name.trimmed().isEmpty()
+                  ? QStringLiteral("signals")
+                  : document.display_name.trimmed())
+        : document.path;
 
     const QString path = QFileDialog::getSaveFileName(
-        this,
-        QStringLiteral("Save current signal file"),
-        initial_path,
-        export_file_filter());
-    if (path.isEmpty()) {
-        return;
+        this, tr("Save current signal file"), initial_path, export_file_filter());
+    if (path.isEmpty()) { return; }
+
+#ifdef LIB_QT_UTILS_AVAILABLE
+    if (app_state_) {
+        app_state_->setLastOpenedFolder(QFileInfo(path).absolutePath());
+        app_state_->sync();
     }
+#endif
 
     const auto result = service_.save_to(std::filesystem::path(path.toStdString()));
     if (!result.is_ok()) {
-        show_error(QStringLiteral("Export failed"), QString::fromStdString(result.message));
+        show_error(tr("Export failed"), QString::fromStdString(result.message));
         return;
     }
 
-    document.path = path;
+    document.path         = path;
     document.display_name = QFileInfo(path).fileName();
-    document.dirty = false;
+    document.dirty        = false;
     clear_undo_history();
     refresh_file_panel();
-    refresh_status(QStringLiteral("Saved %1").arg(path));
+    refresh_status(tr("Saved %1").arg(path));
 }
 
 void MainWindow::onUndo() {
     if (active_document_index_ < 0 || active_document_index_ >= static_cast<int>(documents_.size())) {
         return;
     }
-
     auto& document = documents_[static_cast<std::size_t>(active_document_index_)];
-    if (document.undo_stack.empty()) {
-        return;
-    }
+    if (document.undo_stack.empty()) { return; }
 
     const UndoState state = std::move(document.undo_stack.back());
     document.undo_stack.pop_back();
@@ -668,58 +993,147 @@ void MainWindow::onUndo() {
     rebind_plot();
     update_undo_action();
     refresh_file_panel();
-    refresh_status(QStringLiteral("Undo applied"));
+    refresh_status(tr("Undo applied"));
 }
 
-void MainWindow::onNewSignal() {
-    onAddRequested();
-}
+// ============================================================================
+// Signal slots
+// ============================================================================
 
-void MainWindow::onRemoveSignal() {
-    onRemoveRequested(list_panel_->current_index());
-}
-
+void MainWindow::onNewSignal()    { onAddRequested(); }
+void MainWindow::onRemoveSignal() { onRemoveRequested(list_panel_->current_index()); }
 void MainWindow::onRenameSignal() {
-    if (active_document_index_ < 0 || service_.library().empty()) {
-        return;
-    }
+    if (active_document_index_ < 0 || service_.library().empty()) { return; }
     list_panel_->begin_rename_current();
 }
 
 void MainWindow::onAbout() {
     QMessageBox::about(
         this,
-        QStringLiteral("About Signal Editor"),
-        QStringLiteral("<h3>Signal Editor</h3>"
-                       "<p>Multi-file waveform editor built with C++23 and Qt 6.</p>"
-                       "<p>Current implementation supports CSV, JSON, tab-delimited, and SpreadsheetML XML workspaces, enumerated-state signals, file switching, renaming, undo, waypoint drag/edit, point insertion and Gaussian brushing for numeric curves.</p>"));
+        tr("About Signal Editor"),
+        tr("<h3>Signal Editor</h3>"
+           "<p>Multi-file waveform editor built with C++23 and Qt 6.</p>"
+           "<p>Supports CSV, JSON, tab-delimited and SpreadsheetML XML workspaces, "
+           "enumerated-state signals, file switching, renaming, undo, waypoint drag/edit, "
+           "point insertion and Gaussian brushing.</p>"));
 }
 
-void MainWindow::onFileSelectionChanged(int index) {
-    if (switching_document_) {
+// ============================================================================
+// Settings slot
+// ============================================================================
+
+void MainWindow::onOpenSettings() {
+#ifdef LIB_QT_CUSTOM_WIDGETS_AVAILABLE
+    lib_qt_custom_widgets::SettingsPanelDialog dlg(this);
+    dlg.setCurrentSettings(app_settings_);
+    auto preview_settings = visual_settings_;
+
+    connect(&dlg, &lib_qt_custom_widgets::SettingsPanelDialog::themeChanged,
+            this, [this, &preview_settings](const QString& theme) {
+        preview_settings.theme = theme;
+        apply_visual_settings(preview_settings, false);
+    });
+    connect(&dlg, &lib_qt_custom_widgets::SettingsPanelDialog::primaryColorChanged,
+            this, [this, &preview_settings](const QColor& color) {
+        preview_settings.primaryColor = color;
+        apply_visual_settings(preview_settings, false);
+    });
+    connect(&dlg, &lib_qt_custom_widgets::SettingsPanelDialog::highContrastModeChanged,
+            this, [this, &preview_settings](bool enabled) {
+        preview_settings.highContrastMode = enabled;
+        apply_visual_settings(preview_settings, false);
+    });
+    connect(&dlg, &lib_qt_custom_widgets::SettingsPanelDialog::fontFamilyChanged,
+            this, [this, &preview_settings](const QString& family) {
+        preview_settings.fontFamily = family;
+        apply_visual_settings(preview_settings, false);
+    });
+    connect(&dlg, &lib_qt_custom_widgets::SettingsPanelDialog::fontSizeChanged,
+            this, [this, &preview_settings](int size) {
+        preview_settings.fontSize = size;
+        apply_visual_settings(preview_settings, false);
+    });
+    connect(&dlg, &lib_qt_custom_widgets::SettingsPanelDialog::widgetDensityChanged,
+            this, [this, &preview_settings](const QString& density) {
+        preview_settings.widgetDensity = density;
+        apply_density(density);
+        visual_settings_.widgetDensity = density;
+    });
+    connect(&dlg, &lib_qt_custom_widgets::SettingsPanelDialog::languageChanged,
+            this, [this, &preview_settings](const QString& language) {
+        preview_settings.language = language;
+        apply_language(language);
+        visual_settings_.language = language;
+    });
+    connect(&dlg, &lib_qt_custom_widgets::SettingsPanelDialog::animationDurationChanged,
+            this, [this, &preview_settings](int ms) {
+        preview_settings.animationDurationMs = ms;
+        apply_behavior_settings(preview_settings);
+    });
+    connect(&dlg, &lib_qt_custom_widgets::SettingsPanelDialog::settingsApplied,
+            this, &MainWindow::onSettingsApplied);
+    connect(&dlg, &lib_qt_custom_widgets::SettingsPanelDialog::settingsSaved,
+            this, &MainWindow::onSettingsSaved);
+    const int result = dlg.exec();
+    if (result != QDialog::Accepted && visual_settings_ != app_settings_) {
+        apply_settings(app_settings_, false);
+        refresh_status(tr("Settings preview discarded"));
+    }
+#else
+    QMessageBox::information(this,
+        tr("Settings"),
+        tr("Settings panel is not available in this build.\n"
+           "Build with lib-qt-custom-widgets to enable it."));
+#endif
+}
+
+void MainWindow::onSettingsApplied(const lib_qt_custom_widgets::AppSettings& settings) {
+    apply_settings(settings, false);
+    refresh_status(tr("Settings applied as preview"));
+}
+
+void MainWindow::onSettingsSaved(const lib_qt_custom_widgets::AppSettings& settings) {
+    apply_settings(settings, true);
+    refresh_status(tr("Settings saved"));
+}
+
+void MainWindow::apply_settings(const lib_qt_custom_widgets::AppSettings& settings, bool persist) {
+    const lib_qt_custom_widgets::AppSettings baseline = persist ? app_settings_ : visual_settings_;
+    if (settings == baseline) {
         return;
     }
+
+    apply_visual_settings(settings, true);
+    apply_behavior_settings(settings);
+    apply_language(settings.language);
+
+    if (persist) {
+        app_settings_ = settings;
+        persist_settings();
+        remove_default_settings_panel_cache();
+    }
+}
+
+// ============================================================================
+// File panel slots
+// ============================================================================
+
+void MainWindow::onFileSelectionChanged(int index) {
+    if (switching_document_) { return; }
     activate_document(index);
 }
 
-void MainWindow::onSignalSelectionChanged(int /*index*/) {
-    rebind_plot();
-}
+void MainWindow::onSignalSelectionChanged(int /*index*/) { rebind_plot(); }
 
 void MainWindow::onFileRemoveRequested(int index) {
-    if (index < 0 || index >= static_cast<int>(documents_.size())) {
-        return;
-    }
-
+    if (index < 0 || index >= static_cast<int>(documents_.size())) { return; }
     const QString file_name = documents_[static_cast<std::size_t>(index)].display_name;
     const auto answer = QMessageBox::question(
         this,
-        QStringLiteral("Remove file from workspace"),
-        QStringLiteral("Remove %1 from the current workspace?\nThe file on disk will not be deleted.")
+        tr("Remove file from workspace"),
+        tr("Remove %1 from the current workspace?\nThe file on disk will not be deleted.")
             .arg(file_name));
-    if (answer != QMessageBox::Yes) {
-        return;
-    }
+    if (answer != QMessageBox::Yes) { return; }
 
     documents_.erase(documents_.begin() + index);
     if (documents_.empty()) {
@@ -730,10 +1144,9 @@ void MainWindow::onFileRemoveRequested(int index) {
         table_panel_->set_signal(nullptr);
         refresh_file_panel();
         update_undo_action();
-        refresh_status(QStringLiteral("Removed %1 from workspace").arg(file_name));
+        refresh_status(tr("Removed %1 from workspace").arg(file_name));
         return;
     }
-
     int next_index = index;
     if (index <= active_document_index_) {
         next_index = std::max(0, index - (index == active_document_index_ ? 1 : 0));
@@ -741,139 +1154,145 @@ void MainWindow::onFileRemoveRequested(int index) {
     next_index = std::clamp(next_index, 0, static_cast<int>(documents_.size()) - 1);
     refresh_file_panel();
     activate_document(next_index);
-    refresh_status(QStringLiteral("Removed %1 from workspace").arg(file_name));
+    refresh_status(tr("Removed %1 from workspace").arg(file_name));
 }
 
-void MainWindow::onFileDetailsRequested(int index) {
-    show_file_details(index);
+void MainWindow::onFileDetailsRequested(int index) { show_file_details(index); }
+
+void MainWindow::onFileRenameRequested(int index, const QString& new_name) {
+    if (index < 0 || index >= static_cast<int>(documents_.size())) {
+        return;
+    }
+    const QString trimmed_name = new_name.trimmed();
+    if (trimmed_name.isEmpty()) {
+        refresh_file_panel();
+        return;
+    }
+
+    auto& document = documents_[static_cast<std::size_t>(index)];
+    document.display_name = trimmed_name;
+    if (index == active_document_index_) {
+        refresh_status(tr("Workspace item renamed to %1").arg(trimmed_name));
+    }
+    refresh_file_panel();
 }
 
 void MainWindow::onRenameRequested(int index, const QString& new_name) {
-    if (active_document_index_ < 0 || index < 0) {
-        return;
-    }
-
+    if (active_document_index_ < 0 || index < 0) { return; }
     push_undo_state();
-    const auto result = service_.rename_signal(static_cast<std::size_t>(index), new_name.toStdString());
+    const auto result = service_.rename_signal(static_cast<std::size_t>(index),
+                                               new_name.toStdString());
     if (!result.is_ok()) {
         discard_last_undo_state();
-        show_error(QStringLiteral("Rename failed"), QString::fromStdString(result.message));
+        show_error(tr("Rename failed"), QString::fromStdString(result.message));
         list_panel_->refresh();
         return;
     }
-
     mark_active_document_dirty();
     list_panel_->refresh();
     rebind_plot();
     update_interpolation_box();
 }
 
-void MainWindow::onAddRequested() {
-    if (active_document_index_ < 0) {
-        show_error(QStringLiteral("No active file"),
-                   QStringLiteral("Load a CSV file before creating a signal."));
-        return;
-    }
+// ============================================================================
+// Signal creation dialog
+// ============================================================================
 
+void MainWindow::onAddRequested() {
     QDialog dlg(this);
-    dlg.setWindowTitle(QStringLiteral("New signal"));
+    dlg.setWindowTitle(tr("New signal"));
     dlg.resize(560, 560);
-    auto* layout = new QVBoxLayout(&dlg);
+    auto* layout      = new QVBoxLayout(&dlg);
     auto* common_form = new QFormLayout();
 
-    auto* name_edit = new QLineEdit(QStringLiteral("new_signal"), &dlg);
-    auto* waveform_box = new QComboBox(&dlg);
-    auto* interpolation_box = new QComboBox(&dlg);
-    auto* t_start = new QDoubleSpinBox(&dlg);
-    auto* t_end = new QDoubleSpinBox(&dlg);
-    auto* n_samples = new QSpinBox(&dlg);
+    auto* name_edit             = new QLineEdit(QStringLiteral("new_signal"), &dlg);
+    auto* waveform_box          = new QComboBox(&dlg);
+    auto* interpolation_box     = new QComboBox(&dlg);
+    auto* t_start               = new QDoubleSpinBox(&dlg);
+    auto* t_end                 = new QDoubleSpinBox(&dlg);
+    auto* sampling_time_edit    = new QLineEdit(QStringLiteral("0.01"), &dlg);
+    auto* computed_samples_label = new QLabel(tr("Not computed yet"), &dlg);
 
-    waveform_box->addItem(QStringLiteral("Constant"));
-    waveform_box->addItem(QStringLiteral("Sine"));
-    waveform_box->addItem(QStringLiteral("Cosine"));
-    waveform_box->addItem(QStringLiteral("Pulse"));
-    waveform_box->addItem(QStringLiteral("Sawtooth"));
-    waveform_box->addItem(QStringLiteral("Triangle"));
-    waveform_box->addItem(QStringLiteral("Ramp"));
-    waveform_box->addItem(QStringLiteral("Enumerated"));
-    interpolation_box->addItem(QStringLiteral("Linear"));
-    interpolation_box->addItem(QStringLiteral("Step"));
+    auto* signal_name_validator = new QRegularExpressionValidator(
+        QRegularExpression(QStringLiteral(R"(^.*\S.*$)")), name_edit);
+    name_edit->setValidator(signal_name_validator);
+    sampling_time_edit->setValidator(
+        new QRegularExpressionValidator(flexible_decimal_pattern(false), sampling_time_edit));
+    sampling_time_edit->setAlignment(Qt::AlignRight);
+    computed_samples_label->setObjectName(QStringLiteral("PanelDetail"));
 
-    t_start->setRange(-1e9, 1e9);
-    t_start->setValue(0.0);
-    t_start->setDecimals(4);
-    t_end->setRange(-1e9, 1e9);
-    t_end->setValue(1.0);
-    t_end->setDecimals(4);
-    n_samples->setRange(2, 1000000);
-    n_samples->setValue(101);
+    waveform_box->addItem(tr("Constant"));
+    waveform_box->addItem(tr("Sine"));
+    waveform_box->addItem(tr("Cosine"));
+    waveform_box->addItem(tr("Pulse"));
+    waveform_box->addItem(tr("Sawtooth"));
+    waveform_box->addItem(tr("Triangle"));
+    waveform_box->addItem(tr("Ramp"));
+    waveform_box->addItem(tr("Enumerated"));
+    interpolation_box->addItem(tr("Linear"));
+    interpolation_box->addItem(tr("Step"));
 
-    common_form->addRow(QStringLiteral("Name"), name_edit);
-    common_form->addRow(QStringLiteral("Waveform"), waveform_box);
-    common_form->addRow(QStringLiteral("Interpolation"), interpolation_box);
-    common_form->addRow(QStringLiteral("t start"), t_start);
-    common_form->addRow(QStringLiteral("t end"), t_end);
-    common_form->addRow(QStringLiteral("# samples"), n_samples);
+    t_start->setRange(-1e9, 1e9);  t_start->setValue(0.0); t_start->setDecimals(6);
+    t_end->setRange(-1e9, 1e9);    t_end->setValue(1.0);   t_end->setDecimals(6);
+
+    common_form->addRow(tr("Name"),          name_edit);
+    common_form->addRow(tr("Waveform"),      waveform_box);
+    common_form->addRow(tr("Interpolation"), interpolation_box);
+    common_form->addRow(tr("t start"),       t_start);
+    common_form->addRow(tr("t end"),         t_end);
+    common_form->addRow(tr("Sampling time"), sampling_time_edit);
+    common_form->addRow(tr("Computed samples"), computed_samples_label);
     layout->addLayout(common_form);
 
     auto configure_spin = [](QDoubleSpinBox* box, double value) {
-        box->setRange(-1e9, 1e9);
-        box->setDecimals(6);
-        box->setValue(value);
+        box->setRange(-1e9, 1e9); box->setDecimals(6); box->setValue(value);
     };
 
     auto* params_stack = new QStackedWidget(&dlg);
 
+    // ── Constant ──────────────────────────────────────────────────────────────
     auto* constant_page = new QWidget(params_stack);
     auto* constant_form = new QFormLayout(constant_page);
     auto* constant_level = new QDoubleSpinBox(constant_page);
     configure_spin(constant_level, 0.0);
-    constant_form->addRow(QStringLiteral("Level"), constant_level);
+    constant_form->addRow(tr("Level"), constant_level);
     params_stack->addWidget(constant_page);
 
-    auto* sine_page = new QWidget(params_stack);
-    auto* sine_form = new QFormLayout(sine_page);
-    auto* sine_amplitude = new QDoubleSpinBox(sine_page);
-    auto* sine_offset = new QDoubleSpinBox(sine_page);
-    auto* sine_frequency = new QDoubleSpinBox(sine_page);
-    auto* sine_phase = new QDoubleSpinBox(sine_page);
-    configure_spin(sine_amplitude, 1.0);
-    configure_spin(sine_offset, 0.0);
-    configure_spin(sine_frequency, 1.0);
-    configure_spin(sine_phase, 0.0);
-    sine_frequency->setRange(1e-6, 1e9);
-    sine_phase->setRange(-3600.0, 3600.0);
-    sine_form->addRow(QStringLiteral("Amplitude"), sine_amplitude);
-    sine_form->addRow(QStringLiteral("Offset"), sine_offset);
-    sine_form->addRow(QStringLiteral("Frequency [Hz]"), sine_frequency);
-    sine_form->addRow(QStringLiteral("Phase [deg]"), sine_phase);
-    params_stack->addWidget(sine_page);
+    // ── Sine / Cosine ─────────────────────────────────────────────────────────
+    auto make_periodic_page = [&](QStackedWidget* stack) -> std::tuple<
+            QDoubleSpinBox*, QDoubleSpinBox*, QDoubleSpinBox*, QDoubleSpinBox*> {
+        auto* page      = new QWidget(stack);
+        auto* form      = new QFormLayout(page);
+        auto* amplitude = new QDoubleSpinBox(page);
+        auto* offset    = new QDoubleSpinBox(page);
+        auto* frequency = new QDoubleSpinBox(page);
+        auto* phase     = new QDoubleSpinBox(page);
+        configure_spin(amplitude, 1.0);
+        configure_spin(offset, 0.0);
+        configure_spin(frequency, 1.0);
+        configure_spin(phase, 0.0);
+        frequency->setRange(1e-6, 1e9);
+        phase->setRange(-3600.0, 3600.0);
+        form->addRow(tr("Amplitude"),       amplitude);
+        form->addRow(tr("Offset"),          offset);
+        form->addRow(tr("Frequency [Hz]"),  frequency);
+        form->addRow(tr("Phase [deg]"),     phase);
+        stack->addWidget(page);
+        return {amplitude, offset, frequency, phase};
+    };
+    auto [sine_amplitude, sine_offset, sine_frequency, sine_phase]
+        = make_periodic_page(params_stack);
+    auto [cosine_amplitude, cosine_offset, cosine_frequency, cosine_phase]
+        = make_periodic_page(params_stack);
 
-    auto* cosine_page = new QWidget(params_stack);
-    auto* cosine_form = new QFormLayout(cosine_page);
-    auto* cosine_amplitude = new QDoubleSpinBox(cosine_page);
-    auto* cosine_offset = new QDoubleSpinBox(cosine_page);
-    auto* cosine_frequency = new QDoubleSpinBox(cosine_page);
-    auto* cosine_phase = new QDoubleSpinBox(cosine_page);
-    configure_spin(cosine_amplitude, 1.0);
-    configure_spin(cosine_offset, 0.0);
-    configure_spin(cosine_frequency, 1.0);
-    configure_spin(cosine_phase, 0.0);
-    cosine_frequency->setRange(1e-6, 1e9);
-    cosine_phase->setRange(-3600.0, 3600.0);
-    cosine_form->addRow(QStringLiteral("Amplitude"), cosine_amplitude);
-    cosine_form->addRow(QStringLiteral("Offset"), cosine_offset);
-    cosine_form->addRow(QStringLiteral("Frequency [Hz]"), cosine_frequency);
-    cosine_form->addRow(QStringLiteral("Phase [deg]"), cosine_phase);
-    params_stack->addWidget(cosine_page);
-
-    auto* pulse_page = new QWidget(params_stack);
-    auto* pulse_form = new QFormLayout(pulse_page);
-    auto* pulse_low = new QDoubleSpinBox(pulse_page);
-    auto* pulse_high = new QDoubleSpinBox(pulse_page);
+    // ── Pulse ─────────────────────────────────────────────────────────────────
+    auto* pulse_page      = new QWidget(params_stack);
+    auto* pulse_form      = new QFormLayout(pulse_page);
+    auto* pulse_low       = new QDoubleSpinBox(pulse_page);
+    auto* pulse_high      = new QDoubleSpinBox(pulse_page);
     auto* pulse_frequency = new QDoubleSpinBox(pulse_page);
-    auto* pulse_duty = new QDoubleSpinBox(pulse_page);
-    auto* pulse_phase = new QDoubleSpinBox(pulse_page);
+    auto* pulse_duty      = new QDoubleSpinBox(pulse_page);
+    auto* pulse_phase     = new QDoubleSpinBox(pulse_page);
     configure_spin(pulse_low, 0.0);
     configure_spin(pulse_high, 1.0);
     configure_spin(pulse_frequency, 1.0);
@@ -882,74 +1301,76 @@ void MainWindow::onAddRequested() {
     pulse_frequency->setRange(1e-6, 1e9);
     pulse_duty->setRange(0.1, 99.9);
     pulse_phase->setRange(-3600.0, 3600.0);
-    pulse_form->addRow(QStringLiteral("Low level"), pulse_low);
-    pulse_form->addRow(QStringLiteral("High level"), pulse_high);
-    pulse_form->addRow(QStringLiteral("Frequency [Hz]"), pulse_frequency);
-    pulse_form->addRow(QStringLiteral("Duty cycle [%]"), pulse_duty);
-    pulse_form->addRow(QStringLiteral("Phase [deg]"), pulse_phase);
+    pulse_form->addRow(tr("Low level"),       pulse_low);
+    pulse_form->addRow(tr("High level"),      pulse_high);
+    pulse_form->addRow(tr("Frequency [Hz]"),  pulse_frequency);
+    pulse_form->addRow(tr("Duty cycle [%]"),  pulse_duty);
+    pulse_form->addRow(tr("Phase [deg]"),     pulse_phase);
     params_stack->addWidget(pulse_page);
 
-    auto* saw_page = new QWidget(params_stack);
-    auto* saw_form = new QFormLayout(saw_page);
-    auto* saw_min = new QDoubleSpinBox(saw_page);
-    auto* saw_max = new QDoubleSpinBox(saw_page);
+    // ── Sawtooth ──────────────────────────────────────────────────────────────
+    auto* saw_page      = new QWidget(params_stack);
+    auto* saw_form      = new QFormLayout(saw_page);
+    auto* saw_min       = new QDoubleSpinBox(saw_page);
+    auto* saw_max       = new QDoubleSpinBox(saw_page);
     auto* saw_frequency = new QDoubleSpinBox(saw_page);
-    auto* saw_phase = new QDoubleSpinBox(saw_page);
-    configure_spin(saw_min, -1.0);
-    configure_spin(saw_max, 1.0);
-    configure_spin(saw_frequency, 1.0);
-    configure_spin(saw_phase, 0.0);
-    saw_frequency->setRange(1e-6, 1e9);
-    saw_phase->setRange(-3600.0, 3600.0);
-    saw_form->addRow(QStringLiteral("Min value"), saw_min);
-    saw_form->addRow(QStringLiteral("Max value"), saw_max);
-    saw_form->addRow(QStringLiteral("Frequency [Hz]"), saw_frequency);
-    saw_form->addRow(QStringLiteral("Phase [deg]"), saw_phase);
+    auto* saw_phase     = new QDoubleSpinBox(saw_page);
+    configure_spin(saw_min, -1.0); configure_spin(saw_max, 1.0);
+    configure_spin(saw_frequency, 1.0); configure_spin(saw_phase, 0.0);
+    saw_frequency->setRange(1e-6, 1e9); saw_phase->setRange(-3600.0, 3600.0);
+    saw_form->addRow(tr("Min value"),       saw_min);
+    saw_form->addRow(tr("Max value"),       saw_max);
+    saw_form->addRow(tr("Frequency [Hz]"),  saw_frequency);
+    saw_form->addRow(tr("Phase [deg]"),     saw_phase);
     params_stack->addWidget(saw_page);
 
-    auto* triangle_page = new QWidget(params_stack);
-    auto* triangle_form = new QFormLayout(triangle_page);
-    auto* triangle_min = new QDoubleSpinBox(triangle_page);
-    auto* triangle_max = new QDoubleSpinBox(triangle_page);
+    // ── Triangle ──────────────────────────────────────────────────────────────
+    auto* triangle_page      = new QWidget(params_stack);
+    auto* triangle_form      = new QFormLayout(triangle_page);
+    auto* triangle_min       = new QDoubleSpinBox(triangle_page);
+    auto* triangle_max       = new QDoubleSpinBox(triangle_page);
     auto* triangle_frequency = new QDoubleSpinBox(triangle_page);
-    auto* triangle_phase = new QDoubleSpinBox(triangle_page);
-    configure_spin(triangle_min, -1.0);
-    configure_spin(triangle_max, 1.0);
-    configure_spin(triangle_frequency, 1.0);
-    configure_spin(triangle_phase, 0.0);
-    triangle_frequency->setRange(1e-6, 1e9);
-    triangle_phase->setRange(-3600.0, 3600.0);
-    triangle_form->addRow(QStringLiteral("Min value"), triangle_min);
-    triangle_form->addRow(QStringLiteral("Max value"), triangle_max);
-    triangle_form->addRow(QStringLiteral("Frequency [Hz]"), triangle_frequency);
-    triangle_form->addRow(QStringLiteral("Phase [deg]"), triangle_phase);
+    auto* triangle_phase     = new QDoubleSpinBox(triangle_page);
+    configure_spin(triangle_min, -1.0); configure_spin(triangle_max, 1.0);
+    configure_spin(triangle_frequency, 1.0); configure_spin(triangle_phase, 0.0);
+    triangle_frequency->setRange(1e-6, 1e9); triangle_phase->setRange(-3600.0, 3600.0);
+    triangle_form->addRow(tr("Min value"),       triangle_min);
+    triangle_form->addRow(tr("Max value"),       triangle_max);
+    triangle_form->addRow(tr("Frequency [Hz]"),  triangle_frequency);
+    triangle_form->addRow(tr("Phase [deg]"),     triangle_phase);
     params_stack->addWidget(triangle_page);
 
-    auto* ramp_page = new QWidget(params_stack);
-    auto* ramp_form = new QFormLayout(ramp_page);
+    // ── Ramp ──────────────────────────────────────────────────────────────────
+    auto* ramp_page  = new QWidget(params_stack);
+    auto* ramp_form  = new QFormLayout(ramp_page);
     auto* ramp_start = new QDoubleSpinBox(ramp_page);
-    auto* ramp_end = new QDoubleSpinBox(ramp_page);
-    configure_spin(ramp_start, 0.0);
-    configure_spin(ramp_end, 1.0);
-    ramp_form->addRow(QStringLiteral("Start value"), ramp_start);
-    ramp_form->addRow(QStringLiteral("End value"), ramp_end);
+    auto* ramp_end   = new QDoubleSpinBox(ramp_page);
+    configure_spin(ramp_start, 0.0); configure_spin(ramp_end, 1.0);
+    ramp_form->addRow(tr("Start value"), ramp_start);
+    ramp_form->addRow(tr("End value"),   ramp_end);
     params_stack->addWidget(ramp_page);
 
-    auto* enum_page = new QWidget(params_stack);
+    // ── Enumerated ────────────────────────────────────────────────────────────
+    auto* enum_page   = new QWidget(params_stack);
     auto* enum_layout = new QVBoxLayout(enum_page);
     enum_layout->setContentsMargins(0, 0, 0, 0);
     enum_layout->setSpacing(10);
     auto* enum_intro = new QLabel(
-        QStringLiteral("Define one state per line using LABEL:NUMERIC_VALUE. Example:\nTRUE:1\nFALSE:0\nThe initial state can be left empty to use the first mapping entry."),
+        tr("Define one state per line using LABEL:NUMERIC_VALUE. Example:\n"
+           "TRUE:1\nFALSE:0\n"
+           "The initial state can be left empty to use the first mapping entry."),
         enum_page);
     enum_intro->setWordWrap(true);
     auto* enum_mapping = new QTextEdit(enum_page);
-    enum_mapping->setPlaceholderText(QStringLiteral("TRUE:1\nFALSE:0"));
+    enum_mapping->setPlaceholderText(tr("TRUE:1\nFALSE:0"));
     enum_mapping->setMinimumHeight(140);
-    auto* enum_initial_form = new QFormLayout();
+    auto* enum_initial_form  = new QFormLayout();
     auto* enum_initial_label = new QLineEdit(enum_page);
-    enum_initial_label->setPlaceholderText(QStringLiteral("TRUE"));
-    enum_initial_form->addRow(QStringLiteral("Initial state"), enum_initial_label);
+    auto* enum_initial_validator = new QRegularExpressionValidator(
+        QRegularExpression(QStringLiteral(R"(^(|.*\S.*)$)")), enum_initial_label);
+    enum_initial_label->setValidator(enum_initial_validator);
+    enum_initial_label->setPlaceholderText(tr("TRUE"));
+    enum_initial_form->addRow(tr("Initial state"), enum_initial_label);
     enum_layout->addWidget(enum_intro);
     enum_layout->addWidget(enum_mapping);
     enum_layout->addLayout(enum_initial_form);
@@ -957,26 +1378,114 @@ void MainWindow::onAddRequested() {
     params_stack->addWidget(enum_page);
 
     layout->addWidget(params_stack);
+
     QObject::connect(waveform_box, qOverload<int>(&QComboBox::currentIndexChanged),
                      &dlg, [params_stack, interpolation_box](int index) {
                          params_stack->setCurrentIndex(index);
-                         const bool is_enum = static_cast<WaveformKind>(index) == WaveformKind::Enumerated;
+                         const bool is_enum =
+                             static_cast<WaveformKind>(index) == WaveformKind::Enumerated;
                          if (is_enum) {
-                             interpolation_box->setCurrentIndex(static_cast<int>(Signal::InterpolationMode::Step));
+                             interpolation_box->setCurrentIndex(
+                                 static_cast<int>(Signal::InterpolationMode::Step));
                          }
                          interpolation_box->setEnabled(!is_enum);
                      });
 
-    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
-    connect(buttons, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+    auto* buttons = new QDialogButtonBox(
+        QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
+    auto* ok_button = buttons->button(QDialogButtonBox::Ok);
+
+    /**
+     * @brief Refreshes the computed sample count shown in the creation dialog.
+     *
+     * The update is intentionally connected to `editingFinished`, not to
+     * incremental text edits, so the preview only changes after the user
+     * completes the sampling-time entry.
+     */
+    const auto refresh_sample_preview = [=]() {
+        const QString sampling_text = sampling_time_edit->text().trimmed();
+        if (sampling_text.isEmpty()) {
+            computed_samples_label->setText(tr("Complete the sampling time to compute samples."));
+            if (ok_button != nullptr) {
+                ok_button->setEnabled(false);
+            }
+            return;
+        }
+
+        bool ok = false;
+        const double sampling_time =
+            parse_flexible_double(sampling_text, &ok);
+        if (!ok || !(sampling_time > 0.0)) {
+            computed_samples_label->setText(tr("Sampling time must be a positive number."));
+            if (ok_button != nullptr) {
+                ok_button->setEnabled(false);
+            }
+            return;
+        }
+
+        try {
+            const std::size_t sample_count =
+                compute_sample_count(t_start->value(), t_end->value(), sampling_time);
+            computed_samples_label->setText(
+                tr("%1 samples will be generated.")
+                    .arg(QString::number(static_cast<qulonglong>(sample_count))));
+            if (ok_button != nullptr) {
+                ok_button->setEnabled(name_edit->hasAcceptableInput());
+            }
+        } catch (const std::exception& ex) {
+            computed_samples_label->setText(QString::fromLatin1(ex.what()));
+            if (ok_button != nullptr) {
+                ok_button->setEnabled(false);
+            }
+        }
+    };
+
+    QObject::connect(name_edit, &QLineEdit::editingFinished, &dlg, [=]() {
+        if (ok_button != nullptr && !name_edit->hasAcceptableInput()) {
+            ok_button->setEnabled(false);
+            return;
+        }
+        refresh_sample_preview();
+    });
+    QObject::connect(sampling_time_edit, &QLineEdit::editingFinished,
+                     &dlg, refresh_sample_preview);
+    QObject::connect(t_start, &QDoubleSpinBox::editingFinished, &dlg, refresh_sample_preview);
+    QObject::connect(t_end, &QDoubleSpinBox::editingFinished, &dlg, refresh_sample_preview);
+    refresh_sample_preview();
+
+    connect(buttons, &QDialogButtonBox::accepted, &dlg, [=, &dlg]() {
+        if (!name_edit->hasAcceptableInput()) {
+            QMessageBox::warning(&dlg, tr("Invalid name"),
+                                 tr("Insert a non-empty signal name."));
+            return;
+        }
+        refresh_sample_preview();
+        if (ok_button != nullptr && !ok_button->isEnabled()) {
+            QMessageBox::warning(&dlg, tr("Invalid sampling time"),
+                                 tr("Insert a valid sampling time before creating the signal."));
+            return;
+        }
+        dlg.accept();
+    });
     connect(buttons, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
     layout->addWidget(buttons);
 
-    if (dlg.exec() != QDialog::Accepted) {
+    if (dlg.exec() != QDialog::Accepted) { return; }
+
+    const auto waveform = static_cast<WaveformKind>(waveform_box->currentIndex());
+    const QString signal_name = name_edit->text().trimmed();
+    if (signal_name.isEmpty()) {
+        show_error(tr("Create failed"), tr("Signal name must not be empty."));
+        return;
+    }
+    bool sampling_time_ok = false;
+    const double sampling_time =
+        parse_flexible_double(sampling_time_edit->text().trimmed(), &sampling_time_ok);
+    if (!sampling_time_ok || !(sampling_time > 0.0)) {
+        show_error(tr("Create failed"), tr("Sampling time must be a positive number."));
         return;
     }
 
-    const auto waveform = static_cast<WaveformKind>(waveform_box->currentIndex());
     std::array<double, 4> params_a{0.0, 0.0, 0.0, 0.0};
     std::array<double, 4> params_b{0.0, 0.0, 0.0, 0.0};
 
@@ -985,23 +1494,28 @@ void MainWindow::onAddRequested() {
         params_a[0] = constant_level->value();
         break;
     case WaveformKind::Sine:
-        params_a = std::array<double, 4>{sine_amplitude->value(), sine_offset->value(), sine_frequency->value(), sine_phase->value()};
+        params_a = {sine_amplitude->value(), sine_offset->value(),
+                    sine_frequency->value(), sine_phase->value()};
         break;
     case WaveformKind::Cosine:
-        params_a = std::array<double, 4>{cosine_amplitude->value(), cosine_offset->value(), cosine_frequency->value(), cosine_phase->value()};
+        params_a = {cosine_amplitude->value(), cosine_offset->value(),
+                    cosine_frequency->value(), cosine_phase->value()};
         break;
     case WaveformKind::Pulse:
-        params_a = std::array<double, 4>{pulse_low->value(), pulse_high->value(), pulse_frequency->value(), pulse_duty->value()};
+        params_a = {pulse_low->value(), pulse_high->value(),
+                    pulse_frequency->value(), pulse_duty->value()};
         params_b[0] = pulse_phase->value();
         break;
     case WaveformKind::Sawtooth:
-        params_a = std::array<double, 4>{saw_min->value(), saw_max->value(), saw_frequency->value(), saw_phase->value()};
+        params_a = {saw_min->value(), saw_max->value(),
+                    saw_frequency->value(), saw_phase->value()};
         break;
     case WaveformKind::Triangle:
-        params_a = std::array<double, 4>{triangle_min->value(), triangle_max->value(), triangle_frequency->value(), triangle_phase->value()};
+        params_a = {triangle_min->value(), triangle_max->value(),
+                    triangle_frequency->value(), triangle_phase->value()};
         break;
     case WaveformKind::Ramp:
-        params_a = std::array<double, 4>{ramp_start->value(), ramp_end->value(), 0.0, 0.0};
+        params_a = {ramp_start->value(), ramp_end->value(), 0.0, 0.0};
         break;
     case WaveformKind::Enumerated:
         break;
@@ -1009,55 +1523,55 @@ void MainWindow::onAddRequested() {
 
     try {
         Signal signal = waveform == WaveformKind::Enumerated
-            ? generate_enumerated_signal(name_edit->text(),
-                                         t_start->value(),
-                                         t_end->value(),
-                                         static_cast<std::size_t>(n_samples->value()),
+            ? generate_enumerated_signal(signal_name,
+                                         t_start->value(), t_end->value(),
+                                         sampling_time,
                                          parse_enumeration_definition(enum_mapping->toPlainText()),
                                          enum_initial_label->text())
-            : generate_waveform_signal(
-                waveform,
-                name_edit->text(),
-                t_start->value(),
-                t_end->value(),
-                static_cast<std::size_t>(n_samples->value()),
-                params_a,
-                params_b);
+            : generate_waveform_signal(waveform, signal_name,
+                                       t_start->value(), t_end->value(),
+                                       sampling_time,
+                                       params_a, params_b);
+
+        if (ensure_workspace_document() < 0) {
+            show_error(tr("Create failed"),
+                       tr("Unable to create an empty workspace for the new signal."));
+            return;
+        }
 
         if (!signal.is_enumerated()) {
-            signal.set_interpolation(static_cast<Signal::InterpolationMode>(interpolation_box->currentIndex()));
+            signal.set_interpolation(
+                static_cast<Signal::InterpolationMode>(interpolation_box->currentIndex()));
         }
 
         push_undo_state();
         const auto result = service_.add_signal(std::move(signal));
         if (!result.is_ok()) {
             discard_last_undo_state();
-            show_error(QStringLiteral("Create failed"), QString::fromStdString(result.message));
+            show_error(tr("Create failed"), QString::fromStdString(result.message));
             return;
         }
-
         mark_active_document_dirty();
         list_panel_->refresh();
         list_panel_->select(static_cast<int>(service_.library().size()) - 1);
         rebind_plot();
     } catch (const std::exception& ex) {
-        show_error(QStringLiteral("Create failed"), QString::fromStdString(ex.what()));
+        show_error(tr("Create failed"), QString::fromStdString(ex.what()));
     }
 }
 
 void MainWindow::onRemoveRequested(int index) {
-    if (active_document_index_ < 0 || index < 0 || index >= static_cast<int>(service_.library().size())) {
+    if (active_document_index_ < 0 || index < 0 ||
+        index >= static_cast<int>(service_.library().size())) {
         return;
     }
-
     push_undo_state();
     const auto result = service_.remove_signal(static_cast<std::size_t>(index));
     if (!result.is_ok()) {
         discard_last_undo_state();
-        show_error(QStringLiteral("Remove failed"), QString::fromStdString(result.message));
+        show_error(tr("Remove failed"), QString::fromStdString(result.message));
         return;
     }
-
     mark_active_document_dirty();
     list_panel_->refresh();
     if (!service_.library().empty()) {
@@ -1067,14 +1581,14 @@ void MainWindow::onRemoveRequested(int index) {
     rebind_plot();
 }
 
-void MainWindow::onPlotEditStarted() {
-    push_undo_state();
-}
+// ============================================================================
+// Plot / table / interpolation slots
+// ============================================================================
+
+void MainWindow::onPlotEditStarted() { push_undo_state(); }
 
 void MainWindow::onPlotChanged() {
-    if (active_document_index_ < 0) {
-        return;
-    }
+    if (active_document_index_ < 0) { return; }
     mark_active_document_dirty();
     if (!plot_->is_drag_active()) {
         list_panel_->refresh();
@@ -1084,35 +1598,27 @@ void MainWindow::onPlotChanged() {
     refresh_status();
 }
 
-void MainWindow::onTableEditStarted() {
-    push_undo_state();
-}
+void MainWindow::onTableEditStarted() { push_undo_state(); }
 
 void MainWindow::onTableChanged() {
-    if (active_document_index_ < 0) {
-        return;
-    }
-
+    if (active_document_index_ < 0) { return; }
     const int signal_index = list_panel_->current_index();
     if (signal_index < 0 || signal_index >= static_cast<int>(service_.library().size())) {
         return;
     }
-
     const auto& current_signal = service_.library().at(static_cast<std::size_t>(signal_index));
     Signal replacement(current_signal.name(), table_panel_->samples(), current_signal.interpolation());
     if (current_signal.is_enumerated()) {
         replacement.set_enumeration(current_signal.enumeration());
     }
-    const auto result = service_.replace_signal(
-        static_cast<std::size_t>(signal_index),
-        std::move(replacement));
+    const auto result = service_.replace_signal(static_cast<std::size_t>(signal_index),
+                                                 std::move(replacement));
     if (!result.is_ok()) {
         discard_last_undo_state();
-        show_error(QStringLiteral("Table edit failed"), QString::fromStdString(result.message));
+        show_error(tr("Table edit failed"), QString::fromStdString(result.message));
         rebind_plot();
         return;
     }
-
     mark_active_document_dirty();
     list_panel_->refresh();
     rebind_plot();
@@ -1120,74 +1626,186 @@ void MainWindow::onTableChanged() {
 }
 
 void MainWindow::onSignalInterpolationChanged(int mode) {
-    if (active_document_index_ < 0) {
-        return;
-    }
-
+    if (active_document_index_ < 0) { return; }
     const int signal_index = list_panel_->current_index();
     if (signal_index < 0 || signal_index >= static_cast<int>(service_.library().size())) {
         return;
     }
-
+    const std::pair<double, double> preserved_time_view =
+        plot_ != nullptr ? plot_->time_view() : std::pair<double, double>{0.0, 0.0};
     push_undo_state();
     const auto result = service_.set_signal_interpolation(
         static_cast<std::size_t>(signal_index),
         static_cast<Signal::InterpolationMode>(mode));
     if (!result.is_ok()) {
         discard_last_undo_state();
-        show_error(QStringLiteral("Interpolation change failed"), QString::fromStdString(result.message));
+        show_error(tr("Interpolation change failed"), QString::fromStdString(result.message));
         rebind_plot();
         return;
     }
-
     mark_active_document_dirty();
     list_panel_->refresh();
     plot_->refresh();
+    if (plot_ != nullptr) {
+        (void)plot_->set_time_view(preserved_time_view.first, preserved_time_view.second);
+    }
     table_panel_->refresh();
     update_interpolation_box();
 }
 
 void MainWindow::onCursorMoved(double t, double y) {
     const int signal_index = list_panel_->current_index();
-    const Signal* signal = (signal_index >= 0 && signal_index < static_cast<int>(service_.library().size()))
+    const Signal* signal = (signal_index >= 0 &&
+                            signal_index < static_cast<int>(service_.library().size()))
         ? &service_.library().at(static_cast<std::size_t>(signal_index))
         : nullptr;
-    refresh_status(QStringLiteral("t = %1   y = %2").arg(t, 0, 'f', 4).arg(format_signal_value(signal, y)));
+    refresh_status(QStringLiteral("t = %1   y = %2")
+        .arg(t, 0, 'f', 4).arg(format_signal_value(signal, y)));
 }
+
+void MainWindow::onPlotZoomInRequested() {
+    if (plot_ == nullptr) {
+        return;
+    }
+    plot_->zoom_in_time();
+}
+
+void MainWindow::onPlotZoomOutRequested() {
+    if (plot_ == nullptr) {
+        return;
+    }
+    plot_->zoom_out_time();
+}
+
+void MainWindow::onPlotPanModeToggled(bool checked) {
+    if (plot_ == nullptr) {
+        return;
+    }
+    if (checked) {
+        plot_->set_navigation_mode(SignalPlotWidget::NavigationMode::Pan);
+    } else if (plot_->navigation_mode() == SignalPlotWidget::NavigationMode::Pan) {
+        plot_->set_navigation_mode(SignalPlotWidget::NavigationMode::Edit);
+    }
+    sync_plot_navigation_mode_controls();
+}
+
+void MainWindow::onPlotRectModeToggled(bool checked) {
+    if (plot_ == nullptr) {
+        return;
+    }
+    if (checked) {
+        plot_->set_navigation_mode(SignalPlotWidget::NavigationMode::RectZoom);
+    } else if (plot_->navigation_mode() == SignalPlotWidget::NavigationMode::RectZoom) {
+        plot_->set_navigation_mode(SignalPlotWidget::NavigationMode::Edit);
+    }
+    sync_plot_navigation_mode_controls();
+}
+
+void MainWindow::onPlotRangeEditingFinished() {
+    if (plot_ == nullptr || plot_t_start_edit_ == nullptr || plot_t_end_edit_ == nullptr) {
+        return;
+    }
+
+    bool ok_start = false;
+    bool ok_end = false;
+    const double t_start =
+        parse_flexible_double(plot_t_start_edit_->text().trimmed(), &ok_start);
+    const double t_end =
+        parse_flexible_double(plot_t_end_edit_->text().trimmed(), &ok_end);
+    if (!ok_start || !ok_end) {
+        sync_plot_view_controls();
+        return;
+    }
+    if (!plot_->set_time_view(t_start, t_end)) {
+        sync_plot_view_controls();
+    }
+}
+
+void MainWindow::onPlotTimeViewChanged(double t_start, double t_end) {
+    if (plot_t_start_edit_ == nullptr || plot_t_end_edit_ == nullptr) {
+        return;
+    }
+    const QSignalBlocker block_start(plot_t_start_edit_);
+    const QSignalBlocker block_end(plot_t_end_edit_);
+    plot_t_start_edit_->setText(format_line_edit_double(plot_t_start_edit_->locale(), t_start, 6));
+    plot_t_end_edit_->setText(format_line_edit_double(plot_t_end_edit_->locale(), t_end, 6));
+}
+
+// ============================================================================
+// Private helpers
+// ============================================================================
 
 void MainWindow::open_paths(const QStringList& paths) {
     for (const QString& path : paths) {
-        if (!path.isEmpty()) {
-            load_document(path);
-        }
+        if (!path.isEmpty()) { load_document(path); }
     }
 }
 
 void MainWindow::load_document(const QString& path) {
     const auto result = service_.load_from(std::filesystem::path(path.toStdString()));
     if (!result.is_ok()) {
-        show_error(QStringLiteral("Load failed"),
+        show_error(tr("Load failed"),
                    QStringLiteral("%1\n\n%2").arg(path, QString::fromStdString(result.message)));
         return;
     }
-
     sync_active_document_from_service();
 
     LoadedDocument document;
-    document.path = path;
+    document.path         = path;
     document.display_name = QFileInfo(path).fileName();
-    document.library = service_.library();
+    document.library      = service_.library();
     document.undo_stack.clear();
     document.dirty = false;
     documents_.push_back(std::move(document));
 
     refresh_file_panel();
     activate_document(static_cast<int>(documents_.size()) - 1);
-    refresh_status(QStringLiteral("Loaded %1").arg(path));
+    refresh_status(tr("Loaded %1").arg(path));
+}
+
+/**
+ * @brief Ensures that the editor has an active in-memory workspace document.
+ *
+ * The helper is used when the user starts from an empty application state and
+ * creates a signal before importing any file. The created document has no path
+ * yet and becomes persistable through the regular Save flow.
+ *
+ * @return Active document index, or `-1` when activation failed.
+ */
+int MainWindow::ensure_workspace_document() {
+    if (active_document_index_ >= 0 &&
+        active_document_index_ < static_cast<int>(documents_.size())) {
+        return active_document_index_;
+    }
+
+    service_.clear();
+
+    LoadedDocument document;
+    document.path = {};
+    document.library = service_.library();
+    document.undo_stack.clear();
+    document.dirty = false;
+
+    const QString base_name = tr("Untitled workspace");
+    QString display_name = base_name;
+    int suffix = 2;
+    while (std::any_of(documents_.begin(), documents_.end(),
+                       [&](const LoadedDocument& existing) {
+                           return existing.display_name == display_name;
+                       })) {
+        display_name = tr("%1 %2").arg(base_name).arg(suffix++);
+    }
+    document.display_name = display_name;
+
+    documents_.push_back(std::move(document));
+    refresh_file_panel();
+    activate_document(static_cast<int>(documents_.size()) - 1);
+    return active_document_index_;
 }
 
 void MainWindow::sync_active_document_from_service() {
-    if (active_document_index_ < 0 || active_document_index_ >= static_cast<int>(documents_.size())) {
+    if (active_document_index_ < 0 ||
+        active_document_index_ >= static_cast<int>(documents_.size())) {
         return;
     }
     documents_[static_cast<std::size_t>(active_document_index_)].library = service_.library();
@@ -1204,10 +1822,8 @@ void MainWindow::activate_document(int index, int preferred_signal_index) {
         refresh_status();
         return;
     }
-
     sync_active_document_from_service();
-
-    switching_document_ = true;
+    switching_document_    = true;
     active_document_index_ = index;
     service_.set_library(documents_[static_cast<std::size_t>(index)].library);
     list_panel_->set_library(&service_.library());
@@ -1224,21 +1840,21 @@ void MainWindow::activate_document(int index, int preferred_signal_index) {
 }
 
 void MainWindow::mark_active_document_dirty(bool dirty) {
-    if (active_document_index_ < 0 || active_document_index_ >= static_cast<int>(documents_.size())) {
+    if (active_document_index_ < 0 ||
+        active_document_index_ >= static_cast<int>(documents_.size())) {
         return;
     }
     sync_active_document_from_service();
-    auto& document = documents_[static_cast<std::size_t>(active_document_index_)];
-    document.dirty = dirty;
+    documents_[static_cast<std::size_t>(active_document_index_)].dirty = dirty;
     update_undo_action();
     refresh_file_panel();
 }
 
 void MainWindow::push_undo_state() {
-    if (active_document_index_ < 0 || active_document_index_ >= static_cast<int>(documents_.size())) {
+    if (active_document_index_ < 0 ||
+        active_document_index_ >= static_cast<int>(documents_.size())) {
         return;
     }
-
     sync_active_document_from_service();
     auto& document = documents_[static_cast<std::size_t>(active_document_index_)];
     document.undo_stack.push_back(UndoState{document.library, list_panel_->current_index()});
@@ -1246,37 +1862,31 @@ void MainWindow::push_undo_state() {
 }
 
 void MainWindow::discard_last_undo_state() {
-    if (active_document_index_ < 0 || active_document_index_ >= static_cast<int>(documents_.size())) {
+    if (active_document_index_ < 0 ||
+        active_document_index_ >= static_cast<int>(documents_.size())) {
         return;
     }
-
     auto& document = documents_[static_cast<std::size_t>(active_document_index_)];
-    if (!document.undo_stack.empty()) {
-        document.undo_stack.pop_back();
-    }
+    if (!document.undo_stack.empty()) { document.undo_stack.pop_back(); }
     update_undo_action();
 }
 
 void MainWindow::clear_undo_history() {
-    if (active_document_index_ < 0 || active_document_index_ >= static_cast<int>(documents_.size())) {
+    if (active_document_index_ < 0 ||
+        active_document_index_ >= static_cast<int>(documents_.size())) {
         return;
     }
-
     documents_[static_cast<std::size_t>(active_document_index_)].undo_stack.clear();
     update_undo_action();
 }
 
 void MainWindow::show_file_details(int index) {
-    if (index < 0 || index >= static_cast<int>(documents_.size())) {
-        return;
-    }
-
+    if (index < 0 || index >= static_cast<int>(documents_.size())) { return; }
     const auto& document = documents_[static_cast<std::size_t>(index)];
     QFileInfo file_info(document.path);
 
     std::size_t total_samples = 0;
-    double time_min = 0.0;
-    double time_max = 0.0;
+    double time_min = 0.0, time_max = 0.0;
     bool has_samples = false;
     QStringList signal_summaries;
     signal_summaries.reserve(static_cast<int>(document.library.size()));
@@ -1284,8 +1894,7 @@ void MainWindow::show_file_details(int index) {
         total_samples += signal.size();
         if (!signal.empty()) {
             if (!has_samples) {
-                time_min = signal.t_min();
-                time_max = signal.t_max();
+                time_min = signal.t_min(); time_max = signal.t_max();
                 has_samples = true;
             } else {
                 time_min = std::min(time_min, signal.t_min());
@@ -1296,46 +1905,43 @@ void MainWindow::show_file_details(int index) {
     }
 
     QString details;
-    details += QStringLiteral("File: %1\n").arg(document.display_name);
-    details += QStringLiteral("Path: %1\n").arg(document.path);
-    details += QStringLiteral("Folder: %1\n").arg(file_info.absolutePath());
-    details += QStringLiteral("Exists on disk: %1\n")
-        .arg(file_info.exists() ? QStringLiteral("yes") : QStringLiteral("no"));
+    details += tr("File: %1\n").arg(document.display_name);
+    details += tr("Path: %1\n").arg(document.path);
+    details += tr("Folder: %1\n").arg(file_info.absolutePath());
+    details += tr("Exists on disk: %1\n").arg(
+        file_info.exists() ? tr("yes") : tr("no"));
     if (file_info.exists()) {
-        details += QStringLiteral("Size: %1 bytes\n").arg(file_info.size());
-        details += QStringLiteral("Last modified: %1\n")
+        details += tr("Size: %1 bytes\n").arg(file_info.size());
+        details += tr("Last modified: %1\n")
             .arg(file_info.lastModified().toString(Qt::ISODate));
     }
-    details += QStringLiteral("Signals loaded: %1\n")
-        .arg(static_cast<qulonglong>(document.library.size()));
-    details += QStringLiteral("Total samples: %1\n")
-        .arg(static_cast<qulonglong>(total_samples));
-    details += QStringLiteral("Workspace modified: %1\n")
-        .arg(document.dirty ? QStringLiteral("yes") : QStringLiteral("no"));
-    details += QStringLiteral("Undo steps available: %1\n")
+    details += tr("Signals loaded: %1\n").arg(static_cast<qulonglong>(document.library.size()));
+    details += tr("Total samples: %1\n").arg(static_cast<qulonglong>(total_samples));
+    details += tr("Workspace modified: %1\n").arg(
+        document.dirty ? tr("yes") : tr("no"));
+    details += tr("Undo steps available: %1\n")
         .arg(static_cast<qulonglong>(document.undo_stack.size()));
     if (has_samples) {
-        details += QStringLiteral("Global time range: [%1, %2]\n")
-            .arg(time_min, 0, 'f', 4)
-            .arg(time_max, 0, 'f', 4);
+        details += tr("Global time range: [%1, %2]\n")
+            .arg(time_min, 0, 'f', 4).arg(time_max, 0, 'f', 4);
     }
-    details += QStringLiteral("\nSignals:\n");
+    details += tr("\nSignals:\n");
     details += signal_summaries.isEmpty()
-        ? QStringLiteral("- none")
+        ? tr("- none")
         : signal_summaries.join(QStringLiteral("\n"));
 
     QDialog dialog(this);
-    dialog.setWindowTitle(QStringLiteral("File details"));
+    dialog.setWindowTitle(tr("File details"));
     dialog.resize(760, 520);
-    auto* layout = new QVBoxLayout(&dialog);
-    auto* text_view = new QTextEdit(&dialog);
+    auto* dlg_layout = new QVBoxLayout(&dialog);
+    auto* text_view  = new QTextEdit(&dialog);
     text_view->setReadOnly(true);
     text_view->setPlainText(details);
-    layout->addWidget(text_view);
+    dlg_layout->addWidget(text_view);
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    layout->addWidget(buttons);
+    dlg_layout->addWidget(buttons);
     dialog.exec();
 }
 
@@ -1345,7 +1951,6 @@ void MainWindow::refresh_file_panel() {
     for (const auto& document : documents_) {
         items.push_back(FileListPanel::FileItem{document.display_name, document.path, document.dirty});
     }
-
     switching_document_ = true;
     file_panel_->set_files(items);
     if (active_document_index_ >= 0) {
@@ -1364,14 +1969,74 @@ void MainWindow::rebind_plot() {
         plot_->set_signal(signal);
         table_panel_->set_signal(signal);
     }
+    sync_plot_view_controls();
     update_interpolation_box();
     refresh_status();
 }
 
-void MainWindow::update_undo_action() {
-    if (undo_action_ == nullptr) {
+void MainWindow::sync_plot_navigation_mode_controls() {
+    if (plot_pan_mode_button_ == nullptr || plot_rect_mode_button_ == nullptr || plot_ == nullptr) {
         return;
     }
+
+    const QSignalBlocker pan_blocker(plot_pan_mode_button_);
+    const QSignalBlocker rect_blocker(plot_rect_mode_button_);
+    plot_pan_mode_button_->setChecked(
+        plot_->navigation_mode() == SignalPlotWidget::NavigationMode::Pan);
+    plot_rect_mode_button_->setChecked(
+        plot_->navigation_mode() == SignalPlotWidget::NavigationMode::RectZoom);
+}
+
+void MainWindow::sync_plot_view_controls() {
+    const bool has_signal = plot_ != nullptr &&
+                            list_panel_ != nullptr &&
+                            list_panel_->current_index() >= 0 &&
+                            list_panel_->current_index() < static_cast<int>(service_.library().size());
+    if (plot_zoom_in_button_ != nullptr) {
+        plot_zoom_in_button_->setEnabled(has_signal);
+    }
+    if (plot_zoom_out_button_ != nullptr) {
+        plot_zoom_out_button_->setEnabled(has_signal);
+    }
+    if (plot_pan_mode_button_ != nullptr) {
+        plot_pan_mode_button_->setEnabled(has_signal);
+    }
+    if (plot_rect_mode_button_ != nullptr) {
+        plot_rect_mode_button_->setEnabled(has_signal);
+    }
+    if (plot_reset_view_button_ != nullptr) {
+        plot_reset_view_button_->setEnabled(has_signal);
+    }
+    if (plot_t_start_edit_ != nullptr) {
+        plot_t_start_edit_->setEnabled(has_signal);
+    }
+    if (plot_t_end_edit_ != nullptr) {
+        plot_t_end_edit_->setEnabled(has_signal);
+    }
+
+    if (!has_signal) {
+        if (plot_t_start_edit_ != nullptr) {
+            const QSignalBlocker blocker(plot_t_start_edit_);
+            plot_t_start_edit_->clear();
+        }
+        if (plot_t_end_edit_ != nullptr) {
+            const QSignalBlocker blocker(plot_t_end_edit_);
+            plot_t_end_edit_->clear();
+        }
+        if (plot_ != nullptr) {
+            plot_->set_navigation_mode(SignalPlotWidget::NavigationMode::Edit);
+        }
+        sync_plot_navigation_mode_controls();
+        return;
+    }
+
+    sync_plot_navigation_mode_controls();
+    const auto [t_start, t_end] = plot_->time_view();
+    onPlotTimeViewChanged(t_start, t_end);
+}
+
+void MainWindow::update_undo_action() {
+    if (undo_action_ == nullptr) { return; }
     const bool enabled = active_document_index_ >= 0 &&
         active_document_index_ < static_cast<int>(documents_.size()) &&
         !documents_[static_cast<std::size_t>(active_document_index_)].undo_stack.empty();
@@ -1379,12 +2044,10 @@ void MainWindow::update_undo_action() {
 }
 
 void MainWindow::update_interpolation_box() {
-    if (interpolation_box_ == nullptr) {
-        return;
-    }
-
+    if (interpolation_box_ == nullptr) { return; }
     const int signal_index = list_panel_ == nullptr ? -1 : list_panel_->current_index();
-    const bool has_signal = signal_index >= 0 && signal_index < static_cast<int>(service_.library().size());
+    const bool has_signal  = signal_index >= 0 &&
+                             signal_index < static_cast<int>(service_.library().size());
     if (!has_signal) {
         interpolation_box_->blockSignals(true);
         interpolation_box_->setCurrentIndex(static_cast<int>(Signal::InterpolationMode::Linear));
@@ -1392,7 +2055,6 @@ void MainWindow::update_interpolation_box() {
         interpolation_box_->setEnabled(false);
         return;
     }
-
     const auto& signal = service_.library().at(static_cast<std::size_t>(signal_index));
     interpolation_box_->blockSignals(true);
     interpolation_box_->setCurrentIndex(static_cast<int>(signal.interpolation()));
@@ -1404,57 +2066,51 @@ void MainWindow::refresh_status(const QString& transient_message) {
     if (!transient_message.isEmpty()) {
         statusBar()->showMessage(transient_message, 4000);
     }
-
     if (active_document_index_ < 0 || active_document_index_ >= static_cast<int>(documents_.size())) {
-        if (workspace_title_label_ != nullptr) {
-            workspace_title_label_->setText(QStringLiteral("Signal Editor Workspace"));
-        }
-        if (workspace_meta_label_ != nullptr) {
-            workspace_meta_label_->setText(QStringLiteral("No active document"));
-        }
-        if (workspace_hint_label_ != nullptr) {
-            workspace_hint_label_->setText(QStringLiteral("Import a signal file or create one, then edit it through plot and table."));
+        if (workspace_title_label_) workspace_title_label_->setText(tr("Signal Editor Workspace"));
+        if (workspace_meta_label_)  workspace_meta_label_->setText(tr("No active document"));
+        if (workspace_hint_label_) {
+            workspace_hint_label_->setText(
+                tr("Import a signal file or create one, then edit it through plot and table."));
         }
         if (transient_message.isEmpty()) {
-            statusBar()->showMessage(QStringLiteral("No file loaded"));
+            statusBar()->showMessage(tr("No file loaded"));
         }
         return;
     }
+    const auto& document   = documents_[static_cast<std::size_t>(active_document_index_)];
+    const QString dirty_text = document.dirty ? tr("Modified") : tr("Synced");
+    const QString undo_text  = tr("Undo %1").arg(static_cast<qulonglong>(document.undo_stack.size()));
+    const QString summary    =
+        tr("%1 file(s) loaded | %2 | %3 | %4")
+            .arg(static_cast<qulonglong>(documents_.size()))
+            .arg(document.display_name)
+            .arg(summarize_counts(service_.library()))
+            .arg(dirty_text);
 
-    const auto& document = documents_[static_cast<std::size_t>(active_document_index_)];
-    const QString dirty_text = document.dirty ? QStringLiteral("Modified") : QStringLiteral("Synced");
-    const QString undo_text = QStringLiteral("Undo %1").arg(static_cast<qulonglong>(document.undo_stack.size()));
-    const QString summary = QStringLiteral("%1 file(s) loaded | %2 | %3 | %4")
-        .arg(static_cast<qulonglong>(documents_.size()))
-        .arg(document.display_name)
-        .arg(summarize_counts(service_.library()))
-        .arg(dirty_text);
-
-    if (workspace_title_label_ != nullptr) {
-        workspace_title_label_->setText(document.display_name);
-    }
-    if (workspace_meta_label_ != nullptr) {
+    if (workspace_title_label_) workspace_title_label_->setText(document.display_name);
+    if (workspace_meta_label_) {
         workspace_meta_label_->setText(QStringLiteral("%1 | %2 | %3")
             .arg(summarize_counts(service_.library()))
             .arg(dirty_text)
             .arg(undo_text));
     }
-    const int signal_index = list_panel_->current_index();
-    const Signal* active_signal = (signal_index >= 0 && signal_index < static_cast<int>(service_.library().size()))
+    const int signal_index   = list_panel_->current_index();
+    const Signal* active_signal = (signal_index >= 0 &&
+                                   signal_index < static_cast<int>(service_.library().size()))
         ? &service_.library().at(static_cast<std::size_t>(signal_index))
         : nullptr;
-    if (workspace_hint_label_ != nullptr) {
-        if (active_signal != nullptr && active_signal->is_enumerated()) {
-            workspace_hint_label_->setText(QStringLiteral("Enumerated signals snap to named states and render textual values on the Y axis."));
+    if (workspace_hint_label_) {
+        if (active_signal && active_signal->is_enumerated()) {
+            workspace_hint_label_->setText(
+                tr("Enumerated signals snap to named states and render textual values on the Y axis."));
         } else {
-            workspace_hint_label_->setText(QStringLiteral("Drag points, use Shift+drag for Gaussian brushing, or refine samples in the table."));
+            workspace_hint_label_->setText(
+                tr("Drag points, use Shift+drag for Gaussian brushing, or refine samples in the table."));
         }
     }
-
     if (transient_message.isEmpty()) {
-        statusBar()->showMessage(QStringLiteral("%1 | %2")
-            .arg(summary)
-            .arg(undo_text));
+        statusBar()->showMessage(QStringLiteral("%1 | %2").arg(summary).arg(undo_text));
     }
 }
 
@@ -1462,4 +2118,332 @@ void MainWindow::show_error(const QString& title, const QString& message) {
     QMessageBox::warning(this, title, message);
 }
 
-}  // namespace myprj::signal_editor::adapters::qt
+void MainWindow::retranslate_ui() {
+    // Window
+    setWindowTitle(tr("Signal Editor"));
+
+    // Workspace header
+    if (workspace_title_label_) workspace_title_label_->setText(tr("Signal Editor Workspace"));
+    if (workspace_meta_label_)  workspace_meta_label_->setText(tr("No active document"));
+    if (interp_label_)          interp_label_->setText(tr("Interpolation"));
+    if (workspace_title_label_) {
+        workspace_title_label_->setToolTip(tr("Overview of the active workspace and document state."));
+    }
+    if (workspace_meta_label_) {
+        workspace_meta_label_->setToolTip(tr("Shows the active document name and whether it has unsaved changes."));
+    }
+    if (workspace_hint_label_) {
+        workspace_hint_label_->setToolTip(tr("Context hint describing what you can do in the current workspace."));
+    }
+    if (interp_label_) {
+        interp_label_->setToolTip(tr("Interpolation method used to render and evaluate the selected signal."));
+    }
+    if (plot_zoom_in_button_)   plot_zoom_in_button_->setText(tr("Zoom in"));
+    if (plot_zoom_out_button_)  plot_zoom_out_button_->setText(tr("Zoom out"));
+    if (plot_pan_mode_button_)  plot_pan_mode_button_->setText(tr("Pan mode"));
+    if (plot_rect_mode_button_) plot_rect_mode_button_->setText(tr("Rect mode"));
+    if (plot_reset_view_button_) plot_reset_view_button_->setText(tr("Fit view"));
+    if (plot_zoom_in_button_) {
+        plot_zoom_in_button_->setToolTip(tr("Reduce the visible time range around the current center."));
+        plot_zoom_in_button_->setStatusTip(tr("Zoom in on the plot time axis."));
+    }
+    if (plot_zoom_out_button_) {
+        plot_zoom_out_button_->setToolTip(tr("Expand the visible time range around the current center."));
+        plot_zoom_out_button_->setStatusTip(tr("Zoom out on the plot time axis."));
+    }
+    if (plot_pan_mode_button_) {
+        plot_pan_mode_button_->setToolTip(tr("Drag the plot horizontally to move across the current time window."));
+        plot_pan_mode_button_->setStatusTip(tr("Enable pan mode for the plot."));
+    }
+    if (plot_rect_mode_button_) {
+        plot_rect_mode_button_->setToolTip(tr("Draw a selection rectangle to zoom into a specific time region."));
+        plot_rect_mode_button_->setStatusTip(tr("Enable rectangle zoom mode for the plot."));
+    }
+    if (plot_reset_view_button_) {
+        plot_reset_view_button_->setToolTip(tr("Restore the full visible range of the selected signal."));
+        plot_reset_view_button_->setStatusTip(tr("Reset the plot to fit the selected signal."));
+    }
+    if (plot_t_start_label_) {
+        plot_t_start_label_->setText(tr("Visible t start"));
+        plot_t_start_label_->setToolTip(tr("Start value of the currently visible time range."));
+    }
+    if (plot_t_end_label_) {
+        plot_t_end_label_->setText(tr("Visible t end"));
+        plot_t_end_label_->setToolTip(tr("End value of the currently visible time range."));
+    }
+    if (plot_t_start_edit_) {
+        plot_t_start_edit_->setPlaceholderText(tr("t start"));
+        plot_t_start_edit_->setToolTip(tr("Edit the visible start time for the plot and press Enter or leave the field to apply."));
+        plot_t_start_edit_->setStatusTip(tr("Set the visible plot start time."));
+    }
+    if (plot_t_end_edit_) {
+        plot_t_end_edit_->setPlaceholderText(tr("t end"));
+        plot_t_end_edit_->setToolTip(tr("Edit the visible end time for the plot and press Enter or leave the field to apply."));
+        plot_t_end_edit_->setStatusTip(tr("Set the visible plot end time."));
+    }
+
+    // Interpolation combo items (block signals to avoid spurious interp changes)
+    if (interpolation_box_) {
+        interpolation_box_->blockSignals(true);
+        interpolation_box_->setItemText(0, tr("Linear"));
+        interpolation_box_->setItemText(1, tr("Step"));
+        interpolation_box_->blockSignals(false);
+        interpolation_box_->setToolTip(tr("Choose how consecutive samples are connected in the plot and value evaluation."));
+        interpolation_box_->setStatusTip(tr("Change the interpolation of the selected signal."));
+    }
+
+    // Tabs
+    if (workspace_tabs_) {
+        workspace_tabs_->setTabText(0, tr("Plot"));
+        workspace_tabs_->setTabText(1, tr("Table"));
+        workspace_tabs_->setToolTip(tr("Switch between graphical editing and table-based sample editing."));
+        workspace_tabs_->setTabToolTip(0, tr("Interactive plot for navigation and direct sample editing."));
+        workspace_tabs_->setTabToolTip(1, tr("Editable table of sample points for precise numeric changes."));
+    }
+    if (plot_ != nullptr) {
+        plot_->setToolTip(tr("Interactive signal plot. Use the active navigation mode or drag samples directly in edit mode."));
+        plot_->setStatusTip(tr("Inspect and edit the selected signal in the plot."));
+    }
+
+    // Menus
+    if (menu_file_)     menu_file_->setTitle(tr("&File"));
+    if (menu_signal_)   menu_signal_->setTitle(tr("&Signal"));
+    if (menu_settings_) menu_settings_->setTitle(tr("&Settings"));
+    if (menu_help_)     menu_help_->setTitle(tr("&Help"));
+
+    // File actions
+    if (act_open_)    act_open_->setText(tr("&Open signal files..."));
+    if (act_save_)    act_save_->setText(tr("&Save current file..."));
+    if (undo_action_) undo_action_->setText(tr("&Undo"));
+    if (act_quit_)    act_quit_->setText(tr("&Quit"));
+    if (act_open_) {
+        act_open_->setToolTip(tr("Import one or more supported signal files into the workspace."));
+        act_open_->setStatusTip(tr("Open supported signal files."));
+    }
+    if (act_save_) {
+        act_save_->setToolTip(tr("Save the active workspace file using its current format."));
+        act_save_->setStatusTip(tr("Save the active signal file."));
+    }
+    if (undo_action_) {
+        undo_action_->setToolTip(tr("Revert the latest change applied to the active document."));
+        undo_action_->setStatusTip(tr("Undo the latest change."));
+    }
+    if (act_quit_) {
+        act_quit_->setToolTip(tr("Close the application."));
+        act_quit_->setStatusTip(tr("Quit Signal Editor."));
+    }
+
+    // Signal actions
+    if (act_new_)      act_new_->setText(tr("&New from scratch..."));
+    if (rename_action_) rename_action_->setText(tr("Re&name selected"));
+    if (act_remove_)   act_remove_->setText(tr("&Remove selected"));
+    if (act_new_) {
+        act_new_->setToolTip(tr("Create a new signal in the current workspace."));
+        act_new_->setStatusTip(tr("Create a new signal from scratch."));
+    }
+    if (rename_action_) {
+        rename_action_->setToolTip(tr("Rename the currently selected signal."));
+        rename_action_->setStatusTip(tr("Rename the selected signal."));
+    }
+    if (act_remove_) {
+        act_remove_->setToolTip(tr("Remove the currently selected signal from the active workspace."));
+        act_remove_->setStatusTip(tr("Remove the selected signal."));
+    }
+
+    // Settings / Help actions
+    if (settings_action_) {
+        settings_action_->setText(tr("&Preferences..."));
+        settings_action_->setToolTip(tr("Open application settings"));
+        settings_action_->setStatusTip(tr("Open preferences and visual settings."));
+    }
+    if (act_about_) {
+        act_about_->setText(tr("&About"));
+        act_about_->setToolTip(tr("Show application information and supported features."));
+        act_about_->setStatusTip(tr("Open the About dialog."));
+    }
+
+    // Toolbar title
+    if (main_toolbar_) {
+        main_toolbar_->setWindowTitle(tr("Main"));
+        main_toolbar_->setToolTip(tr("Primary application commands for file and signal management."));
+    }
+
+    // Status bar button
+    if (settings_btn_) {
+        settings_btn_->setText(QStringLiteral("\u2699 ") + tr("Settings"));
+        settings_btn_->setToolTip(tr("Open application settings"));
+        settings_btn_->setStatusTip(tr("Open preferences and visual settings."));
+    }
+
+    // Refresh dynamic status-bar and workspace meta labels
+    refresh_status();
+}
+
+void MainWindow::load_persisted_settings() {
+    lib_qt_custom_widgets::AppSettings settings = app_settings_;
+
+#ifdef LIB_QT_UTILS_AVAILABLE
+    if (app_state_) {
+        const QByteArray geometry = app_state_->windowGeometry(QStringLiteral("main_window"));
+        if (!geometry.isEmpty()) {
+            restoreGeometry(geometry);
+        }
+        const QByteArray state = app_state_->windowState(QStringLiteral("main_window"));
+        if (!state.isEmpty()) {
+            restoreState(state);
+        }
+
+        settings.theme      = app_state_->value(QString::fromUtf8(ui::kSettingsKeyTheme),       settings.theme).toString();
+        settings.language   = app_state_->value(QString::fromUtf8(ui::kSettingsKeyLanguage),    settings.language).toString();
+        settings.fontFamily = app_state_->value(QString::fromUtf8(ui::kSettingsKeyFontFamily),  settings.fontFamily).toString();
+        settings.fontSize   = app_state_->value(QString::fromUtf8(ui::kSettingsKeyFontSize),    settings.fontSize).toInt();
+        settings.highContrastMode = app_state_->value(
+            QString::fromUtf8(ui::kSettingsKeyHighContrast), settings.highContrastMode).toBool();
+        settings.widgetDensity = app_state_->value(
+            QString::fromUtf8(ui::kSettingsKeyWidgetDensity), settings.widgetDensity).toString();
+        settings.animationDurationMs = app_state_->value(
+            QString::fromUtf8(ui::kSettingsKeyAnimationDuration), settings.animationDurationMs).toInt();
+        const QString color_str = app_state_->value(
+            QString::fromUtf8(ui::kSettingsKeyPrimaryColor), settings.primaryColor.name()).toString();
+        if (QColor::isValidColorName(color_str)) {
+            settings.primaryColor = QColor(color_str);
+        }
+    }
+#endif
+
+    apply_visual_settings(settings, true, true);
+    apply_behavior_settings(settings);
+    apply_language(settings.language);
+    app_settings_ = settings;
+}
+
+void MainWindow::persist_settings() {
+#ifdef LIB_QT_UTILS_AVAILABLE
+    if (app_state_) {
+        app_state_->setValue(QString::fromUtf8(ui::kSettingsKeyTheme),          app_settings_.theme);
+        app_state_->setValue(QString::fromUtf8(ui::kSettingsKeyLanguage),       app_settings_.language);
+        app_state_->setValue(QString::fromUtf8(ui::kSettingsKeyFontFamily),     app_settings_.fontFamily);
+        app_state_->setValue(QString::fromUtf8(ui::kSettingsKeyFontSize),       app_settings_.fontSize);
+        app_state_->setValue(QString::fromUtf8(ui::kSettingsKeyHighContrast),   app_settings_.highContrastMode);
+        app_state_->setValue(QString::fromUtf8(ui::kSettingsKeyWidgetDensity),  app_settings_.widgetDensity);
+        app_state_->setValue(QString::fromUtf8(ui::kSettingsKeyAnimationDuration),
+                             app_settings_.animationDurationMs);
+        app_state_->setValue(QString::fromUtf8(ui::kSettingsKeyPrimaryColor),   app_settings_.primaryColor.name());
+        app_state_->sync();
+    }
+#endif
+}
+
+void MainWindow::apply_visual_settings(const lib_qt_custom_widgets::AppSettings& settings,
+                                       bool include_density,
+                                       bool force_apply) {
+    const bool style_changed =
+        settings.theme != visual_settings_.theme ||
+        settings.primaryColor != visual_settings_.primaryColor ||
+        settings.highContrastMode != visual_settings_.highContrastMode ||
+        settings.fontFamily != visual_settings_.fontFamily ||
+        settings.fontSize != visual_settings_.fontSize;
+
+    if (force_apply || style_changed) {
+        QApplication::setFont(QFont(settings.fontFamily, settings.fontSize));
+        apply_theme(*qApp, theme_from_string(settings.theme), settings.primaryColor);
+        qApp->setStyleSheet(qApp->styleSheet() +
+                            build_font_qss(settings) +
+                            build_accessibility_qss(settings));
+    }
+
+    if (include_density &&
+        (force_apply || settings.widgetDensity != visual_settings_.widgetDensity)) {
+        apply_density(settings.widgetDensity);
+    }
+
+    visual_settings_ = settings;
+}
+
+void MainWindow::apply_density(const QString& density) {
+    int outer_margin = 16;
+    int spacing = 10;
+
+    if (density == QStringLiteral("compact")) {
+        outer_margin = 10;
+        spacing = 6;
+    } else if (density == QStringLiteral("spacious")) {
+        outer_margin = 22;
+        spacing = 14;
+    }
+
+    if (QWidget* central = centralWidget(); central != nullptr) {
+        if (QLayout* root_layout = central->layout(); root_layout != nullptr) {
+            root_layout->setContentsMargins(outer_margin, outer_margin - 2,
+                                            outer_margin, outer_margin - 2);
+            root_layout->setSpacing(spacing);
+        }
+
+        const auto layouts = central->findChildren<QLayout*>();
+        for (QLayout* layout : layouts) {
+            if (layout == nullptr || layout == central->layout()) {
+                continue;
+            }
+            layout->setSpacing(spacing);
+        }
+    }
+}
+
+void MainWindow::apply_language(const QString& language) {
+    if (active_translator_) {
+        QCoreApplication::removeTranslator(active_translator_);
+        delete active_translator_;
+        active_translator_ = nullptr;
+    }
+
+    const QString lang = normalize_language_code(language);
+    if (lang != QStringLiteral("en")) {
+        const QString translation_base = ui::translation_base_name() + lang;
+        const QString app_dir = QCoreApplication::applicationDirPath();
+        const QStringList candidates =
+            translation_candidates(app_dir, translation_base);
+
+        for (const QString& candidate : candidates) {
+            auto* translator = new QTranslator(this);
+            if (translator->load(candidate) && translator_has_app_ui_strings(*translator)) {
+                active_translator_ = translator;
+                break;
+            }
+            delete translator;
+        }
+
+        if (active_translator_ == nullptr) {
+            const QString resource_translation =
+                QStringLiteral(":/i18n/%1.qm").arg(translation_base);
+            auto* translator = new QTranslator(this);
+            if (translator->load(resource_translation) &&
+                translator_has_app_ui_strings(*translator)) {
+                active_translator_ = translator;
+            } else {
+                delete translator;
+            }
+        }
+
+        if (active_translator_ != nullptr) {
+            QCoreApplication::installTranslator(active_translator_);
+        }
+    }
+
+    retranslate_ui();
+    QEvent language_change_event(QEvent::LanguageChange);
+    const auto objects = findChildren<QObject*>();
+    for (QObject* object : objects) {
+        if (object != nullptr) {
+            QCoreApplication::sendEvent(object, &language_change_event);
+        }
+    }
+}
+
+void MainWindow::apply_behavior_settings(const lib_qt_custom_widgets::AppSettings& settings) {
+    qApp->setProperty("signalEditor.animationDurationMs", settings.animationDurationMs);
+    set_ui_effects_enabled(settings.animationDurationMs > 0);
+}
+
+#undef tr
+
+}  // namespace signal_editor::adapters::qt

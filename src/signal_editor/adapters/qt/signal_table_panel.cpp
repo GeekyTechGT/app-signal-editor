@@ -5,7 +5,9 @@
 #include <QAbstractItemModel>
 #include <QAbstractItemView>
 #include <QComboBox>
+#include <QCoreApplication>
 #include <QDoubleValidator>
+#include <QEvent>
 #include <QFont>
 #include <QFrame>
 #include <QHeaderView>
@@ -20,13 +22,58 @@
 #include <QVBoxLayout>
 #include <QVariant>
 #include <QMetaType>
+#include <QRegularExpression>
+#include <QRegularExpressionValidator>
 
 #include <cmath>
 #include <stdexcept>
 
-namespace myprj::signal_editor::adapters::qt {
+namespace signal_editor::adapters::qt {
+
+#define tr qt_signal_table_panel_tr
 
 namespace {
+QString qt_signal_table_panel_tr(const char* source_text,
+                                 const char* disambiguation = nullptr,
+                                 int n = -1) {
+    return QCoreApplication::translate("SignalTablePanel", source_text,
+                                       disambiguation, n);
+}
+
+double parse_flexible_double(const QString& text, bool* ok = nullptr) {
+    const QString trimmed = text.trimmed();
+    if (trimmed.isEmpty()) {
+        if (ok != nullptr) {
+            *ok = false;
+        }
+        return 0.0;
+    }
+
+    QString normalized = trimmed;
+    const int last_dot = normalized.lastIndexOf('.');
+    const int last_comma = normalized.lastIndexOf(',');
+    const int decimal_index = std::max(last_dot, last_comma);
+    for (int i = 0; i < normalized.size(); ++i) {
+        if (normalized[i] == '.' || normalized[i] == ',') {
+            normalized[i] = (i == decimal_index) ? QChar('.') : QChar();
+        }
+    }
+    normalized.remove(QChar());
+
+    bool local_ok = false;
+    const double value = normalized.toDouble(&local_ok);
+    if (ok != nullptr) {
+        *ok = local_ok;
+    }
+    return value;
+}
+
+QString format_line_edit_double(const QLocale& locale, double value, int decimals) {
+    QLocale copy(locale);
+    copy.setNumberOptions(copy.numberOptions() | QLocale::OmitGroupSeparator);
+    return copy.toString(value, 'f', decimals);
+}
+
 void configure_table_editor(QWidget* editor) {
     editor->setAttribute(Qt::WA_StyledBackground, true);
     editor->setAutoFillBackground(true);
@@ -59,10 +106,9 @@ public:
         configure_table_editor(editor);
         editor->setAlignment(Qt::AlignRight);
         editor->setFrame(false);
-        auto* validator = new QDoubleValidator(-1e12, 1e12, 6, editor);
-        validator->setNotation(QDoubleValidator::StandardNotation);
-        validator->setLocale(editor->locale());
-        editor->setValidator(validator);
+        editor->setValidator(new QRegularExpressionValidator(
+            QRegularExpression(QStringLiteral(R"(^[+-]?(?:\d+([.,]\d*)?|[.,]\d+)$)")),
+            editor));
         return editor;
     }
 
@@ -88,7 +134,9 @@ public:
         if (line_edit == nullptr) {
             return;
         }
-        line_edit->setText(line_edit->locale().toString(index.data(Qt::EditRole).toDouble(), 'f', 6));
+        line_edit->setText(format_line_edit_double(line_edit->locale(),
+                                                   index.data(Qt::EditRole).toDouble(),
+                                                   6));
         line_edit->selectAll();
     }
 
@@ -109,7 +157,7 @@ public:
             return;
         }
         bool ok = false;
-        const double value = line_edit->locale().toDouble(line_edit->text(), &ok);
+        const double value = parse_flexible_double(line_edit->text(), &ok);
         if (!ok) {
             return;
         }
@@ -142,22 +190,19 @@ SignalTablePanel::SignalTablePanel(QWidget* parent) : QWidget(parent) {
     root->setSpacing(10);
 
     auto* title_row = new QHBoxLayout();
-    auto* title = new QLabel(QStringLiteral("Samples"), this);
-    title->setObjectName(QStringLiteral("PanelTitle"));
-    QFont tf = title->font();
-    tf.setPointSizeF(tf.pointSizeF() + 1.5);
-    tf.setBold(true);
-    title->setFont(tf);
-    title_row->addWidget(title);
+    title_label_ = new QLabel(this);
+    title_label_->setObjectName(QStringLiteral("PanelTitle"));
+    title_label_->setProperty("uiFontRole", QStringLiteral("panel-title"));
+    title_row->addWidget(title_label_);
     title_row->addStretch(1);
     root->addLayout(title_row);
 
-    stats_label_ = new QLabel(QStringLiteral("No signal selected"), this);
+    stats_label_ = new QLabel(this);
     stats_label_->setObjectName(QStringLiteral("PanelSummary"));
     stats_label_->setWordWrap(true);
     root->addWidget(stats_label_);
 
-    hint_label_ = new QLabel(QStringLiteral("Double-click cells to edit values or use the buttons to add and remove samples."), this);
+    hint_label_ = new QLabel(this);
     hint_label_->setObjectName(QStringLiteral("PanelDetail"));
     hint_label_->setWordWrap(true);
     root->addWidget(hint_label_);
@@ -165,7 +210,6 @@ SignalTablePanel::SignalTablePanel(QWidget* parent) : QWidget(parent) {
     table_ = new QTableWidget(this);
     table_->setObjectName(QStringLiteral("SignalSamplesTable"));
     table_->setColumnCount(2);
-    table_->setHorizontalHeaderLabels({QStringLiteral("time"), QStringLiteral("value")});
     table_->setAlternatingRowColors(true);
     table_->setSelectionBehavior(QAbstractItemView::SelectRows);
     table_->setSelectionMode(QAbstractItemView::SingleSelection);
@@ -183,8 +227,8 @@ SignalTablePanel::SignalTablePanel(QWidget* parent) : QWidget(parent) {
     root->addWidget(table_, 1);
 
     auto* buttons = new QHBoxLayout();
-    add_button_ = new QPushButton(QStringLiteral("+ Sample"), this);
-    remove_button_ = new QPushButton(QStringLiteral("- Sample"), this);
+    add_button_ = new QPushButton(this);
+    remove_button_ = new QPushButton(this);
     add_button_->setObjectName(QStringLiteral("AccentButton"));
     remove_button_->setObjectName(QStringLiteral("SubtleButton"));
     add_button_->setCursor(Qt::PointingHandCursor);
@@ -201,6 +245,8 @@ SignalTablePanel::SignalTablePanel(QWidget* parent) : QWidget(parent) {
     connect(add_button_, &QPushButton::clicked, this, &SignalTablePanel::onAddClicked);
     connect(remove_button_, &QPushButton::clicked, this, &SignalTablePanel::onRemoveClicked);
 
+    refresh_typography();
+    retranslate_ui();
     refresh_summary();
 }
 
@@ -214,6 +260,17 @@ void SignalTablePanel::set_signal(const Signal* signal) {
 
 void SignalTablePanel::refresh() {
     repopulate();
+}
+
+void SignalTablePanel::changeEvent(QEvent* event) {
+    if (event->type() == QEvent::LanguageChange) {
+        retranslate_ui();
+        refresh_summary();
+    } else if (event->type() == QEvent::FontChange ||
+               event->type() == QEvent::ApplicationFontChange) {
+        refresh_typography();
+    }
+    QWidget::changeEvent(event);
 }
 
 std::vector<SamplePoint> SignalTablePanel::samples() const {
@@ -294,6 +351,50 @@ void SignalTablePanel::onRemoveClicked() {
     suppress_item_changed_ = false;
     remove_button_->setEnabled(signal_ != nullptr && table_->currentRow() >= 0);
     emit contentChanged();
+}
+
+void SignalTablePanel::retranslate_ui() {
+    if (title_label_ != nullptr) {
+        title_label_->setText(tr("Samples"));
+        title_label_->setToolTip(tr("Editable sample points of the currently selected signal."));
+    }
+    if (stats_label_ != nullptr) {
+        stats_label_->setToolTip(tr("Summary of rows, time range, and interpolation for the current signal."));
+    }
+    if (hint_label_ != nullptr) {
+        hint_label_->setToolTip(tr("Editing hint for the current signal type and table behavior."));
+    }
+    if (table_ != nullptr) {
+        table_->setHorizontalHeaderLabels({tr("time"), tr("value")});
+        table_->setToolTip(tr("Edit sample times and values. Double-click a cell or start typing to modify it."));
+        if (table_->horizontalHeaderItem(0) != nullptr) {
+            table_->horizontalHeaderItem(0)->setToolTip(tr("Time coordinate of the sample point."));
+        }
+        if (table_->horizontalHeaderItem(1) != nullptr) {
+            table_->horizontalHeaderItem(1)->setToolTip(
+                tr("Sample value, or state label for enumerated signals."));
+        }
+    }
+    if (add_button_ != nullptr) {
+        add_button_->setText(tr("+ Sample"));
+        add_button_->setToolTip(tr("Insert a new sample after the current table content."));
+        add_button_->setStatusTip(tr("Add a new sample row."));
+    }
+    if (remove_button_ != nullptr) {
+        remove_button_->setText(tr("- Sample"));
+        remove_button_->setToolTip(tr("Remove the currently selected sample row."));
+        remove_button_->setStatusTip(tr("Remove the selected sample row."));
+    }
+}
+
+void SignalTablePanel::refresh_typography() {
+    if (title_label_ == nullptr) {
+        return;
+    }
+    QFont title_font = font();
+    title_font.setPointSizeF(title_font.pointSizeF() + 1.5);
+    title_font.setBold(true);
+    title_label_->setFont(title_font);
 }
 
 void SignalTablePanel::repopulate() {
@@ -381,19 +482,19 @@ double SignalTablePanel::default_insert_value() const {
 
 void SignalTablePanel::refresh_summary() const {
     if (signal_ == nullptr) {
-        stats_label_->setText(QStringLiteral("No signal selected"));
-        hint_label_->setText(QStringLiteral("Select a signal to inspect its sample points and interpolation mode."));
+        stats_label_->setText(tr("No signal selected"));
+        hint_label_->setText(tr("Select a signal to inspect its sample points and interpolation mode."));
         return;
     }
 
     const QString interpolation = signal_->interpolation() == Signal::InterpolationMode::Step
-        ? QStringLiteral("step")
-        : QStringLiteral("linear");
+        ? tr("step")
+        : tr("linear");
     const QString enum_summary = signal_->is_enumerated()
-        ? QStringLiteral(" | %1 states").arg(signal_->enumeration().size())
+        ? tr(" | %1 states").arg(signal_->enumeration().size())
         : QString();
     stats_label_->setText(
-        QStringLiteral("%1 rows | range %2s to %3s | %4 interpolation%5")
+        tr("%1 rows | range %2s to %3s | %4 interpolation%5")
             .arg(signal_->size())
             .arg(signal_->empty() ? 0.0 : signal_->t_min(), 0, 'f', 4)
             .arg(signal_->empty() ? 0.0 : signal_->t_max(), 0, 'f', 4)
@@ -401,10 +502,12 @@ void SignalTablePanel::refresh_summary() const {
             .arg(enum_summary));
 
     if (signal_->is_enumerated()) {
-        hint_label_->setText(QStringLiteral("Enumerated signals use label-based editing in the value column and are always rendered with step interpolation."));
+        hint_label_->setText(tr("Enumerated signals use label-based editing in the value column and are always rendered with step interpolation."));
     } else {
-        hint_label_->setText(QStringLiteral("Use the table for precise edits. Changes are mirrored in the plot immediately."));
+        hint_label_->setText(tr("Use the table for precise edits. Changes are mirrored in the plot immediately."));
     }
 }
 
-}  // namespace myprj::signal_editor::adapters::qt
+#undef tr
+
+}  // namespace signal_editor::adapters::qt

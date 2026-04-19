@@ -8,12 +8,13 @@ class QLabel;
 class QListWidget;
 class QListWidgetItem;
 class QPushButton;
+class QEvent;
 
-namespace myprj::signal_editor {
+namespace signal_editor {
 class SignalLibrary;
-}  // namespace myprj::signal_editor
+}  // namespace signal_editor
 
-namespace myprj::signal_editor::adapters::qt {
+namespace signal_editor::adapters::qt {
 
 /**
  * @brief Sidebar that exposes the signals contained in the active document.
@@ -66,6 +67,9 @@ signals:
     void addRequested();
     void removeRequested(int index);
 
+protected:
+    void changeEvent(QEvent* event) override;
+
 private slots:
     void onCurrentRowChanged(int row);
     void onItemChanged(QListWidgetItem* item);
@@ -74,6 +78,7 @@ private slots:
 
 private:
     const SignalLibrary* library_{nullptr};
+    QLabel* title_label_{nullptr};
     QLabel* summary_label_{nullptr};
     QLabel* detail_label_{nullptr};
     QListWidget* list_{nullptr};
@@ -81,7 +86,9 @@ private:
     QPushButton* remove_button_{nullptr};
     bool suppress_item_changed_{false};
 
+    void retranslate_ui();
+    void refresh_typography();
     void refresh_summary();
 };
 
-}  // namespace myprj::signal_editor::adapters::qt
+}  // namespace signal_editor::adapters::qt

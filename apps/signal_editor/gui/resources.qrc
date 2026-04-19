@@ -1,0 +1,10 @@
+<!DOCTYPE RCC><RCC version="1.0">
+<qresource prefix="/themes">
+    <file alias="dark.qss">../../../external/res-qt-themes/themes/dark.qss</file>
+    <file alias="light.qss">../../../external/res-qt-themes/themes/light.qss</file>
+</qresource>
+<qresource prefix="/img">
+    <file alias="app_logo.png">../../../resources/img/app_logo.png</file>
+    <file alias="app_logo.svg">../../../resources/img/app_logo.svg</file>
+</qresource>
+</RCC>

@@ -8,8 +8,10 @@
 
 class QLabel;
 class QListWidget;
+class QListWidgetItem;
+class QEvent;
 
-namespace myprj::signal_editor::adapters::qt {
+namespace signal_editor::adapters::qt {
 
 /**
  * @brief Workspace-aware sidebar that lists every loaded CSV document.
@@ -50,6 +52,11 @@ public:
     void select(int index);
 
     /**
+     * @brief Enters in-place rename mode for the active workspace item.
+     */
+    void begin_rename_current();
+
+    /**
      * @brief Returns the currently selected file index.
      * @return The active row or `-1` when nothing is selected.
      */
@@ -57,20 +64,29 @@ public:
 
 signals:
     void selectionChanged(int index);
+    void renameRequested(int index, const QString& new_name);
     void removeRequested(int index);
     void detailsRequested(int index);
 
+protected:
+    void changeEvent(QEvent* event) override;
+
 private slots:
     void onCurrentRowChanged(int row);
+    void onItemChanged(QListWidgetItem* item);
     void onCustomContextMenuRequested(const QPoint& pos);
 
 private:
     std::vector<FileItem> files_;
+    QLabel* title_label_{nullptr};
     QLabel* summary_label_{nullptr};
     QLabel* detail_label_{nullptr};
     QListWidget* list_{nullptr};
+    bool suppress_item_changed_{false};
 
+    void retranslate_ui();
+    void refresh_typography();
     void refresh_summary(int current_row);
 };
 
-}  // namespace myprj::signal_editor::adapters::qt
+}  // namespace signal_editor::adapters::qt
