@@ -12,6 +12,11 @@
 namespace signal_editor {
 
 /**
+ * @file
+ * @brief Application service that orchestrates editable signal workflows.
+ */
+
+/**
  * @brief Application service that orchestrates all editable signal workflows.
  *
  * `SignalEditorService` is the primary entry point used by the GUI and any

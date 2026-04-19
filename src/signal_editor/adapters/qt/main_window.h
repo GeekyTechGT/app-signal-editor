@@ -64,6 +64,11 @@ class SignalEditorService;
 
 namespace signal_editor::adapters::qt {
 
+/**
+ * @file
+ * @brief Main Qt shell that coordinates the Signal Editor workspace.
+ */
+
 class FileListPanel;
 class SignalListPanel;
 class SignalPlotWidget;
@@ -81,6 +86,11 @@ class MainWindow : public QMainWindow {
     Q_OBJECT
 
 public:
+    /**
+     * @brief Creates the top-level workspace window.
+     * @param service Application service used to load, save, and edit signals.
+     * @param parent Optional owning widget supplied by Qt.
+     */
     explicit MainWindow(SignalEditorService& service, QWidget* parent = nullptr);
 
 protected:
@@ -125,11 +135,17 @@ private slots:
     void onSettingsSaved(const lib_qt_custom_widgets::AppSettings& settings);
 
 private:
+    /**
+     * @brief Undo snapshot tied to the active workspace document.
+     */
     struct UndoState {
         SignalLibrary library;
         int selected_signal_index{0};
     };
 
+    /**
+     * @brief Workspace-level state tracked for each loaded document.
+     */
     struct LoadedDocument {
         QString path;
         QString display_name;
@@ -185,8 +201,8 @@ private:
     // messages do not cover it).
     QToolButton* settings_btn_{nullptr};
 
-    // Current application settings (persisted in memory; restored on next launch
-    // via QSettings when the feature is wired further).
+    // Current application settings restored from and persisted to the versioned
+    // QSettings namespace.
     lib_qt_custom_widgets::AppSettings app_settings_;
     lib_qt_custom_widgets::AppSettings visual_settings_;
 
@@ -202,34 +218,59 @@ private:
     int  active_document_index_{-1};
     bool switching_document_{false};
 
-    // ── Internal helpers ──────────────────────────────────────────────────────
+    /** @brief Loads one or more user-selected paths into the workspace. */
     void open_paths(const QStringList& paths);
+    /** @brief Loads a persisted document and adds it to the workspace set. */
     void load_document(const QString& path);
+    /** @brief Ensures there is always at least one editable workspace document. */
     int ensure_workspace_document();
+    /** @brief Pushes the currently active document state back into the service. */
     void sync_active_document_from_service();
+    /** @brief Activates a document and binds its selected signal to the editors. */
     void activate_document(int index, int preferred_signal_index = 0);
+    /** @brief Marks the current document dirty or clean. */
     void mark_active_document_dirty(bool dirty = true);
+    /** @brief Stores a reversible snapshot before a destructive edit. */
     void push_undo_state();
+    /** @brief Drops the last snapshot when an edit could not be completed. */
     void discard_last_undo_state();
+    /** @brief Clears undo history for the active workspace document. */
     void clear_undo_history();
+    /** @brief Rebuilds the file sidebar from the current document set. */
     void refresh_file_panel();
+    /** @brief Shows the details dialog for the selected document. */
     void show_file_details(int index);
+    /** @brief Rebinds the active signal into the plot and table views. */
     void rebind_plot();
+    /** @brief Synchronizes the time-range controls with the plot viewport. */
     void sync_plot_view_controls();
+    /** @brief Synchronizes toolbar toggle state with the plot navigation mode. */
     void sync_plot_navigation_mode_controls();
+    /** @brief Enables or disables undo according to the active document state. */
     void update_undo_action();
+    /** @brief Updates the interpolation combo from the active signal. */
     void update_interpolation_box();
+    /** @brief Refreshes status-bar copy and document counters. */
     void refresh_status(const QString& transient_message = {});
+    /** @brief Shows a user-facing error dialog. */
     void show_error(const QString& title, const QString& message);
+    /** @brief Retranslates all window-owned UI strings after a language change. */
     void retranslate_ui();
+    /** @brief Restores persisted geometry and visual settings from QSettings. */
     void load_persisted_settings();
+    /** @brief Persists the current UI settings and window state. */
     void persist_settings();
+    /** @brief Applies the full settings payload, optionally persisting it. */
     void apply_settings(const lib_qt_custom_widgets::AppSettings& settings, bool persist);
+    /** @brief Applies theme, accent, font, and density related settings. */
     void apply_visual_settings(const lib_qt_custom_widgets::AppSettings& settings,
                                bool include_density,
                                bool force_apply = false);
+    /** @brief Applies the requested widget density to the workspace shell. */
     void apply_density(const QString& density);
+    /** @brief Installs the selected translator and retranslates the window tree. */
     void apply_language(const QString& language);
+    /** @brief Applies behavior-only settings that do not affect styling. */
     void apply_behavior_settings(const lib_qt_custom_widgets::AppSettings& settings);
 };
 

@@ -71,6 +71,13 @@ Update these documents when relevant:
 - `docs/architecture/*` when the design, runtime flow, or boundaries change
 - `CHANGELOG.md` for release-facing visibility
 
+Code-facing documentation should also stay aligned with the implementation:
+
+- add concise English Doxygen comments to public headers, composition roots, and non-obvious internal helpers
+- document intent, invariants, and ownership rather than restating syntax
+- remove stale comments when behavior changes instead of leaving contradictory guidance behind
+- prefer deleting dead code over annotating it as "temporary" without a concrete follow-up task
+
 ## Development Workflow
 
 ### 1. Start from current repository state
@@ -106,7 +113,7 @@ Be careful not to change these implicitly.
 
 - Prefer explicit, readable code over compact cleverness.
 - Keep error handling actionable for both UI users and developers.
-- Use Doxygen comments on public module boundaries where they improve discoverability.
+- Use English Doxygen comments on public module boundaries and non-trivial bootstrap/helper flows where they improve discoverability.
 - Remove dead code and stale comments rather than layering new behavior around them.
 - Preserve deterministic behavior in parsing, editing, and export flows.
 

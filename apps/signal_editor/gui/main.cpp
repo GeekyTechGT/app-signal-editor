@@ -1,8 +1,12 @@
-// Signal Editor — GUI entry point.
-//
-// Intentionally thin: every responsibility lives behind the hexagonal
-// boundaries.  Only application bootstrap (style, splash, translation, and
-// service wiring) happens here.
+/**
+ * @file
+ * @brief GUI composition root for the Signal Editor desktop application.
+ *
+ * This translation unit stays intentionally thin. It bootstraps the Qt
+ * application, restores the persisted language early enough for the splash
+ * screen and main window, applies a safe default theme, and wires the service
+ * layer to the desktop shell.
+ */
 
 #include "signal_editor/adapters/qt/constants.hpp"
 #include "signal_editor/adapters/filesystem/signal_file_repository.h"
@@ -26,6 +30,11 @@
 namespace {
 namespace ui = signal_editor::adapters::qt::constants;
 
+/**
+ * @brief Normalizes a persisted locale value to a two-letter language code.
+ * @param language Raw locale or language string from settings.
+ * @return Lowercase ISO-like code used to resolve packaged translations.
+ */
 QString normalize_language_code(QString language) {
     language = language.trimmed();
     if (language.isEmpty()) {
@@ -40,12 +49,22 @@ QString normalize_language_code(QString language) {
     return language.left(2).toLower();
 }
 
+/**
+ * @brief Reads the persisted UI language needed during application bootstrap.
+ * @return Stored language code, or the Italian default for first launch.
+ */
 QString read_bootstrap_language() {
     QSettings settings(ui::app_id(), ui::settings_version_scope());
     return settings.value(QString::fromUtf8(ui::kSettingsKeyLanguage),
                           QStringLiteral("it")).toString();
 }
 
+/**
+ * @brief Builds the list of filesystem candidates for a translation catalog.
+ * @param app_dir Directory containing the running executable.
+ * @param translation_base Basename prefix plus language suffix.
+ * @return Ordered list of `.qm` candidates to probe before falling back to resources.
+ */
 QStringList translation_candidates(const QString& app_dir,
                                    const QString& translation_base) {
     QStringList candidates;
@@ -68,6 +87,11 @@ QStringList translation_candidates(const QString& app_dir,
     return candidates;
 }
 
+/**
+ * @brief Verifies that a loaded translator contains Signal Editor strings.
+ * @param translator Translator candidate under validation.
+ * @return `true` when the catalog resolves at least one bootstrap string.
+ */
 bool translator_has_bootstrap_strings(const QTranslator& translator) {
     const QString splash_text = translator.translate("Splash", "Applying theme...");
     if (!splash_text.isEmpty() &&
@@ -81,6 +105,11 @@ bool translator_has_bootstrap_strings(const QTranslator& translator) {
            window_text != QStringLiteral("&New from scratch...");
 }
 
+/**
+ * @brief Installs the persisted application translator before any UI is built.
+ * @param app Running Qt application instance.
+ * @return Owning handle for the installed translator, or `nullptr` for English/default startup.
+ */
 std::unique_ptr<QTranslator> install_bootstrap_translator(QApplication& app) {
     const QString lang = normalize_language_code(read_bootstrap_language());
     if (lang == QStringLiteral("en")) {
@@ -113,9 +142,11 @@ std::unique_ptr<QTranslator> install_bootstrap_translator(QApplication& app) {
 #ifdef LIB_QT_CUSTOM_WIDGETS_AVAILABLE
 using namespace lib_qt_custom_widgets;
 
-void run_with_splash(
-    signal_editor::adapters::SignalFileRepository& /*repository*/,
-    signal_editor::api::Service& service)
+/**
+ * @brief Shows the branded splash screen before revealing the main window.
+ * @param service Application service injected into the main window shell.
+ */
+void run_with_splash(signal_editor::api::Service& service)
 {
     auto* splash = new SplashScreenWidget();   // frameless top-level widget
 
@@ -176,7 +207,8 @@ QProgressBar#splashProgressBar::chunk {
 
     splash->startSplash();
 
-    // Staggered loading steps (simulated — real init is synchronous above).
+    // The loading text is staged to keep startup status legible even though
+    // the service wiring and window construction are synchronous.
     const QStringList steps = {
         QApplication::translate("Splash", "Applying theme..."),
         QApplication::translate("Splash", "Loading workspace..."),
@@ -224,7 +256,7 @@ int main(int argc, char* argv[]) {
 
     // ── Splash + MainWindow ───────────────────────────────────────────────────
 #ifdef LIB_QT_CUSTOM_WIDGETS_AVAILABLE
-    run_with_splash(repository, service);
+    run_with_splash(service);
 #else
     signal_editor::adapters::qt::MainWindow window(service);
     window.showMaximized();

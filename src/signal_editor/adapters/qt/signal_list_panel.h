@@ -17,6 +17,11 @@ class SignalLibrary;
 namespace signal_editor::adapters::qt {
 
 /**
+ * @file
+ * @brief Signal sidebar widget bound to the active workspace document.
+ */
+
+/**
  * @brief Sidebar that exposes the signals contained in the active document.
  *
  * The panel mirrors the bound library without taking ownership of it. It keeps
@@ -62,9 +67,13 @@ public:
     [[nodiscard]] int current_index() const;
 
 signals:
+    /** @brief Emitted when the active signal row changes. */
     void selectionChanged(int index);
+    /** @brief Emitted when the user confirms an in-place signal rename. */
     void renameRequested(int index, const QString& new_name);
+    /** @brief Emitted when the user requests creation of a new signal. */
     void addRequested();
+    /** @brief Emitted when the user requests removal of the active signal. */
     void removeRequested(int index);
 
 protected:
@@ -86,8 +95,11 @@ private:
     QPushButton* remove_button_{nullptr};
     bool suppress_item_changed_{false};
 
+    /** @brief Retranslates labels, tooltips, and action buttons. */
     void retranslate_ui();
+    /** @brief Reapplies title/body typography derived from the active theme. */
     void refresh_typography();
+    /** @brief Recomputes the sidebar summary for the current selection. */
     void refresh_summary();
 };
 

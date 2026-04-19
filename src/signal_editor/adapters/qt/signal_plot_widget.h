@@ -14,6 +14,11 @@ class Signal;
 namespace signal_editor::adapters::qt {
 
 /**
+ * @file
+ * @brief Interactive Qt waveform plot used for direct signal editing.
+ */
+
+/**
  * @brief Interactive waveform canvas used for direct manipulation editing.
  *
  * The widget renders the selected signal, supports waypoint dragging, context
@@ -24,6 +29,9 @@ class SignalPlotWidget : public QWidget {
     Q_OBJECT
 
 public:
+    /**
+     * @brief Interaction modes exposed by the plot toolbar.
+     */
     enum class NavigationMode { Edit, Pan, RectZoom };
 
     /**
@@ -91,9 +99,13 @@ public:
     [[nodiscard]] bool is_drag_active() const noexcept;
 
 signals:
+    /** @brief Emitted when an interaction should create an undo snapshot. */
     void editStarted();
+    /** @brief Emitted after the bound signal changes through direct manipulation. */
     void signalChanged();
+    /** @brief Emitted whenever the cursor position over the plot changes. */
     void cursorMoved(double t, double y);
+    /** @brief Emitted after the visible time range changes. */
     void timeViewChanged(double t_start, double t_end);
 
 protected:
@@ -147,22 +159,36 @@ private:
     QRectF title_badge_rect_;
     QRectF meta_badge_rect_;
 
+    /** @brief Converts a data-space point into plot-local pixel coordinates. */
     QPointF data_to_pixel(double t, double y) const;
+    /** @brief Converts plot-local pixels back into data-space coordinates. */
     QPointF pixel_to_data(const QPointF& pixel) const;
+    /** @brief Returns the drawable content rect inside plot margins. */
     [[nodiscard]] QRectF plot_rect() const;
+    /** @brief Fits the viewport to the full signal time range. */
     void auto_fit_view();
+    /** @brief Recomputes the Y range for the currently visible time window. */
     void update_y_view_for_current_time_window();
+    /** @brief Keeps draggable overlay badges anchored inside the content rect. */
     void clamp_badge_anchors();
+    /** @brief Updates overlay badge geometry after a repaint or drag. */
     void update_badge_rects(const QString& signal_name,
                             const QString& interpolation,
                             const QRectF& plot_rect,
                             const QFontMetrics& metrics);
+    /** @brief Finds the nearest visible handle inside the configured pick radius. */
     bool find_handle_near(const QPointF& pixel, std::size_t& out_index) const;
+    /** @brief Returns whether a sample is currently selected. */
     [[nodiscard]] bool has_selection() const noexcept;
+    /** @brief Returns whether the cursor currently hovers a visible handle. */
     [[nodiscard]] bool has_hovered_handle() const noexcept;
+    /** @brief Marks a sample as selected and repaints handle emphasis. */
     void set_selected_index(std::size_t index);
+    /** @brief Clears the current selection state. */
     void clear_selection();
+    /** @brief Marks a sample as hovered for visual feedback. */
     void set_hovered_index(std::size_t index);
+    /** @brief Clears the hovered-handle state. */
     void clear_hovered_index();
 };
 

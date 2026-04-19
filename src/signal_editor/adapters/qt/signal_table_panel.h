@@ -16,6 +16,11 @@ class QTableWidgetItem;
 namespace signal_editor::adapters::qt {
 
 /**
+ * @file
+ * @brief Editable sample table bound to the active signal.
+ */
+
+/**
  * @brief Editable sample table bound to the currently selected signal.
  *
  * The widget exposes the discrete points of a signal as tabular data and lets
@@ -49,9 +54,10 @@ public:
      */
     [[nodiscard]] std::vector<SamplePoint> samples() const;
 
-
 signals:
+    /** @brief Emitted when the user begins an edit that should create undo state. */
     void editStarted();
+    /** @brief Emitted after table content has materially changed. */
     void contentChanged();
 
 protected:
@@ -73,12 +79,19 @@ private:
     QStyledItemDelegate* item_delegate_{nullptr};
     bool suppress_item_changed_{false};
 
+    /** @brief Retranslates labels, hints, buttons, and header copy. */
     void retranslate_ui();
+    /** @brief Reapplies title/body typography derived from the active theme. */
     void refresh_typography();
+    /** @brief Rebuilds all visible rows from the bound signal. */
     void repopulate();
+    /** @brief Writes a `(t, y)` pair into a specific table row. */
     void set_row_values(int row, double t, double y);
+    /** @brief Returns the suggested insertion time for a new row. */
     [[nodiscard]] double default_insert_time() const;
+    /** @brief Returns the suggested insertion value for a new row. */
     [[nodiscard]] double default_insert_value() const;
+    /** @brief Refreshes the sample/interpolation summary labels. */
     void refresh_summary() const;
 };
 

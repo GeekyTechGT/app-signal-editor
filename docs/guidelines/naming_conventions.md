@@ -52,6 +52,16 @@ Rules:
 - keep architecture docs aligned with actual containers and components
 - keep public header comments aligned with the current implementation
 
+## Commenting Conventions
+
+Code comments should follow the same precision rules as identifiers.
+
+- write comments in professional English
+- prefer Doxygen format for public headers, entry points, and non-obvious helpers
+- describe responsibilities, ownership, invariants, and side effects
+- avoid comments that merely paraphrase the next line of code
+- delete stale comments when the implementation changes
+
 ## Naming Smells to Avoid
 
 Avoid introducing names that:

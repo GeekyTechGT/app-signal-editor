@@ -148,6 +148,17 @@ Specifically:
 - governance, contribution, and security files should stay actionable rather than ceremonial
 - build guidance should not mention unsupported toolchains
 - persistence guidance should identify the actual settings namespace used by the running application
+- public code interfaces and bootstrap-critical helpers should use concise English Doxygen comments when that clarifies responsibilities, invariants, or ownership
+- stale comments should be removed in the same change that makes them inaccurate
+
+## Code Hygiene Governance
+
+Repository cleanup is part of normal engineering work, but it must stay disciplined.
+
+- dead code should be removed once it is no longer part of an intentional compatibility path
+- unused parameters, stale fallback notes, and outdated TODO-style comments should not survive finished feature work
+- cleanup should preserve behavior; semantic refactors still require the same documentation and review rigor as feature work
+- comment volume is not a goal by itself; comments should explain why the code exists or what constraint it preserves
 
 ## Configuration and Deployment Artifacts
 

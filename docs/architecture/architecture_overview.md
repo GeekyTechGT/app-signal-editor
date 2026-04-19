@@ -35,6 +35,8 @@ The governing rule is simple:
 | Qt adapters | `src/signal_editor/adapters/qt/` | Implements workspace shell, tabs, plot, table, dialogs, and interaction logic |
 | Shared support | `src/signal_editor/core/domain/result.h` | Provides the lightweight result contract used by service and repository boundaries |
 
+Public headers and bootstrap-critical entry points are expected to carry concise English Doxygen comments so responsibilities, ownership rules, and persistence/bootstrap constraints remain discoverable during review.
+
 ## 4. Why This Structure Matters
 
 The architecture exists to preserve practical engineering benefits:
@@ -75,10 +77,11 @@ The architecture exists to preserve practical engineering benefits:
 ### 5.4 Settings Persistence Flow
 
 1. The GUI bootstrap sets the runtime application id from `project.json` and opens a version-scoped settings store.
-2. `MainWindow::load_persisted_settings()` restores window geometry/state plus UI settings through `QtUtils::AppState`.
-3. Theme, accent, font, density, behavior flags, and language are force-applied during startup so reopening the application reconstructs the last saved UI state.
-4. Settings are saved only when the user confirms `Save` in the settings dialog.
-5. The effective persistence scope is versioned (`signal-editor/v1.0.0`) so one application line does not silently overwrite another.
+2. The GUI entry point reads the persisted language before constructing splash and main window widgets so the first visible frame already uses the correct locale.
+3. `MainWindow::load_persisted_settings()` restores window geometry/state plus UI settings through `QtUtils::AppState`.
+4. Theme, accent, font, density, behavior flags, and language are force-applied during startup so reopening the application reconstructs the last saved UI state.
+5. Settings are saved only when the user confirms `Save` in the settings dialog.
+6. The effective persistence scope is versioned (`signal-editor/v1.0.0`) so one application line does not silently overwrite another.
 
 ## 6. Current UI Architecture Notes
 

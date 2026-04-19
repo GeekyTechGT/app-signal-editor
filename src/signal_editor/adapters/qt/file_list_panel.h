@@ -14,6 +14,11 @@ class QEvent;
 namespace signal_editor::adapters::qt {
 
 /**
+ * @file
+ * @brief File sidebar widget used by the main Signal Editor workspace.
+ */
+
+/**
  * @brief Workspace-aware sidebar that lists every loaded CSV document.
  *
  * The panel is intentionally presentation-only: it renders file metadata,
@@ -63,9 +68,13 @@ public:
     [[nodiscard]] int current_index() const;
 
 signals:
+    /** @brief Emitted when the active workspace file changes. */
     void selectionChanged(int index);
+    /** @brief Emitted when the user confirms an in-place file rename. */
     void renameRequested(int index, const QString& new_name);
+    /** @brief Emitted when the user asks to remove a file from the workspace. */
     void removeRequested(int index);
+    /** @brief Emitted when the user requests file metadata/details. */
     void detailsRequested(int index);
 
 protected:
@@ -84,8 +93,11 @@ private:
     QListWidget* list_{nullptr};
     bool suppress_item_changed_{false};
 
+    /** @brief Retranslates labels, tooltips, and context-menu copy. */
     void retranslate_ui();
+    /** @brief Reapplies title/body typography derived from the current theme. */
     void refresh_typography();
+    /** @brief Recomputes the selection summary shown above the list. */
     void refresh_summary(int current_row);
 };
 
