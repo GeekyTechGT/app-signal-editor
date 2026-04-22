@@ -53,15 +53,16 @@ FileListPanel::FileListPanel(QWidget* parent) : QWidget(parent) {
     root->addWidget(detail_label_);
 
     list_ = new QListWidget(this);
-    list_->setSelectionMode(QAbstractItemView::SingleSelection);
-    list_->setEditTriggers(QAbstractItemView::DoubleClicked |
-                           QAbstractItemView::EditKeyPressed);
+    list_->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    list_->setEditTriggers(QAbstractItemView::EditKeyPressed);
     list_->setAlternatingRowColors(true);
     list_->setContextMenuPolicy(Qt::CustomContextMenu);
     root->addWidget(list_, 1);
 
     connect(list_, &QListWidget::currentRowChanged,
             this, &FileListPanel::onCurrentRowChanged);
+    connect(list_, &QListWidget::itemDoubleClicked,
+            this, &FileListPanel::onItemDoubleClicked);
     connect(list_, &QListWidget::itemChanged,
             this, &FileListPanel::onItemChanged);
     connect(list_, &QListWidget::customContextMenuRequested,
@@ -95,14 +96,40 @@ void FileListPanel::set_files(const std::vector<FileItem>& files) {
     refresh_summary(list_->currentRow());
 }
 
-void FileListPanel::select(int index) {
+void FileListPanel::set_opened_index(int index) {
+    opened_index_ = index;
+    refresh_summary(list_ != nullptr ? list_->currentRow() : -1);
+}
+
+void FileListPanel::select(int index, bool preserve_selection) {
     if (index >= 0 && index < list_->count()) {
+        if (!preserve_selection) {
+            list_->clearSelection();
+        }
         list_->setCurrentRow(index);
+        if (auto* item = list_->item(index); item != nullptr) {
+            item->setSelected(true);
+        }
     }
 }
 
 int FileListPanel::current_index() const {
     return list_->currentRow();
+}
+
+QList<int> FileListPanel::selected_indices() const {
+    QList<int> indices;
+    const auto selected_items = list_->selectedItems();
+    indices.reserve(selected_items.size());
+    for (auto* item : selected_items) {
+        if (item == nullptr) {
+            continue;
+        }
+        indices.push_back(list_->row(item));
+    }
+    std::sort(indices.begin(), indices.end());
+    indices.erase(std::unique(indices.begin(), indices.end()), indices.end());
+    return indices;
 }
 
 void FileListPanel::begin_rename_current() {
@@ -128,6 +155,13 @@ void FileListPanel::onCurrentRowChanged(int row) {
     emit selectionChanged(row);
 }
 
+void FileListPanel::onItemDoubleClicked(QListWidgetItem* item) {
+    if (item == nullptr) {
+        return;
+    }
+    emit openRequested(list_->row(item));
+}
+
 void FileListPanel::onItemChanged(QListWidgetItem* item) {
     if (suppress_item_changed_ || item == nullptr) {
         return;
@@ -142,23 +176,43 @@ void FileListPanel::onCustomContextMenuRequested(const QPoint& pos) {
     }
 
     const int row = list_->row(item);
-    list_->setCurrentRow(row);
+    if (!item->isSelected()) {
+        list_->clearSelection();
+        item->setSelected(true);
+        list_->setCurrentRow(row);
+    } else if (list_->currentRow() != row) {
+        list_->setCurrentRow(row);
+    }
+
+    const QList<int> selection = selected_indices();
 
     QMenu menu(this);
+    if (selection.size() > 1) {
+        QAction* delete_action = menu.addAction(tr("Delete files"));
+        QAction* chosen = menu.exec(list_->viewport()->mapToGlobal(pos));
+        if (chosen == delete_action) {
+            emit removeRequested(selection);
+        }
+        return;
+    }
+
+    QAction* open_action = menu.addAction(tr("Open file"));
     QAction* reload_action = menu.addAction(tr("Reload from disk"));
     QAction* rename_action = menu.addAction(tr("Rename"));
-    QAction* details_action = menu.addAction(tr("Details"));
-    QAction* remove_action = menu.addAction(tr("Remove file from workspace"));
+    QAction* details_action = menu.addAction(tr("Options"));
+    QAction* remove_action = menu.addAction(tr("Delete file"));
     reload_action->setEnabled(!files_[static_cast<std::size_t>(row)].full_path.trimmed().isEmpty());
     QAction* chosen = menu.exec(list_->viewport()->mapToGlobal(pos));
-    if (chosen == reload_action) {
+    if (chosen == open_action) {
+        emit openRequested(row);
+    } else if (chosen == reload_action) {
         emit reloadRequested(row);
     } else if (chosen == rename_action) {
         begin_rename_current();
     } else if (chosen == details_action) {
         emit detailsRequested(row);
     } else if (chosen == remove_action) {
-        emit removeRequested(row);
+        emit removeRequested(selection);
     }
 }
 
@@ -171,10 +225,10 @@ void FileListPanel::retranslate_ui() {
         summary_label_->setToolTip(tr("Quick summary of loaded files and pending modifications."));
     }
     if (detail_label_ != nullptr) {
-        detail_label_->setToolTip(tr("Shows details for the currently selected workspace file."));
+        detail_label_->setToolTip(tr("Shows details and sheet options for the currently selected workspace file."));
     }
     if (list_ != nullptr) {
-        list_->setToolTip(tr("Select a file to make it active. Double-click a name to rename it."));
+        list_->setToolTip(tr("Single click selects files. Double-click or use the context menu to open one file. Use Ctrl+click for multi-select."));
     }
 }
 
@@ -195,7 +249,8 @@ void FileListPanel::refresh_summary(int current_row) {
         [](const FileItem& item) { return item.dirty; }));
 
     if (files_.empty()) {
-        summary_label_->setText(tr("No CSV loaded yet"));
+        opened_index_ = -1;
+        summary_label_->setText(tr("No signal file loaded yet"));
         detail_label_->setText(tr("Open files or drop them into the workspace."));
         return;
     }
@@ -205,13 +260,24 @@ void FileListPanel::refresh_summary(int current_row) {
             .arg(files_.size())
             .arg(dirty_count));
 
+    const int selected_count = list_ != nullptr ? list_->selectedItems().size() : 0;
+    QString opened_text = tr("No file opened");
+    if (opened_index_ >= 0 && opened_index_ < static_cast<int>(files_.size())) {
+        opened_text = tr("Opened file: %1")
+            .arg(files_[static_cast<std::size_t>(opened_index_)].display_name);
+    }
     if (current_row >= 0 && current_row < static_cast<int>(files_.size())) {
         const auto& item = files_[static_cast<std::size_t>(current_row)];
         detail_label_->setText(
-            tr("Active file: %1\n%2\nUndo restores workspace edits; reload restores the file from disk.")
-                .arg(item.display_name, item.full_path));
+            tr("%1\nSelected file: %2\nSelected files: %3\n%4\nUndo restores workspace edits; reload restores the file from disk.")
+                .arg(opened_text)
+                .arg(item.display_name)
+                .arg(selected_count)
+                .arg(item.full_path));
     } else {
-        detail_label_->setText(tr("Select a file to inspect its source path and workspace status."));
+        detail_label_->setText(
+            tr("%1\nSelect a file to inspect its source path and workspace status.")
+                .arg(opened_text));
     }
 }
 

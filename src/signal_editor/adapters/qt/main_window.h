@@ -1,6 +1,7 @@
 #pragma once
 
 #include "signal_editor/adapters/qt/theme.h"
+#include "signal_editor/core/domain/result.h"
 #include "signal_editor/core/domain/signal_library.h"
 
 #include <QColor>
@@ -74,6 +75,15 @@ class SignalListPanel;
 class SignalPlotWidget;
 class SignalTablePanel;
 
+enum class DocumentFormat {
+    Csv,
+    Delimited,
+    Json,
+    SpreadsheetXml,
+    Xlsx,
+    Unknown,
+};
+
 /**
  * @brief Top-level Qt shell for the Signal Editor desktop experience.
  *
@@ -130,7 +140,8 @@ private slots:
     void onOpenSettings();
 
     void onFileSelectionChanged(int index);
-    void onFileRemoveRequested(int index);
+    void onFileOpenRequested(int index);
+    void onFileRemoveRequested(const QList<int>& indices);
     void onFileReloadRequested(int index);
     void onFileDetailsRequested(int index);
     void onFileRenameRequested(int index, const QString& new_name);
@@ -176,8 +187,21 @@ private:
      * yield a confusing desktop experience after undo.
      */
     struct UndoState {
+        struct SheetState {
+            QString name;
+            SignalLibrary library;
+            std::vector<int> visible_signal_indices;
+            int active_signal_index{-1};
+        };
+        std::vector<SheetState> sheets;
+        int active_sheet_index{0};
+    };
+
+    struct LoadedSheetState {
+        QString name;
         SignalLibrary library;
-        int selected_signal_index{0};
+        std::vector<int> visible_signal_indices;
+        int active_signal_index{-1};
     };
 
     /**
@@ -200,9 +224,10 @@ private:
     struct LoadedDocument {
         QString path;
         QString display_name;
-        SignalLibrary library;
-        std::vector<int> visible_signal_indices;
-        int active_signal_index{-1};
+        DocumentFormat format{DocumentFormat::Unknown};
+        bool explicit_sheet_names{false};
+        std::vector<LoadedSheetState> sheets;
+        int active_sheet_index{0};
         std::vector<UndoState> undo_stack;
         bool dirty{false};
     };
@@ -282,7 +307,9 @@ private:
     /** @brief Pushes the currently active document state back into the service. */
     void sync_active_document_from_service();
     /** @brief Activates a document and binds its selected signal to the editors. */
-    void activate_document(int index, int preferred_signal_index = 0);
+    void activate_document(int index,
+                           int preferred_signal_index = 0,
+                           bool sync_current_document = true);
     /** @brief Marks the current document dirty or clean. */
     void mark_active_document_dirty(bool dirty = true);
     /** @brief Stores a reversible snapshot before a destructive edit. */
@@ -301,10 +328,18 @@ private:
     void rebind_plot();
     /** @brief Keeps plotted-signal state valid for one document. */
     void normalize_visible_signal_indices(LoadedDocument& document) const;
+    /** @brief Keeps plotted-signal state valid for one sheet. */
+    void normalize_visible_signal_indices(LoadedSheetState& sheet) const;
     /** @brief Returns the plotted signals for the active document. */
     [[nodiscard]] std::vector<int> active_visible_signal_indices() const;
     /** @brief Returns the active signal index for the current document. */
     [[nodiscard]] int active_signal_index() const;
+    /** @brief Returns the active sheet index for the current document. */
+    [[nodiscard]] int active_sheet_index() const;
+    /** @brief Returns the active sheet state, or nullptr when unavailable. */
+    [[nodiscard]] LoadedSheetState* active_sheet_state();
+    /** @brief Returns the active sheet state, or nullptr when unavailable. */
+    [[nodiscard]] const LoadedSheetState* active_sheet_state() const;
     /** @brief Synchronizes the time-range controls with the plot viewport. */
     void sync_plot_view_controls();
     /** @brief Synchronizes toolbar toggle state with the plot navigation mode. */
@@ -335,6 +370,10 @@ private:
     void apply_language(const QString& language);
     /** @brief Applies behavior-only settings that do not affect styling. */
     void apply_behavior_settings(const lib_qt_custom_widgets::AppSettings& settings);
+    /** @brief Loads one file into a workbook-aware document snapshot. */
+    LoadedDocument load_document_state(const QString& path) const;
+    /** @brief Saves one workbook-aware document snapshot. */
+    signal_editor::Result save_document_state(const LoadedDocument& document, const QString& path) const;
 };
 
 }  // namespace signal_editor::adapters::qt

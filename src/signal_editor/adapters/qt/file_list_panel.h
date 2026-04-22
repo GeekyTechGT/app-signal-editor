@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QPoint>
+#include <QList>
 #include <QString>
 #include <QWidget>
 
@@ -51,10 +52,18 @@ public:
     void set_files(const std::vector<FileItem>& files);
 
     /**
+     * @brief Updates which file is currently opened in the workspace.
+     * @param index Zero-based opened file index, or `-1` when none is open.
+     */
+    void set_opened_index(int index);
+
+    /**
      * @brief Programmatically selects a workspace file.
      * @param index Zero-based file index.
+     * @param preserve_selection When `true`, keeps the current multi-selection
+     * and only changes the current/active row.
      */
-    void select(int index);
+    void select(int index, bool preserve_selection = false);
 
     /**
      * @brief Enters in-place rename mode for the active workspace item.
@@ -67,13 +76,21 @@ public:
      */
     [[nodiscard]] int current_index() const;
 
+    /**
+     * @brief Returns all currently selected file indices.
+     * @return Sorted row indices for the current multi-selection.
+     */
+    [[nodiscard]] QList<int> selected_indices() const;
+
 signals:
     /** @brief Emitted when the active workspace file changes. */
     void selectionChanged(int index);
+    /** @brief Emitted when the user explicitly opens one workspace file. */
+    void openRequested(int index);
     /** @brief Emitted when the user confirms an in-place file rename. */
     void renameRequested(int index, const QString& new_name);
     /** @brief Emitted when the user asks to remove a file from the workspace. */
-    void removeRequested(int index);
+    void removeRequested(const QList<int>& indices);
     /** @brief Emitted when the user asks to reload a file from disk. */
     void reloadRequested(int index);
     /** @brief Emitted when the user requests file metadata/details. */
@@ -84,6 +101,7 @@ protected:
 
 private slots:
     void onCurrentRowChanged(int row);
+    void onItemDoubleClicked(QListWidgetItem* item);
     void onItemChanged(QListWidgetItem* item);
     void onCustomContextMenuRequested(const QPoint& pos);
 
@@ -94,6 +112,7 @@ private:
     QLabel* detail_label_{nullptr};
     QListWidget* list_{nullptr};
     bool suppress_item_changed_{false};
+    int opened_index_{-1};
 
     /** @brief Retranslates labels, tooltips, and context-menu copy. */
     void retranslate_ui();

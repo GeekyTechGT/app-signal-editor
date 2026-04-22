@@ -5,6 +5,11 @@
 #include "signal_editor/adapters/qt/signal_list_panel.h"
 #include "signal_editor/adapters/qt/signal_plot_widget.h"
 #include "signal_editor/adapters/qt/signal_table_panel.h"
+#include "signal_editor/adapters/filesystem/csv_signal_repository.h"
+#include "signal_editor/adapters/filesystem/delimited_signal_repository.h"
+#include "signal_editor/adapters/filesystem/json_signal_repository.h"
+#include "signal_editor/adapters/filesystem/spreadsheet_xml_signal_repository.h"
+#include "signal_editor/adapters/filesystem/xlsx_signal_repository.h"
 #include "signal_editor/core/usecases/signal_editor_service.h"
 
 #include <QAction>
@@ -198,20 +203,22 @@ QString summarize_counts(const SignalLibrary& library) {
 
 QString import_file_filter() {
     return QCoreApplication::translate("MainWindow",
-        "Supported signal files (*.csv *.tsv *.txt *.json *.xml);;"
+        "Supported signal files (*.csv *.tsv *.txt *.json *.xml *.xlsx);;"
         "CSV files (*.csv);;"
         "Tab-delimited files (*.tsv *.txt);;"
         "JSON files (*.json);;"
-        "SpreadsheetML XML files (*.xml)");
+        "SpreadsheetML XML files (*.xml);;"
+        "Excel workbook files (*.xlsx)");
 }
 
 QString export_file_filter() {
     return QCoreApplication::translate("MainWindow",
-        "Supported export files (*.csv *.tsv *.txt *.json *.xml);;"
+        "Supported export files (*.csv *.tsv *.txt *.json *.xml *.xlsx);;"
         "CSV files (*.csv);;"
         "Tab-delimited files (*.tsv *.txt);;"
         "JSON files (*.json);;"
-        "SpreadsheetML XML files (*.xml)");
+        "SpreadsheetML XML files (*.xml);;"
+        "Excel workbook files (*.xlsx)");
 }
 
 bool is_supported_import_path(const QString& path) {
@@ -220,7 +227,28 @@ bool is_supported_import_path(const QString& path) {
            lowered == QStringLiteral("tsv") ||
            lowered == QStringLiteral("txt") ||
            lowered == QStringLiteral("json") ||
-           lowered == QStringLiteral("xml");
+           lowered == QStringLiteral("xml") ||
+           lowered == QStringLiteral("xlsx");
+}
+
+DocumentFormat document_format_for_path(const QString& path) {
+    const QString suffix = QFileInfo(path).suffix().trimmed().toLower();
+    if (suffix == QStringLiteral("csv")) {
+        return DocumentFormat::Csv;
+    }
+    if (suffix == QStringLiteral("tsv") || suffix == QStringLiteral("txt")) {
+        return DocumentFormat::Delimited;
+    }
+    if (suffix == QStringLiteral("json")) {
+        return DocumentFormat::Json;
+    }
+    if (suffix == QStringLiteral("xml")) {
+        return DocumentFormat::SpreadsheetXml;
+    }
+    if (suffix == QStringLiteral("xlsx")) {
+        return DocumentFormat::Xlsx;
+    }
+    return DocumentFormat::Unknown;
 }
 
 QString normalize_language_code(QString language) {
@@ -826,6 +854,8 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
 
     connect(file_panel_, &FileListPanel::selectionChanged,
             this, &MainWindow::onFileSelectionChanged);
+    connect(file_panel_, &FileListPanel::openRequested,
+            this, &MainWindow::onFileOpenRequested);
     connect(file_panel_, &FileListPanel::renameRequested,
             this, &MainWindow::onFileRenameRequested);
     connect(file_panel_, &FileListPanel::removeRequested,
@@ -1010,7 +1040,7 @@ void MainWindow::onSave() {
     }
 #endif
 
-    const auto result = service_.save_to(std::filesystem::path(path.toStdString()));
+    const auto result = save_document_state(document, path);
     if (!result.is_ok()) {
         show_error(tr("Export failed"), QString::fromStdString(result.message));
         return;
@@ -1018,6 +1048,7 @@ void MainWindow::onSave() {
 
     document.path         = path;
     document.display_name = QFileInfo(path).fileName();
+    document.format       = document_format_for_path(path);
     document.dirty        = false;
     clear_undo_history();
     refresh_file_panel();
@@ -1077,20 +1108,25 @@ void MainWindow::onUndo() {
 
     const UndoState state = std::move(document.undo_stack.back());
     document.undo_stack.pop_back();
-    service_.set_library(state.library);
-    sync_active_document_from_service();
-    document.dirty = !document.undo_stack.empty();
-    normalize_visible_signal_indices(document);
-
-    list_panel_->set_library(&service_.library());
-    list_panel_->set_visible_signal_indices(document.visible_signal_indices);
-    if (!service_.library().empty()) {
-        const int bounded_index = std::clamp(state.selected_signal_index, 0,
-                                             static_cast<int>(service_.library().size()) - 1);
-        list_panel_->set_active_signal_index(bounded_index);
-        list_panel_->select(bounded_index);
+    document.sheets.clear();
+    document.sheets.reserve(state.sheets.size());
+    for (const auto& sheet : state.sheets) {
+        document.sheets.push_back(LoadedSheetState{
+            sheet.name,
+            sheet.library,
+            sheet.visible_signal_indices,
+            sheet.active_signal_index,
+        });
     }
-    rebind_plot();
+    document.active_sheet_index = std::clamp(
+        state.active_sheet_index,
+        0,
+        document.sheets.empty() ? 0 : static_cast<int>(document.sheets.size()) - 1);
+    service_.set_library(document.sheets.empty()
+                             ? SignalLibrary{}
+                             : document.sheets[static_cast<std::size_t>(document.active_sheet_index)].library);
+    document.dirty = !document.undo_stack.empty();
+    activate_document(active_document_index_, active_signal_index());
     update_undo_action();
     refresh_file_panel();
     refresh_status(tr("Undo applied"));
@@ -1220,6 +1256,18 @@ void MainWindow::apply_settings(const lib_qt_custom_widgets::AppSettings& settin
 
 void MainWindow::onFileSelectionChanged(int index) {
     if (switching_document_) { return; }
+    if (index < 0 || index >= static_cast<int>(documents_.size())) {
+        refresh_status();
+        return;
+    }
+    refresh_status(tr("Selected %1").arg(
+        documents_[static_cast<std::size_t>(index)].display_name));
+}
+
+void MainWindow::onFileOpenRequested(int index) {
+    if (switching_document_) {
+        return;
+    }
     activate_document(index);
 }
 
@@ -1233,13 +1281,17 @@ void MainWindow::onSignalSelectionChanged(int index) {
         return;
     }
 
-    auto& document = documents_[static_cast<std::size_t>(active_document_index_)];
+    auto* sheet = active_sheet_state();
+    if (sheet == nullptr) {
+        rebind_plot();
+        return;
+    }
     if (index >= 0) {
-        document.active_signal_index = index;
-        auto& plotted = document.visible_signal_indices;
+        sheet->active_signal_index = index;
+        auto& plotted = sheet->visible_signal_indices;
         if (std::find(plotted.begin(), plotted.end(), index) == plotted.end()) {
             plotted.push_back(index);
-            normalize_visible_signal_indices(document);
+            normalize_visible_signal_indices(*sheet);
             switching_document_ = true;
             list_panel_->set_visible_signal_indices(plotted);
             list_panel_->set_active_signal_index(index);
@@ -1269,8 +1321,12 @@ void MainWindow::onSignalVisibilityChanged(int index, bool visible) {
     const std::pair<double, double> previous_time_view =
         preserve_time_view ? plot_->time_view() : std::pair<double, double>{0.0, 0.0};
 
-    auto& document = documents_[static_cast<std::size_t>(active_document_index_)];
-    auto& plotted = document.visible_signal_indices;
+    auto* sheet = active_sheet_state();
+    if (sheet == nullptr) {
+        rebind_plot();
+        return;
+    }
+    auto& plotted = sheet->visible_signal_indices;
     const auto existing = std::find(plotted.begin(), plotted.end(), index);
     if (visible) {
         if (existing == plotted.end()) {
@@ -1279,7 +1335,7 @@ void MainWindow::onSignalVisibilityChanged(int index, bool visible) {
     } else if (existing != plotted.end()) {
         plotted.erase(existing);
     }
-    normalize_visible_signal_indices(document);
+    normalize_visible_signal_indices(*sheet);
 
     if (list_panel_ == nullptr) {
         rebind_plot();
@@ -1300,7 +1356,7 @@ void MainWindow::onSignalVisibilityChanged(int index, bool visible) {
                std::find(plotted.begin(), plotted.end(), current_index) == plotted.end()) {
         next_active_index = index;
     }
-    document.active_signal_index = next_active_index;
+    sheet->active_signal_index = next_active_index;
 
     switching_document_ = true;
     list_panel_->set_visible_signal_indices(plotted);
@@ -1317,17 +1373,57 @@ void MainWindow::onSignalVisibilityChanged(int index, bool visible) {
 
 void MainWindow::onSignalOptionsRequested(int index) { show_signal_options(index); }
 
-void MainWindow::onFileRemoveRequested(int index) {
-    if (index < 0 || index >= static_cast<int>(documents_.size())) { return; }
-    const QString file_name = documents_[static_cast<std::size_t>(index)].display_name;
+void MainWindow::onFileRemoveRequested(const QList<int>& indices) {
+    QList<int> rows = indices;
+    rows.erase(std::remove_if(rows.begin(), rows.end(), [&](int index) {
+        return index < 0 || index >= static_cast<int>(documents_.size());
+    }), rows.end());
+    std::sort(rows.begin(), rows.end());
+    rows.erase(std::unique(rows.begin(), rows.end()), rows.end());
+    if (rows.isEmpty()) {
+        return;
+    }
+
+    QString confirmation_text;
+    if (rows.size() == 1) {
+        const QString file_name = documents_[static_cast<std::size_t>(rows.front())].display_name;
+        confirmation_text =
+            tr("Remove %1 from the current workspace?\nThe file on disk will not be deleted.")
+                .arg(file_name);
+    } else {
+        confirmation_text =
+            tr("Remove %1 selected files from the current workspace?\nThe files on disk will not be deleted.")
+                .arg(rows.size());
+    }
+
     const auto answer = QMessageBox::question(
         this,
         tr("Remove file from workspace"),
-        tr("Remove %1 from the current workspace?\nThe file on disk will not be deleted.")
-            .arg(file_name));
-    if (answer != QMessageBox::Yes) { return; }
+        confirmation_text);
+    if (answer != QMessageBox::Yes) {
+        return;
+    }
 
-    documents_.erase(documents_.begin() + index);
+    const int previous_active_index = active_document_index_;
+    const int previous_signal_index = active_signal_index();
+    if (active_document_index_ >= 0 &&
+        active_document_index_ < static_cast<int>(documents_.size())) {
+        sync_active_document_from_service();
+    }
+
+    const int first_removed_index = rows.front();
+    const bool removing_active = previous_active_index >= 0 && rows.contains(previous_active_index);
+    int removed_before_active = 0;
+    for (int row : rows) {
+        if (previous_active_index >= 0 && row < previous_active_index) {
+            ++removed_before_active;
+        }
+    }
+
+    for (auto it = rows.rbegin(); it != rows.rend(); ++it) {
+        documents_.erase(documents_.begin() + *it);
+    }
+
     if (documents_.empty()) {
         active_document_index_ = -1;
         service_.clear();
@@ -1338,17 +1434,21 @@ void MainWindow::onFileRemoveRequested(int index) {
         table_panel_->set_library(nullptr, -1, {});
         refresh_file_panel();
         update_undo_action();
-        refresh_status(tr("Removed %1 from workspace").arg(file_name));
+        refresh_status(rows.size() == 1
+                           ? tr("Removed 1 file from workspace")
+                           : tr("Removed %1 files from workspace").arg(rows.size()));
         return;
     }
-    int next_index = index;
-    if (index <= active_document_index_) {
-        next_index = std::max(0, index - (index == active_document_index_ ? 1 : 0));
-    }
+
+    int next_index = removing_active
+        ? std::min(first_removed_index, static_cast<int>(documents_.size()) - 1)
+        : previous_active_index - removed_before_active;
     next_index = std::clamp(next_index, 0, static_cast<int>(documents_.size()) - 1);
     refresh_file_panel();
-    activate_document(next_index);
-    refresh_status(tr("Removed %1 from workspace").arg(file_name));
+    activate_document(next_index, removing_active ? 0 : previous_signal_index);
+    refresh_status(rows.size() == 1
+                       ? tr("Removed 1 file from workspace")
+                       : tr("Removed %1 files from workspace").arg(rows.size()));
 }
 
 void MainWindow::onFileReloadRequested(int index) {
@@ -1357,8 +1457,6 @@ void MainWindow::onFileReloadRequested(int index) {
     }
 
     auto& document = documents_[static_cast<std::size_t>(index)];
-    const auto previous_document_library = document.library;
-    const auto previous_visible_indices = document.visible_signal_indices;
     if (document.path.trimmed().isEmpty()) {
         show_error(tr("Reload failed"),
                    tr("This workspace item has no source file on disk yet."));
@@ -1381,76 +1479,75 @@ void MainWindow::onFileReloadRequested(int index) {
         active_document_index_ < static_cast<int>(documents_.size());
     const int previous_active_document_index = active_document_index_;
     const int previous_signal_index = active_signal_index();
+    const int previous_sheet_index = active_sheet_index();
     if (had_active_document) {
         sync_active_document_from_service();
     }
-    const SignalLibrary previous_library =
-        had_active_document
-            ? documents_[static_cast<std::size_t>(previous_active_document_index)].library
-            : SignalLibrary{};
+    const auto previous_documents = documents_;
 
-    const auto result = service_.load_from(std::filesystem::path(document.path.toStdString()));
-    if (!result.is_ok()) {
+    try {
+        switching_document_ = true;
+        list_panel_->set_library(nullptr);
+        list_panel_->set_visible_signal_indices({});
+        list_panel_->set_active_signal_index(-1);
+        plot_->set_library(nullptr, -1, {});
+        table_panel_->set_library(nullptr, -1, {});
+        switching_document_ = false;
+
+        LoadedDocument reloaded = load_document_state(document.path);
+        reloaded.display_name = document.display_name;
+        reloaded.undo_stack.clear();
+        reloaded.dirty = false;
+
+        int next_sheet_index = 0;
+        if (!document.sheets.empty()) {
+            const QString previous_sheet_name =
+                document.sheets[static_cast<std::size_t>(
+                    std::clamp(document.active_sheet_index, 0,
+                               static_cast<int>(document.sheets.size()) - 1))].name;
+            for (int candidate = 0; candidate < static_cast<int>(reloaded.sheets.size()); ++candidate) {
+                if (reloaded.sheets[static_cast<std::size_t>(candidate)].name == previous_sheet_name) {
+                    next_sheet_index = candidate;
+                    break;
+                }
+            }
+        }
+        reloaded.active_sheet_index = next_sheet_index;
+        documents_[static_cast<std::size_t>(index)] = std::move(reloaded);
+        refresh_file_panel();
+
         if (had_active_document) {
-            service_.set_library(previous_library);
-            activate_document(previous_active_document_index, previous_signal_index);
+            if (index == previous_active_document_index) {
+                activate_document(index, previous_signal_index, false);
+            } else {
+                activate_document(previous_active_document_index, previous_signal_index);
+                if (previous_sheet_index >= 0 &&
+                    previous_active_document_index >= 0 &&
+                    previous_active_document_index < static_cast<int>(documents_.size())) {
+                    documents_[static_cast<std::size_t>(previous_active_document_index)].active_sheet_index =
+                        std::min(previous_sheet_index,
+                                 static_cast<int>(documents_[static_cast<std::size_t>(previous_active_document_index)]
+                                                      .sheets.size()) - 1);
+                    activate_document(previous_active_document_index, previous_signal_index);
+                }
+            }
         } else {
             service_.clear();
         }
+        update_undo_action();
+        refresh_status(tr("Reloaded %1 from disk").arg(document.display_name));
+    } catch (const std::exception& ex) {
+        documents_ = previous_documents;
+        if (had_active_document) {
+            activate_document(previous_active_document_index, previous_signal_index);
+        } else {
+            service_.clear();
+            rebind_plot();
+        }
         show_error(tr("Reload failed"),
                    QStringLiteral("%1\n\n%2")
-                       .arg(document.path, QString::fromStdString(result.message)));
-        return;
+                       .arg(document.path, QString::fromLocal8Bit(ex.what())));
     }
-
-    document.library = service_.library();
-    document.dirty = false;
-    document.undo_stack.clear();
-    document.visible_signal_indices.clear();
-    for (int visible_index : previous_visible_indices) {
-        if (visible_index >= 0 &&
-            visible_index < static_cast<int>(document.library.size()) &&
-            std::find(document.visible_signal_indices.begin(),
-                      document.visible_signal_indices.end(),
-                      visible_index) == document.visible_signal_indices.end()) {
-            document.visible_signal_indices.push_back(visible_index);
-        }
-    }
-    if (document.library.size() > previous_document_library.size()) {
-        for (std::size_t signal_index = previous_document_library.size();
-             signal_index < document.library.size();
-             ++signal_index) {
-            document.visible_signal_indices.push_back(static_cast<int>(signal_index));
-        }
-    }
-    normalize_visible_signal_indices(document);
-
-    if (had_active_document) {
-        service_.set_library(previous_library);
-    } else {
-        service_.clear();
-    }
-
-    refresh_file_panel();
-    if (index == active_document_index_) {
-        const int bounded_signal_index =
-            document.library.empty() ? -1
-                                     : std::clamp(previous_signal_index, 0,
-                                                  static_cast<int>(document.library.size()) - 1);
-        activate_document(index, bounded_signal_index);
-        list_panel_->set_library(&service_.library());
-        list_panel_->set_visible_signal_indices(document.visible_signal_indices);
-        list_panel_->set_active_signal_index(bounded_signal_index);
-        list_panel_->refresh();
-        if (bounded_signal_index >= 0) {
-            list_panel_->select(bounded_signal_index);
-        }
-        rebind_plot();
-    } else if (had_active_document) {
-        activate_document(previous_active_document_index, previous_signal_index);
-    }
-    update_undo_action();
-    refresh_status(tr("Reloaded %1 from disk").arg(document.display_name));
 }
 
 void MainWindow::onFileDetailsRequested(int index) { show_file_details(index); }
@@ -2035,8 +2132,11 @@ void MainWindow::onRemoveRequested(int index) {
         index >= static_cast<int>(service_.library().size())) {
         return;
     }
-    auto& document = documents_[static_cast<std::size_t>(active_document_index_)];
-    const std::vector<int> previous_visible = document.visible_signal_indices;
+    auto* sheet = active_sheet_state();
+    if (sheet == nullptr) {
+        return;
+    }
+    const std::vector<int> previous_visible = sheet->visible_signal_indices;
     push_undo_state();
     const auto result = service_.remove_signal(static_cast<std::size_t>(index));
     if (!result.is_ok()) {
@@ -2045,25 +2145,25 @@ void MainWindow::onRemoveRequested(int index) {
         return;
     }
     mark_active_document_dirty();
-    document.visible_signal_indices.clear();
+    sheet->visible_signal_indices.clear();
     for (int visible_index : previous_visible) {
         if (visible_index == index) {
             continue;
         }
-        document.visible_signal_indices.push_back(visible_index > index
-                                                      ? visible_index - 1
-                                                      : visible_index);
+        sheet->visible_signal_indices.push_back(visible_index > index
+                                                    ? visible_index - 1
+                                                    : visible_index);
     }
-    normalize_visible_signal_indices(document);
-    list_panel_->set_visible_signal_indices(document.visible_signal_indices);
+    normalize_visible_signal_indices(*sheet);
+    list_panel_->set_visible_signal_indices(sheet->visible_signal_indices);
     list_panel_->refresh();
     if (!service_.library().empty()) {
         const int next_index = std::min(index, static_cast<int>(service_.library().size()) - 1);
-        documents_[static_cast<std::size_t>(active_document_index_)].active_signal_index = next_index;
+        sheet->active_signal_index = next_index;
         list_panel_->select(next_index);
     } else if (active_document_index_ >= 0 &&
                active_document_index_ < static_cast<int>(documents_.size())) {
-        documents_[static_cast<std::size_t>(active_document_index_)].active_signal_index = -1;
+        sheet->active_signal_index = -1;
     }
     rebind_plot();
 }
@@ -2395,13 +2495,10 @@ void MainWindow::load_document(const QString& path) {
         active_document_index_ < static_cast<int>(documents_.size());
     const int previous_document_index = active_document_index_;
     const int previous_signal_index = active_signal_index();
+    const int previous_sheet_index = active_sheet_index();
     if (had_active_document) {
         sync_active_document_from_service();
     }
-    const SignalLibrary previous_library =
-        had_active_document
-            ? documents_[static_cast<std::size_t>(previous_document_index)].library
-            : SignalLibrary{};
     const auto previous_documents = documents_;
 
     try {
@@ -2413,37 +2510,7 @@ void MainWindow::load_document(const QString& path) {
         table_panel_->set_library(nullptr, -1, {});
         switching_document_ = false;
 
-        const auto result = service_.load_from(std::filesystem::path(path.toStdString()));
-        if (!result.is_ok()) {
-            if (had_active_document) {
-                service_.set_library(previous_library);
-                activate_document(previous_document_index, previous_signal_index);
-            } else {
-                service_.clear();
-                rebind_plot();
-            }
-            show_error(tr("Load failed"),
-                       QStringLiteral("%1\n\n%2").arg(path, QString::fromStdString(result.message)));
-            return;
-        }
-
-        SignalLibrary loaded_library = service_.library();
-        if (had_active_document) {
-            service_.set_library(previous_library);
-        } else {
-            service_.clear();
-        }
-
-        LoadedDocument document;
-        document.path         = path;
-        document.display_name = QFileInfo(path).fileName();
-        document.library      = std::move(loaded_library);
-    document.visible_signal_indices =
-            document.library.empty() ? std::vector<int>{} : std::vector<int>{0};
-        document.active_signal_index = document.library.empty() ? -1 : 0;
-        document.undo_stack.clear();
-        document.dirty = false;
-
+        LoadedDocument document = load_document_state(path);
         documents_.push_back(std::move(document));
 
         refresh_file_panel();
@@ -2452,7 +2519,12 @@ void MainWindow::load_document(const QString& path) {
     } catch (...) {
         documents_ = previous_documents;
         if (had_active_document) {
-            service_.set_library(previous_library);
+            if (previous_sheet_index >= 0 &&
+                previous_document_index >= 0 &&
+                previous_document_index < static_cast<int>(documents_.size())) {
+                documents_[static_cast<std::size_t>(previous_document_index)].active_sheet_index =
+                    previous_sheet_index;
+            }
             activate_document(previous_document_index, previous_signal_index);
         } else {
             service_.clear();
@@ -2467,6 +2539,122 @@ void MainWindow::load_document(const QString& path) {
         }
         throw;
     }
+}
+
+MainWindow::LoadedDocument MainWindow::load_document_state(const QString& path) const {
+    const DocumentFormat format = document_format_for_path(path);
+
+    auto make_sheet_state = [&](const QString& name, SignalLibrary library) {
+        LoadedSheetState sheet;
+        sheet.name = name;
+        sheet.library = std::move(library);
+        sheet.visible_signal_indices = sheet.library.empty() ? std::vector<int>{} : std::vector<int>{0};
+        sheet.active_signal_index = sheet.library.empty() ? -1 : 0;
+        return sheet;
+    };
+
+    LoadedDocument document;
+    document.path = path;
+    document.display_name = QFileInfo(path).fileName();
+    document.format = format;
+    document.explicit_sheet_names = false;
+    document.active_sheet_index = 0;
+    document.undo_stack.clear();
+    document.dirty = false;
+
+    switch (format) {
+    case DocumentFormat::Csv: {
+        CsvSignalRepository repository;
+        document.sheets.push_back(make_sheet_state(
+            QString{},
+            repository.load(std::filesystem::path(path.toStdString()))));
+        break;
+    }
+    case DocumentFormat::SpreadsheetXml: {
+        SpreadsheetXmlSignalRepository repository;
+        const auto workbook = repository.load_workbook(std::filesystem::path(path.toStdString()));
+        document.explicit_sheet_names = true;
+        for (const auto& sheet : workbook.sheets) {
+            document.sheets.push_back(make_sheet_state(QString::fromStdString(sheet.name), sheet.library));
+        }
+        break;
+    }
+    case DocumentFormat::Xlsx: {
+        XlsxSignalRepository repository;
+        const auto workbook = repository.load_workbook(std::filesystem::path(path.toStdString()));
+        document.explicit_sheet_names = true;
+        for (const auto& sheet : workbook.sheets) {
+            document.sheets.push_back(make_sheet_state(QString::fromStdString(sheet.name), sheet.library));
+        }
+        break;
+    }
+    case DocumentFormat::Delimited: {
+        DelimitedSignalRepository repository('\t');
+        document.sheets.push_back(make_sheet_state(QString{},
+                                                   repository.load(std::filesystem::path(path.toStdString()))));
+        break;
+    }
+    case DocumentFormat::Json: {
+        JsonSignalRepository repository;
+        document.sheets.push_back(make_sheet_state(QString{},
+                                                   repository.load(std::filesystem::path(path.toStdString()))));
+        break;
+    }
+    case DocumentFormat::Unknown:
+        throw std::runtime_error("Unsupported import format");
+    }
+
+    if (document.sheets.empty()) {
+        document.sheets.push_back(make_sheet_state(QString{}, SignalLibrary{}));
+    }
+    return document;
+}
+
+signal_editor::Result MainWindow::save_document_state(const LoadedDocument& document, const QString& path) const {
+    WorkbookDocument workbook;
+    workbook.explicit_sheet_names = document.explicit_sheet_names || document.sheets.size() > 1U;
+    for (const auto& sheet : document.sheets) {
+        workbook.sheets.push_back(WorkbookSheet{sheet.name.toStdString(), sheet.library});
+    }
+
+    const DocumentFormat format = document_format_for_path(path);
+    switch (format) {
+    case DocumentFormat::Csv: {
+        CsvSignalRepository repository;
+        if (workbook.sheets.size() > 1U) {
+            return signal_editor::Result::error(
+                "CSV files do not support multiple worksheets. Save as XLSX or SpreadsheetML XML.");
+        }
+        return repository.save(std::filesystem::path(path.toStdString()), workbook.sheets.front().library);
+    }
+    case DocumentFormat::SpreadsheetXml: {
+        SpreadsheetXmlSignalRepository repository;
+        return repository.save_workbook(std::filesystem::path(path.toStdString()), workbook);
+    }
+    case DocumentFormat::Xlsx: {
+        XlsxSignalRepository repository;
+        return repository.save_workbook(std::filesystem::path(path.toStdString()), workbook);
+    }
+    case DocumentFormat::Delimited: {
+        if (workbook.sheets.size() > 1U) {
+            return signal_editor::Result::error(
+                "Multi-sheet documents cannot be saved as TSV/TXT. Use CSV, XML, or XLSX.");
+        }
+        DelimitedSignalRepository repository('\t');
+        return repository.save(std::filesystem::path(path.toStdString()), workbook.sheets.front().library);
+    }
+    case DocumentFormat::Json: {
+        if (workbook.sheets.size() > 1U) {
+            return signal_editor::Result::error(
+                "Multi-sheet documents cannot be saved as JSON. Use CSV, XML, or XLSX.");
+        }
+        JsonSignalRepository repository;
+        return repository.save(std::filesystem::path(path.toStdString()), workbook.sheets.front().library);
+    }
+    case DocumentFormat::Unknown:
+        return signal_editor::Result::error("Unsupported export format.");
+    }
+    return signal_editor::Result::error("Unsupported export format.");
 }
 
 /**
@@ -2488,10 +2676,15 @@ int MainWindow::ensure_workspace_document() {
 
     LoadedDocument document;
     document.path = {};
-    document.library = service_.library();
-    document.visible_signal_indices = service_.library().empty() ? std::vector<int>{}
-                                                                : std::vector<int>{0};
-    document.active_signal_index = service_.library().empty() ? -1 : 0;
+    document.format = DocumentFormat::Csv;
+    document.explicit_sheet_names = false;
+    document.sheets.push_back(LoadedSheetState{
+        QString{},
+        service_.library(),
+        service_.library().empty() ? std::vector<int>{} : std::vector<int>{0},
+        service_.library().empty() ? -1 : 0,
+    });
+    document.active_sheet_index = 0;
     document.undo_stack.clear();
     document.dirty = false;
 
@@ -2513,50 +2706,61 @@ int MainWindow::ensure_workspace_document() {
 }
 
 void MainWindow::sync_active_document_from_service() {
-    if (active_document_index_ < 0 ||
-        active_document_index_ >= static_cast<int>(documents_.size())) {
+    auto* sheet = active_sheet_state();
+    if (sheet == nullptr) {
         return;
     }
-    documents_[static_cast<std::size_t>(active_document_index_)].library = service_.library();
-    normalize_visible_signal_indices(documents_[static_cast<std::size_t>(active_document_index_)]);
+    sheet->library = service_.library();
+    normalize_visible_signal_indices(*sheet);
 }
 
-void MainWindow::activate_document(int index, int preferred_signal_index) {
+void MainWindow::activate_document(int index, int preferred_signal_index, bool sync_current_document) {
     if (index < 0 || index >= static_cast<int>(documents_.size())) {
         active_document_index_ = -1;
         service_.clear();
         list_panel_->set_library(nullptr);
         list_panel_->set_visible_signal_indices({});
         list_panel_->set_active_signal_index(-1);
+        file_panel_->set_opened_index(-1);
         plot_->set_library(nullptr, -1, {});
         table_panel_->set_library(nullptr, -1, {});
         update_undo_action();
         refresh_status();
         return;
     }
-    sync_active_document_from_service();
+    if (sync_current_document) {
+        sync_active_document_from_service();
+    }
     switching_document_    = true;
     active_document_index_ = index;
-    service_.set_library(documents_[static_cast<std::size_t>(index)].library);
-    normalize_visible_signal_indices(documents_[static_cast<std::size_t>(index)]);
+    auto& document = documents_[static_cast<std::size_t>(index)];
+    if (document.sheets.empty()) {
+        document.sheets.push_back(LoadedSheetState{QString{}, SignalLibrary{}, {}, -1});
+    }
+    document.active_sheet_index = std::clamp(
+        document.active_sheet_index, 0, static_cast<int>(document.sheets.size()) - 1);
+    auto& sheet = document.sheets[static_cast<std::size_t>(document.active_sheet_index)];
+    service_.set_library(sheet.library);
+    normalize_visible_signal_indices(sheet);
     list_panel_->set_library(&service_.library());
-    list_panel_->set_visible_signal_indices(documents_[static_cast<std::size_t>(index)].visible_signal_indices);
+    list_panel_->set_visible_signal_indices(sheet.visible_signal_indices);
     int resolved_index = preferred_signal_index;
     if (resolved_index < 0) {
-        resolved_index = documents_[static_cast<std::size_t>(index)].active_signal_index;
+        resolved_index = sheet.active_signal_index;
     }
     if (!service_.library().empty() && resolved_index >= 0) {
         const int bounded_index = std::clamp(resolved_index, 0,
                                              static_cast<int>(service_.library().size()) - 1);
-        documents_[static_cast<std::size_t>(index)].active_signal_index = bounded_index;
+        sheet.active_signal_index = bounded_index;
         list_panel_->set_active_signal_index(bounded_index);
         list_panel_->select(bounded_index);
     } else {
-        documents_[static_cast<std::size_t>(index)].active_signal_index = -1;
+        sheet.active_signal_index = -1;
         list_panel_->set_active_signal_index(-1);
         list_panel_->select(-1);
     }
-    file_panel_->select(index);
+    file_panel_->select(index, true);
+    file_panel_->set_opened_index(index);
     switching_document_ = false;
     rebind_plot();
     update_undo_action();
@@ -2581,7 +2785,14 @@ void MainWindow::push_undo_state() {
     }
     sync_active_document_from_service();
     auto& document = documents_[static_cast<std::size_t>(active_document_index_)];
-    document.undo_stack.push_back(UndoState{document.library, active_signal_index()});
+    UndoState state;
+    state.active_sheet_index = document.active_sheet_index;
+    state.sheets.reserve(document.sheets.size());
+    for (const auto& sheet : document.sheets) {
+        state.sheets.push_back(
+            UndoState::SheetState{sheet.name, sheet.library, sheet.visible_signal_indices, sheet.active_signal_index});
+    }
+    document.undo_stack.push_back(std::move(state));
     update_undo_action();
 }
 
@@ -2606,65 +2817,158 @@ void MainWindow::clear_undo_history() {
 
 void MainWindow::show_file_details(int index) {
     if (index < 0 || index >= static_cast<int>(documents_.size())) { return; }
-    const auto& document = documents_[static_cast<std::size_t>(index)];
+    auto& document = documents_[static_cast<std::size_t>(index)];
     QFileInfo file_info(document.path);
-
-    std::size_t total_samples = 0;
-    double time_min = 0.0, time_max = 0.0;
-    bool has_samples = false;
-    QStringList signal_summaries;
-    signal_summaries.reserve(static_cast<int>(document.library.size()));
-    for (const auto& signal : document.library.items()) {
-        total_samples += signal.size();
-        if (!signal.empty()) {
-            if (!has_samples) {
-                time_min = signal.t_min(); time_max = signal.t_max();
-                has_samples = true;
-            } else {
-                time_min = std::min(time_min, signal.t_min());
-                time_max = std::max(time_max, signal.t_max());
-            }
-        }
-        signal_summaries.push_back(describe_signal_line(signal));
-    }
-
-    QString details;
-    details += tr("File: %1\n").arg(document.display_name);
-    details += tr("Path: %1\n").arg(document.path);
-    details += tr("Folder: %1\n").arg(file_info.absolutePath());
-    details += tr("Exists on disk: %1\n").arg(
-        file_info.exists() ? tr("yes") : tr("no"));
-    if (file_info.exists()) {
-        details += tr("Size: %1 bytes\n").arg(file_info.size());
-        details += tr("Last modified: %1\n")
-            .arg(file_info.lastModified().toString(Qt::ISODate));
-    }
-    details += tr("Signals loaded: %1\n").arg(static_cast<qulonglong>(document.library.size()));
-    details += tr("Total samples: %1\n").arg(static_cast<qulonglong>(total_samples));
-    details += tr("Workspace modified: %1\n").arg(
-        document.dirty ? tr("yes") : tr("no"));
-    details += tr("Undo steps available: %1\n")
-        .arg(static_cast<qulonglong>(document.undo_stack.size()));
-    if (has_samples) {
-        details += tr("Global time range: [%1, %2]\n")
-            .arg(time_min, 0, 'f', 4).arg(time_max, 0, 'f', 4);
-    }
-    details += tr("\nSignals:\n");
-    details += signal_summaries.isEmpty()
-        ? tr("- none")
-        : signal_summaries.join(QStringLiteral("\n"));
+    const bool show_sheet_selector = document.format == DocumentFormat::Xlsx;
 
     QDialog dialog(this);
-    dialog.setWindowTitle(tr("File details"));
-    dialog.resize(760, 520);
+    dialog.setWindowTitle(tr("File options"));
+    dialog.resize(820, 620);
     auto* dlg_layout = new QVBoxLayout(&dialog);
-    auto* text_view  = new QTextEdit(&dialog);
+
+    auto* summary_label = new QLabel(&dialog);
+    summary_label->setWordWrap(true);
+    QString summary;
+    summary += tr("File: %1\n").arg(document.display_name);
+    summary += tr("Path: %1\n").arg(document.path);
+    summary += tr("Format: %1\n")
+        .arg(QFileInfo(document.path).suffix().trimmed().isEmpty()
+                 ? tr("workspace")
+                 : QFileInfo(document.path).suffix().trimmed().toUpper());
+    if (show_sheet_selector) {
+        summary += tr("Sheets detected: %1\n").arg(static_cast<qulonglong>(document.sheets.size()));
+    }
+    summary += tr("Workspace modified: %1\n").arg(document.dirty ? tr("yes") : tr("no"));
+    summary += tr("Undo steps available: %1\n")
+        .arg(static_cast<qulonglong>(document.undo_stack.size()));
+    if (file_info.exists()) {
+        summary += tr("Size: %1 bytes\n").arg(file_info.size());
+        summary += tr("Last modified: %1\n").arg(file_info.lastModified().toString(Qt::ISODate));
+    }
+    summary_label->setText(summary);
+    dlg_layout->addWidget(summary_label);
+
+    QLabel* sheet_label = nullptr;
+    QComboBox* sheet_combo = nullptr;
+    if (show_sheet_selector) {
+        sheet_label = new QLabel(tr("Active sheet"), &dialog);
+        dlg_layout->addWidget(sheet_label);
+
+        sheet_combo = new QComboBox(&dialog);
+        for (const auto& sheet : document.sheets) {
+            sheet_combo->addItem(sheet.name.isEmpty() ? tr("Sheet") : sheet.name);
+        }
+        sheet_combo->setCurrentIndex(std::clamp(document.active_sheet_index, 0,
+                                                std::max(0, static_cast<int>(document.sheets.size()) - 1)));
+        dlg_layout->addWidget(sheet_combo);
+    }
+
+    auto* text_view = new QTextEdit(&dialog);
     text_view->setReadOnly(true);
-    text_view->setPlainText(details);
-    dlg_layout->addWidget(text_view);
-    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    dlg_layout->addWidget(text_view, 1);
+
+    const auto refresh_sheet_details = [&]() {
+        const int sheet_index = show_sheet_selector && sheet_combo != nullptr
+            ? sheet_combo->currentIndex()
+            : std::clamp(document.active_sheet_index, 0,
+                         std::max(0, static_cast<int>(document.sheets.size()) - 1));
+        if (sheet_index < 0 || sheet_index >= static_cast<int>(document.sheets.size())) {
+            text_view->clear();
+            return;
+        }
+
+        const auto& sheet = document.sheets[static_cast<std::size_t>(sheet_index)];
+        std::size_t total_samples = 0;
+        std::size_t enumerated_signals = 0;
+        double time_min = 0.0;
+        double time_max = 0.0;
+        bool has_samples = false;
+        QStringList signal_summaries;
+        QStringList columns;
+        signal_summaries.reserve(static_cast<int>(sheet.library.size()));
+        columns.reserve(static_cast<int>(sheet.library.size()) + 1);
+        columns.push_back(QStringLiteral("time"));
+        for (const auto& signal : sheet.library.items()) {
+            columns.push_back(QString::fromStdString(signal.name()));
+            total_samples += signal.size();
+            if (signal.is_enumerated()) {
+                ++enumerated_signals;
+            }
+            if (!signal.empty()) {
+                if (!has_samples) {
+                    time_min = signal.t_min();
+                    time_max = signal.t_max();
+                    has_samples = true;
+                } else {
+                    time_min = std::min(time_min, signal.t_min());
+                    time_max = std::max(time_max, signal.t_max());
+                }
+            }
+            signal_summaries.push_back(describe_signal_line(signal));
+        }
+
+        QString details;
+        if (show_sheet_selector) {
+            details += tr("Sheet name: %1\n").arg(sheet.name);
+        }
+        details += tr("Signals loaded: %1\n").arg(static_cast<qulonglong>(sheet.library.size()));
+        details += tr("Visible in plot: %1\n").arg(static_cast<qulonglong>(sheet.visible_signal_indices.size()));
+        details += tr("Total samples: %1\n").arg(static_cast<qulonglong>(total_samples));
+        details += tr("Enumerated signals: %1\n").arg(static_cast<qulonglong>(enumerated_signals));
+        details += tr("Columns: %1\n").arg(columns.join(QStringLiteral(", ")));
+        if (has_samples) {
+            details += tr("Global time range: [%1, %2]\n").arg(time_min, 0, 'f', 4).arg(time_max, 0, 'f', 4);
+        }
+        details += tr("\nSignals:\n");
+        details += signal_summaries.isEmpty() ? tr("- none") : signal_summaries.join(QStringLiteral("\n"));
+        text_view->setPlainText(details);
+    };
+    refresh_sheet_details();
+    if (show_sheet_selector && sheet_combo != nullptr) {
+        connect(sheet_combo, &QComboBox::currentIndexChanged, &dialog,
+                [&](int) { refresh_sheet_details(); });
+    }
+
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Apply | QDialogButtonBox::Close, &dialog);
+    QPushButton* apply_button = buttons->button(QDialogButtonBox::Apply);
+    apply_button->setVisible(show_sheet_selector);
+    apply_button->setEnabled(show_sheet_selector &&
+                             sheet_combo != nullptr &&
+                             sheet_combo->currentIndex() != document.active_sheet_index);
+    if (show_sheet_selector && sheet_combo != nullptr) {
+        connect(sheet_combo, &QComboBox::currentIndexChanged, &dialog,
+                [&](int new_index) { apply_button->setEnabled(new_index != document.active_sheet_index); });
+    }
+    connect(buttons->button(QDialogButtonBox::Close), &QPushButton::clicked, &dialog, &QDialog::reject);
+    connect(apply_button, &QPushButton::clicked, &dialog, [&]() {
+        if (!show_sheet_selector || sheet_combo == nullptr) {
+            dialog.accept();
+            return;
+        }
+        const int new_sheet_index = sheet_combo->currentIndex();
+        if (new_sheet_index < 0 || new_sheet_index >= static_cast<int>(document.sheets.size())) {
+            dialog.reject();
+            return;
+        }
+        if (index == active_document_index_) {
+            const bool preserve_time_view = plot_ != nullptr;
+            const auto previous_time_view =
+                preserve_time_view ? plot_->time_view() : std::pair<double, double>{0.0, 0.0};
+            sync_active_document_from_service();
+            document.active_sheet_index = new_sheet_index;
+            activate_document(index,
+                              document.sheets[static_cast<std::size_t>(new_sheet_index)].active_signal_index,
+                              false);
+            if (preserve_time_view && plot_ != nullptr && active_signal_index() >= 0) {
+                (void)plot_->set_time_view(previous_time_view.first, previous_time_view.second);
+                sync_plot_view_controls();
+            }
+        } else {
+            document.active_sheet_index = new_sheet_index;
+            refresh_file_panel();
+        }
+        dialog.accept();
+    });
     dlg_layout->addWidget(buttons);
     dialog.exec();
 }
@@ -2678,39 +2982,82 @@ void MainWindow::refresh_file_panel() {
     switching_document_ = true;
     file_panel_->set_files(items);
     if (active_document_index_ >= 0) {
-        file_panel_->select(active_document_index_);
+        file_panel_->select(active_document_index_, true);
     }
+    file_panel_->set_opened_index(active_document_index_);
     switching_document_ = false;
 }
 
 void MainWindow::normalize_visible_signal_indices(LoadedDocument& document) const {
+    for (auto& sheet : document.sheets) {
+        normalize_visible_signal_indices(sheet);
+    }
+}
+
+void MainWindow::normalize_visible_signal_indices(LoadedSheetState& sheet) const {
     std::vector<int> normalized;
-    normalized.reserve(document.visible_signal_indices.size());
-    for (int index : document.visible_signal_indices) {
-        if (index < 0 || index >= static_cast<int>(document.library.size())) {
+    normalized.reserve(sheet.visible_signal_indices.size());
+    for (int index : sheet.visible_signal_indices) {
+        if (index < 0 || index >= static_cast<int>(sheet.library.size())) {
             continue;
         }
         if (std::find(normalized.begin(), normalized.end(), index) == normalized.end()) {
             normalized.push_back(index);
         }
     }
-    document.visible_signal_indices = std::move(normalized);
+    sheet.visible_signal_indices = std::move(normalized);
 }
 
 std::vector<int> MainWindow::active_visible_signal_indices() const {
-    if (active_document_index_ < 0 ||
-        active_document_index_ >= static_cast<int>(documents_.size())) {
+    const auto* sheet = active_sheet_state();
+    if (sheet == nullptr) {
         return {};
     }
-    return documents_[static_cast<std::size_t>(active_document_index_)].visible_signal_indices;
+    return sheet->visible_signal_indices;
 }
 
 int MainWindow::active_signal_index() const {
+    const auto* sheet = active_sheet_state();
+    if (sheet == nullptr) {
+        return -1;
+    }
+    return sheet->active_signal_index;
+}
+
+int MainWindow::active_sheet_index() const {
     if (active_document_index_ < 0 ||
         active_document_index_ >= static_cast<int>(documents_.size())) {
         return -1;
     }
-    return documents_[static_cast<std::size_t>(active_document_index_)].active_signal_index;
+    return documents_[static_cast<std::size_t>(active_document_index_)].active_sheet_index;
+}
+
+MainWindow::LoadedSheetState* MainWindow::active_sheet_state() {
+    if (active_document_index_ < 0 ||
+        active_document_index_ >= static_cast<int>(documents_.size())) {
+        return nullptr;
+    }
+    auto& document = documents_[static_cast<std::size_t>(active_document_index_)];
+    if (document.sheets.empty()) {
+        return nullptr;
+    }
+    document.active_sheet_index = std::clamp(
+        document.active_sheet_index, 0, static_cast<int>(document.sheets.size()) - 1);
+    return &document.sheets[static_cast<std::size_t>(document.active_sheet_index)];
+}
+
+const MainWindow::LoadedSheetState* MainWindow::active_sheet_state() const {
+    if (active_document_index_ < 0 ||
+        active_document_index_ >= static_cast<int>(documents_.size())) {
+        return nullptr;
+    }
+    const auto& document = documents_[static_cast<std::size_t>(active_document_index_)];
+    if (document.sheets.empty()) {
+        return nullptr;
+    }
+    const int bounded_sheet_index =
+        std::clamp(document.active_sheet_index, 0, static_cast<int>(document.sheets.size()) - 1);
+    return &document.sheets[static_cast<std::size_t>(bounded_sheet_index)];
 }
 
 void MainWindow::rebind_plot() {
@@ -2856,6 +3203,7 @@ void MainWindow::refresh_status(const QString& transient_message) {
         return;
     }
     const auto& document   = documents_[static_cast<std::size_t>(active_document_index_)];
+    const auto* sheet = active_sheet_state();
     const QString dirty_text = document.dirty ? tr("Modified") : tr("Synced");
     const QString undo_text  = tr("Undo %1").arg(static_cast<qulonglong>(document.undo_stack.size()));
     const QString summary    =
@@ -2867,10 +3215,18 @@ void MainWindow::refresh_status(const QString& transient_message) {
 
     if (workspace_title_label_) workspace_title_label_->setText(document.display_name);
     if (workspace_meta_label_) {
-        workspace_meta_label_->setText(QStringLiteral("%1 | %2 | %3")
-            .arg(summarize_counts(service_.library()))
-            .arg(dirty_text)
-            .arg(undo_text));
+        if (document.format == DocumentFormat::Xlsx && sheet != nullptr && !sheet->name.isEmpty()) {
+            workspace_meta_label_->setText(QStringLiteral("%1 | %2 | %3 | %4")
+                .arg(summarize_counts(service_.library()))
+                .arg(sheet->name)
+                .arg(dirty_text)
+                .arg(undo_text));
+        } else {
+            workspace_meta_label_->setText(QStringLiteral("%1 | %2 | %3")
+                .arg(summarize_counts(service_.library()))
+                .arg(dirty_text)
+                .arg(undo_text));
+        }
     }
     const int signal_index   = active_signal_index();
     const Signal* active_signal = (signal_index >= 0 &&

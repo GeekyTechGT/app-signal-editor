@@ -655,7 +655,9 @@ bool SignalPlotWidget::find_handle_near(const QPointF& pixel, std::size_t& out_i
 }
 
 bool SignalPlotWidget::find_segment_near(const QPointF& pixel, std::size_t& out_start_index) const {
-    if (signal_ == nullptr || signal_->size() < 2) {
+    if (signal_ == nullptr ||
+        signal_->size() < 2 ||
+        signal_->interpolation() == Signal::InterpolationMode::Step) {
         return false;
     }
 
@@ -698,6 +700,7 @@ void SignalPlotWidget::resizeEvent(QResizeEvent* event) {
 void SignalPlotWidget::leaveEvent(QEvent* event) {
     QWidget::leaveEvent(event);
     clear_hovered_index();
+    clear_hovered_segment();
     update();
 }
 
