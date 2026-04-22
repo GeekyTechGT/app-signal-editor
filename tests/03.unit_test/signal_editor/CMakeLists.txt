@@ -6,6 +6,7 @@ add_executable(test_signal_editor
     test_delimited_signal_repository.cpp
     test_json_signal_repository.cpp
     test_spreadsheet_xml_signal_repository.cpp
+    test_xlsx_signal_repository.cpp
     test_signal_file_repository.cpp
 )
 

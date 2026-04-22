@@ -15,11 +15,8 @@ namespace signal_editor::adapters {
  * - `.csv` for the native shared time-axis layout;
  * - `.tsv` / `.txt` for Excel-friendly tab-delimited tables;
  * - `.json` for structured integrations and automation;
- * - `.xml` for SpreadsheetML 2003 workbooks exported by Excel.
- *
- * Native `.xlsx` and `.xls` workbook binaries are intentionally out of scope
- * for this adapter because they require additional archive/spreadsheet
- * dependencies that are not part of the current project baseline.
+ * - `.xml` for SpreadsheetML 2003 workbooks exported by Excel;
+ * - `.xlsx` for native Excel workbooks when the build has libzip available.
  */
 class SignalFileRepository : public ISignalRepository {
 public:

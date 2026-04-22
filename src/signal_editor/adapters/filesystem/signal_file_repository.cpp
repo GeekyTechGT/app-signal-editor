@@ -5,6 +5,7 @@
 #include "signal_editor/adapters/filesystem/json_signal_repository.h"
 #include "signal_editor/adapters/filesystem/spreadsheet_xml_signal_repository.h"
 #include "signal_editor/adapters/filesystem/tabular_signal_rows.h"
+#include "signal_editor/adapters/filesystem/xlsx_signal_repository.h"
 
 #include <stdexcept>
 #include <string>
@@ -35,8 +36,9 @@ SignalLibrary SignalFileRepository::load(const std::filesystem::path& source) {
         SpreadsheetXmlSignalRepository repository;
         return repository.load(source);
     }
-    if (extension == ".xlsx" || extension == ".xls") {
-        throw std::runtime_error("Native Excel workbook binaries are not supported yet. Export the sheet as CSV, TSV/TXT, SpreadsheetML XML, or JSON first.");
+    if (extension == ".xlsx") {
+        XlsxSignalRepository repository;
+        return repository.load(source);
     }
     throw std::runtime_error("Unsupported import format: " + source.extension().string());
 }
@@ -60,9 +62,9 @@ signal_editor::Result SignalFileRepository::save(const std::filesystem::path& de
         SpreadsheetXmlSignalRepository repository;
         return repository.save(destination, library);
     }
-    if (extension == ".xlsx" || extension == ".xls") {
-        return signal_editor::Result::error(
-            "Native Excel workbook binaries are not supported yet. Save as CSV, TSV/TXT, SpreadsheetML XML, or JSON.");
+    if (extension == ".xlsx") {
+        XlsxSignalRepository repository;
+        return repository.save(destination, library);
     }
     return signal_editor::Result::error("Unsupported export format: " + destination.extension().string());
 }

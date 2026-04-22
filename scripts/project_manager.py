@@ -768,6 +768,35 @@ _MINGW_WINPTHREAD = [
     "C:/eng_apps/msys64/mingw32/bin/libwinpthread-1.dll",
 ]
 
+_MINGW_LIBZIP_RUNTIME_DLLS = [
+    "libzip.dll",
+    "zlib1.dll",
+    "liblzma-5.dll",
+    "libbz2-1.dll",
+]
+
+
+def _candidate_mingw_bin_dirs(preset_name: str) -> list[Path]:
+    candidates: list[Path] = []
+    if "mingw64" in preset_name:
+        candidates.append(Path("C:/eng_apps/msys64/mingw64/bin"))
+    if "mingw32" in preset_name:
+        candidates.append(Path("C:/eng_apps/msys64/mingw32/bin"))
+    candidates.extend([
+        Path("C:/eng_apps/msys64/mingw64/bin"),
+        Path("C:/eng_apps/msys64/mingw32/bin"),
+    ])
+
+    unique_candidates: list[Path] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        key = str(candidate).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        unique_candidates.append(candidate)
+    return unique_candidates
+
 
 def _copy_mingw_runtime(preset_name: str, bin_dir: Path) -> None:
     if _HOST != "Windows":
@@ -795,6 +824,42 @@ def _copy_mingw_runtime(preset_name: str, bin_dir: Path) -> None:
     dst = bin_dir / "libwinpthread-1.dll"
     shutil.copy2(src, dst)
     CONSOLE.print(f"  [dim]Bundled:[/] {dst.name} ← {src}")
+
+
+def _copy_mingw_libzip_runtime(preset_name: str, bin_dir: Path) -> set[str]:
+    if _HOST != "Windows":
+        return set()
+
+    copied: set[str] = set()
+    search_dirs = [d for d in _candidate_mingw_bin_dirs(preset_name) if d.exists()]
+    if not search_dirs:
+        CONSOLE.print("[yellow]  MinGW bin directory not found — libzip runtime was not bundled.[/]")
+        return copied
+
+    missing: list[str] = []
+    for dll_name in _MINGW_LIBZIP_RUNTIME_DLLS:
+        src: Optional[Path] = None
+        for directory in search_dirs:
+            candidate = directory / dll_name
+            if candidate.exists():
+                src = candidate
+                break
+        if src is None:
+            missing.append(dll_name)
+            continue
+
+        shutil.copy2(src, bin_dir / dll_name)
+        copied.add(dll_name)
+        CONSOLE.print(f"  [dim]Bundled:[/] {dll_name} ← {src}")
+
+    if missing:
+        CONSOLE.print(
+            "[yellow]  Missing optional libzip runtime DLL(s): "
+            + ", ".join(missing)
+            + "[/]"
+        )
+
+    return copied
 
 
 def _resolve_app_deploy_dir(state: dict, meta: dict) -> Path:
@@ -903,6 +968,7 @@ def action_deploy_app(state: dict, cmake: str, meta: dict) -> None:
         CONSOLE.print(f"  [dim]Translation:[/] {qm.name}")
 
     _copy_mingw_runtime(state["preset"], out_dir)
+    bundled_libzip_runtime = _copy_mingw_libzip_runtime(state["preset"], out_dir)
 
     deployed_files = {p.name for p in out_dir.iterdir() if p.is_file()}
     missing_dependencies = sorted(name for name in copied_dependency_dlls if name not in deployed_files)
@@ -917,6 +983,14 @@ def action_deploy_app(state: dict, cmake: str, meta: dict) -> None:
         CONSOLE.print(
             f"[red]✗ Deploy incomplete — missing project runtime DLL(s): "
             f"{', '.join(missing_project_runtime)}[/]"
+        )
+        return
+
+    missing_libzip_runtime = sorted(name for name in bundled_libzip_runtime if name not in deployed_files)
+    if missing_libzip_runtime:
+        CONSOLE.print(
+            f"[red]✗ Deploy incomplete — missing libzip runtime DLL(s): "
+            f"{', '.join(missing_libzip_runtime)}[/]"
         )
         return
 

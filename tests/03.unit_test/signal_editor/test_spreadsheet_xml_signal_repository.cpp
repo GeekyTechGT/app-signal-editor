@@ -104,3 +104,33 @@ TEST(SpreadsheetXmlSignalRepositoryTest, RejectsSpreadsheetXmlWithoutNamedTimeCo
     EXPECT_THROW(repository.load(path), std::runtime_error);
     std::filesystem::remove(path);
 }
+
+TEST(SpreadsheetXmlSignalRepositoryTest, RoundTripWorkbookPreservesMultipleWorksheets) {
+    auto path = make_temp_path("se_test_multi_sheet.xml");
+
+    SignalLibrary powertrain;
+    powertrain.add(Signal::from_vectors("rpm", {0.0, 1.0}, {800.0, 1200.0}));
+    powertrain.add(Signal::from_vectors("speed", {0.0, 1.0}, {0.0, 15.0}));
+
+    Signal state = Signal::from_vectors("gear_state", {0.0, 1.0}, {0.0, 1.0},
+                                        Signal::InterpolationMode::Step);
+    state.set_enumeration({{"P", 0.0}, {"D", 1.0}});
+    SignalLibrary vehicle;
+    vehicle.add(state);
+
+    WorkbookDocument workbook;
+    workbook.sheets.push_back(WorkbookSheet{"INPUT_1", powertrain});
+    workbook.sheets.push_back(WorkbookSheet{"INPUT_2", vehicle});
+    workbook.explicit_sheet_names = true;
+
+    SpreadsheetXmlSignalRepository repository;
+    ASSERT_TRUE(repository.save_workbook(path, workbook).is_ok());
+    const auto restored = repository.load_workbook(path);
+
+    ASSERT_EQ(restored.sheets.size(), 2u);
+    EXPECT_EQ(restored.sheets[0].name, "INPUT_1");
+    EXPECT_EQ(restored.sheets[1].name, "INPUT_2");
+    EXPECT_EQ(restored.sheets[0].library.at(0).name(), "rpm");
+    EXPECT_TRUE(restored.sheets[1].library.at(0).is_enumerated());
+    std::filesystem::remove(path);
+}

@@ -13,6 +13,7 @@ add_library(signal_editor_core ${SIGNAL_EDITOR_LIBRARY_TYPE}
     adapters/filesystem/delimited_signal_repository.cpp
     adapters/filesystem/json_signal_repository.cpp
     adapters/filesystem/spreadsheet_xml_signal_repository.cpp
+    adapters/filesystem/xlsx_signal_repository.cpp
     adapters/filesystem/signal_file_repository.cpp
     # --- API ---
     api/signal_editor_api.cpp
@@ -30,7 +31,31 @@ target_link_libraries(signal_editor_core
         nlohmann_json::nlohmann_json
 )
 
+set(SIGNAL_EDITOR_LIBZIP_HINTS
+    "C:/eng_apps/msys64/mingw64/include"
+    "C:/eng_apps/msys64/mingw64/lib"
+    "/mnt/c/eng_apps/msys64/mingw64/include"
+    "/mnt/c/eng_apps/msys64/mingw64/lib"
+)
+
+find_path(SIGNAL_EDITOR_LIBZIP_INCLUDE_DIR zip.h
+    HINTS ${SIGNAL_EDITOR_LIBZIP_HINTS}
+)
+find_library(SIGNAL_EDITOR_LIBZIP_LIBRARY NAMES zip libzip
+    HINTS ${SIGNAL_EDITOR_LIBZIP_HINTS}
+)
+if(SIGNAL_EDITOR_LIBZIP_INCLUDE_DIR AND SIGNAL_EDITOR_LIBZIP_LIBRARY)
+    target_include_directories(signal_editor_core PRIVATE ${SIGNAL_EDITOR_LIBZIP_INCLUDE_DIR})
+    target_link_libraries(signal_editor_core PRIVATE ${SIGNAL_EDITOR_LIBZIP_LIBRARY})
+    target_compile_definitions(signal_editor_core PRIVATE SIGNAL_EDITOR_HAS_LIBZIP=1)
+endif()
+
 myprj_configure_target(signal_editor_core)
+set_target_properties(signal_editor_core PROPERTIES
+    AUTOMOC OFF
+    AUTOUIC OFF
+    AUTORCC OFF
+)
 
 configure_file(
     ${CMAKE_SOURCE_DIR}/include/signal_editor/signal_editor_version.h.in
