@@ -10,6 +10,7 @@ Recommended reading order:
 2. [Workspace and Selection Model](workspace_and_selection.md)
 3. [Plot Subsystem](plot_subsystem.md)
 4. [Filesystem and Persistence](filesystem_and_persistence.md)
+5. [Workbook and XLSX Notes](workbook_and_xlsx.md)
 
 These documents complement the architecture material in
 [`docs/architecture/`](../architecture) and the API-oriented Doxygen comments in

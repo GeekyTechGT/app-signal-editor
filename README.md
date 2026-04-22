@@ -17,7 +17,7 @@
   <img src="https://github.com/GeekyTechGT/signal-editor/actions/workflows/ci.yml/badge.svg?branch=master" alt="Build status">
   <img src="https://img.shields.io/github/last-commit/GeekyTechGT/signal-editor/master?style=flat-square" alt="Last commit">
   <img src="https://img.shields.io/badge/License-Proprietary%20%7C%20Internal-C2410C?style=flat-square" alt="Proprietary license">
-  <img src="https://img.shields.io/badge/Formats-CSV%20%7C%20TSV%20%7C%20JSON%20%7C%20SpreadsheetML-7C3AED?style=flat-square" alt="Supported formats">
+  <img src="https://img.shields.io/badge/Formats-CSV%20%7C%20TSV%20%7C%20JSON%20%7C%20SpreadsheetML%20XML%20%7C%20XLSX-7C3AED?style=flat-square" alt="Supported formats">
   <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-0EA5E9?style=flat-square" alt="Platforms">
   <img src="https://img.shields.io/badge/UI-Plot%20%2B%20Table%20Workflows-F97316?style=flat-square" alt="UI workflows">
   <img src="https://img.shields.io/badge/Signals-Numeric%20%2B%20Enumerated-059669?style=flat-square" alt="Signal types">
@@ -41,14 +41,17 @@ The project intentionally keeps the domain model independent from Qt so waveform
 
 ## Highlights
 
-- Multi-document workspace with active file switching
+- Multi-document workspace with explicit file selection and file opening workflows
+- Multi-sheet workbook support for SpreadsheetML XML and native XLSX files
 - Interactive plot editing: drag waypoints, Shift+drag for Gaussian brushing
 - Plot navigation toolbar with zoom in/out, fit view, pan mode, and rectangle zoom mode
-- Table-first editing with explicit sample control and guided row insertion
-- Enumerated signal support with label/value mappings
-- Shared interpolation control (linear / step) across plot and table workflows
+- Table-first editing with one value column per visible signal
+- Enumerated signal support with inferred and editable label/value mappings
+- Shared interpolation control (linear / step) across visible plotted signals
 - Signal generation for constant, sine, cosine, pulse, sawtooth, triangle, ramp, and enumerated patterns
-- Import/export support for CSV, TSV/TXT, JSON, and SpreadsheetML XML
+- Import/export support for CSV, TSV/TXT, JSON, SpreadsheetML XML, and XLSX
+- Reload-from-disk flow that clears and rebinds list, plot, and table for the addressed document
+- Plot image export and workbook-aware round-trip persistence
 - Dark, light, and system theme support powered by QSS
 - Application settings panel for theme, font, and language preferences
 - Italian and English UI with runtime language switching
@@ -70,6 +73,8 @@ Recommended entry points for contributors:
 - [`docs/developer/plot_subsystem.md`](docs/developer/plot_subsystem.md)
 - [`docs/developer/workspace_and_selection.md`](docs/developer/workspace_and_selection.md)
 - [`docs/developer/filesystem_and_persistence.md`](docs/developer/filesystem_and_persistence.md)
+- [`docs/developer/workbook_and_xlsx.md`](docs/developer/workbook_and_xlsx.md)
+- [`docs/specs/srs.md`](docs/specs/srs.md)
 
 The developer documents focus on how the code is actually structured today:
 which classes are involved, which state lives where, what assumptions the UI
@@ -97,15 +102,22 @@ layer:
 - `src/signal_editor/ports/`
   Repository abstractions consumed by the use-case layer.
 - `src/signal_editor/adapters/filesystem/`
-  Concrete format adapters for CSV, delimited tables, JSON, and SpreadsheetML.
+  Concrete format adapters for CSV, delimited tables, JSON, SpreadsheetML XML,
+  and native XLSX workbooks.
 - `src/signal_editor/adapters/qt/`
-  Desktop shell, side panels, plot, table, dialogs, and runtime settings glue.
+  Desktop shell, side panels, plot, table, dialogs, workbook-aware file
+  options, and runtime settings glue.
 - `apps/signal_editor/gui/`
   Composition root for the Qt executable.
 
 The most important practical rule is that Qt widgets do not own waveform
 business rules. Widgets emit semantic intent, `MainWindow` coordinates document
-state, and `SignalEditorService` applies edits to the domain model.
+state, and `SignalEditorService` applies edits to the domain model. The current
+desktop shell also distinguishes explicitly between:
+
+- files selected in the file list
+- the file currently opened into the workspace editors
+- the active signal inside the opened document
 
 ## Setup
 
@@ -220,10 +232,19 @@ Signal Editor persists a shared internal signal model across multiple interchang
 
 | Format | Extension | Notes |
 |--------|-----------|-------|
-| CSV | `.csv` | First column is time, remaining columns are signals |
+| CSV | `.csv` | Single-sheet tabular file, first column is time, remaining columns are signals |
 | Tab-delimited | `.tsv`, `.txt` | Delimited tabular import/export |
 | JSON | `.json` | Structured representation for richer tool interoperability |
-| SpreadsheetML XML | `.xml` | Excel-compatible XML import/export path |
+| SpreadsheetML XML | `.xml` | XML workbook path with one or more worksheets |
+| Excel workbook | `.xlsx` | Native workbook import/export with one or more worksheets |
+
+Format notes:
+
+- CSV, TSV/TXT, and JSON are treated as single-sheet documents.
+- SpreadsheetML XML and XLSX are treated as workbook formats and may contain multiple sheets.
+- XLSX data worksheets remain plain tabular sheets with a `time` header and signal columns.
+- XLSX enumerated mappings are stored in a dedicated workbook sheet named `METADATA`.
+- `METADATA` stores `sheet`, `signal_name`, `enum_label`, and `enum_value`.
 
 Enumerated signals are supported across all formats. When labels are present, the plot renders string state names on the Y axis instead of raw numeric values.
 
@@ -239,12 +260,66 @@ Examples:
 
 Enumerated behavior is supported across:
 
-- CSV import/export with explicit enumeration metadata
-- inline CSV bootstrap tokens such as `TRUE:1`
+- CSV import with explicit enumeration metadata
+- inline tabular bootstrap tokens such as `TRUE:1`
 - JSON import/export with enumeration definitions
+- SpreadsheetML XML and XLSX workbook round-trip persistence
 - new-signal creation dialog in the UI
 - label-aware table editing
 - plot rendering with state labels on the Y axis
+- signal options editing for per-signal mapping updates
+
+If a tabular source contains textual states but no explicit mapping, the
+application infers values in order of first appearance:
+
+- first distinct label -> `0`
+- second distinct label -> `1`
+- and so on
+
+The inferred mapping can later be refined by the user from the signal options dialog.
+
+## Workspace Behavior
+
+The desktop shell intentionally separates file selection, file opening, and
+signal editing state.
+
+Important rules:
+
+- single-click in the file list selects files but does not open them
+- `Ctrl+click` extends file selection for batch deletion
+- double-click or context-menu `Open file` opens one file into the editors
+- only the opened file drives the signal list, plot, table, and workspace title
+- reloading from disk clears and rebinds signal list, plot, and table before restoring the new file state
+
+For signal-level behavior:
+
+- the signal list checkbox controls whether a signal is visible in plot and table
+- one signal remains active/editable at a time
+- the table shows `time` plus one value column per visible signal
+- the plot auto-scales the Y range across all visible signals
+- changing the active signal preserves the current time zoom
+
+## XLSX Workbook Semantics
+
+XLSX support is workbook-aware:
+
+- each worksheet is loaded as one independent `SignalLibrary`
+- the user can change the active worksheet from `File options`
+- switching sheet rebinds signal list, plot, and table to the selected worksheet
+- saving preserves the workbook shape and writes one worksheet per edited sheet
+
+To keep saved files compatible with Excel and easy to inspect:
+
+- each data worksheet starts with a plain header row: `time` plus signal names
+- data worksheets do not contain application-specific metadata rows
+- the dedicated `METADATA` worksheet stores enumerated mappings with the columns:
+  - `sheet`
+  - `signal_name`
+  - `enum_label`
+  - `enum_value`
+
+This allows the same signal name to carry different enumerated mappings on
+different worksheets without polluting the user-facing data sheets.
 
 ## Settings
 

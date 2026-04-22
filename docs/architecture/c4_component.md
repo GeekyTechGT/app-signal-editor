@@ -21,10 +21,14 @@
 │          ├──────────────> adapters/filesystem/CsvSignalRepository         │
 │          ├──────────────> adapters/filesystem/DelimitedSignalRepository   │
 │          ├──────────────> adapters/filesystem/JsonSignalRepository        │
-│          └──────────────> adapters/filesystem/SpreadsheetXmlSignalRepository│
+│          ├──────────────> adapters/filesystem/SpreadsheetXmlSignalRepository│
+│          └──────────────> adapters/filesystem/XlsxSignalRepository       │
 │                                                                            │
 │      adapters/filesystem/*Tabular*Repository                              │
 │          └──────────────> adapters/filesystem/TabularSignalRows           │
+│                                                                            │
+│      adapters/filesystem/WorkbookModel                                    │
+│          └──────────────> sheet-level persistence payload                 │
 └────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -42,7 +46,9 @@
 | `DelimitedSignalRepository` | `adapters/filesystem/delimited_signal_repository.*` | TSV/TXT parsing and export semantics for delimiter-based tabular files |
 | `JsonSignalRepository` | `adapters/filesystem/json_signal_repository.*` | JSON-specific parsing and export semantics |
 | `SpreadsheetXmlSignalRepository` | `adapters/filesystem/spreadsheet_xml_signal_repository.*` | SpreadsheetML XML parsing and export semantics |
+| `XlsxSignalRepository` | `adapters/filesystem/xlsx_signal_repository.*` | Native XLSX workbook parsing and export semantics including dedicated metadata worksheet handling |
 | `TabularSignalRows` | `adapters/filesystem/tabular_signal_rows.*` | Shared row-model mapping used by tabular adapters after raw format decoding |
+| `WorkbookModel` | `adapters/filesystem/workbook_model.h` | Workbook-level payload that allows one file to carry multiple sheet-local libraries |
 | `signal_editor_api.h` | `api/signal_editor_api.h` | Public facade consumed by the application shell |
 
 ## Notes

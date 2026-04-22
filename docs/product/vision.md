@@ -18,6 +18,17 @@ Signal Editor provides a focused desktop workspace for loading, inspecting, gene
 
 The product should feel fast for day-to-day signal correction loops while remaining clean enough internally to support future growth in formats, workflows, and adapters.
 
+The current product direction is intentionally practical rather than generic:
+
+- one workspace can keep multiple files loaded at the same time
+- selecting a file is distinct from opening it into the editors
+- workbook formats can expose multiple worksheets while text formats remain
+  single-sheet
+- enumerated signals remain readable even when their persisted representation is
+  numeric
+- persistence should round-trip workbook structure and enum metadata without
+  turning the user-facing data sheets into application-specific clutter
+
 ## Target Users
 
 | User | Primary Goal | Typical Friction Today |
@@ -41,8 +52,11 @@ The interface should communicate the current editing context clearly.
 
 That means the product should make it obvious:
 
-- which document is active
+- which files are merely selected
+- which file is actually opened
+- which worksheet is active when the format supports multiple sheets
 - which signal is active
+- which signals are visible but not active
 - whether the current signal is numeric or enumerated
 - which interpolation mode is in effect
 - whether the user is working in the plot or the sample table
@@ -65,5 +79,7 @@ The product is moving in the right direction when:
 - engineers can complete routine correction loops without leaving the application
 - active workspace state is understandable at a glance
 - enumerated signals remain readable from import through export
+- workbook-oriented flows behave predictably across sheet switching, reload, and
+  save
 - new persistence or UI capabilities can be introduced without refactoring the domain model
 - documentation remains aligned with implementation rather than lagging behind it

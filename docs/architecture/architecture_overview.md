@@ -53,10 +53,11 @@ The architecture exists to preserve practical engineering benefits:
 
 1. The main window receives a load request from the menu or drag-and-drop.
 2. `SignalEditorService` delegates the path to the configured repository port.
-3. `SignalFileRepository` dispatches by file extension to dedicated CSV, TSV/TXT, JSON, and SpreadsheetML XML adapters.
+3. `SignalFileRepository` dispatches by file extension to dedicated CSV, TSV/TXT, JSON, SpreadsheetML XML, and XLSX adapters.
    `DelimitedSignalRepository` covers the TSV/TXT family because those formats differ only by delimiter semantics, not by domain mapping rules.
-4. The resulting `SignalLibrary` is bound into the workspace document model.
-5. The active signal is exposed to both the plot and table adapters.
+4. Workbook-aware adapters may expand one persisted file into multiple sheet-local `SignalLibrary` snapshots.
+5. The currently active sheet library is bound into the workspace document model.
+6. The active signal is exposed to both the plot and table adapters.
 
 ### 5.2 Edit Flow
 
@@ -71,8 +72,9 @@ The architecture exists to preserve practical engineering benefits:
 1. The active document is synchronized into the service layer.
 2. The service delegates persistence to the selected repository implementation.
 3. The adapter exports a union time axis plus any supported metadata.
-4. Interpolation and enumerated-state semantics are preserved where the format allows them.
-5. Workspace dirty state is cleared after a successful save.
+4. For XLSX, data worksheets remain plain tabular sheets while enumerated mappings are written to a dedicated `METADATA` worksheet.
+5. Interpolation and enumerated-state semantics are preserved where the format allows them.
+6. Workspace dirty state is cleared after a successful save.
 
 ### 5.4 Settings Persistence Flow
 
@@ -90,10 +92,12 @@ The Qt shell intentionally separates workspace concerns from editing surfaces.
 Key points:
 
 - file selection and signal selection remain in dedicated side panels
+- selecting a file in the file list is not the same thing as opening it into the editors
 - the center workspace is tab-driven rather than split vertically
-- plot and table are treated as alternative views over the same active signal
+- plot and table are treated as alternative views over the same opened document and active signal
 - interpolation control is presented at workspace scope because it applies to the signal itself, not to the table only
 - enumerated signals constrain the UI by disabling inappropriate interpolation changes and exposing label-based values
+- file reload is treated as a full clear-and-rebind operation for signal list, plot, and table
 
 ## 7. Quality Attributes
 
@@ -111,7 +115,7 @@ The architecture is currently optimized for:
 - Windows MinGW64 remains the primary GUI delivery path
 - Linux currently focuses on core and test workflows
 - GCC/MinGW is the only supported compiler family in the repository build matrix at this time
-- native `.xlsx` and `.xls` parsing is intentionally not present
+- native `.xlsx` workbook parsing and export are present; `.xls` remains unsupported
 - the repository does not yet include collaborative or remote-backed persistence
 
 ## 9. Architectural Change Rules

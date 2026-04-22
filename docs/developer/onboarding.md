@@ -35,8 +35,8 @@ systems:
 2. The application service layer
    This turns user intent into domain changes and persistence operations.
 3. The Qt workspace shell
-   This manages multi-document state, signal visibility, active selection, plot
-   state, table state, and settings.
+   This manages multi-document state, workbook sheet selection, signal
+   visibility, active selection, plot state, table state, and settings.
 
 The project stays maintainable because those responsibilities are separated
 rather than merged inside widgets.
@@ -97,7 +97,9 @@ It is responsible for:
 
 - loading and saving documents
 - reloading from disk
+- switching worksheets inside workbook-aware formats
 - keeping one document-local undo stack per loaded file
+- distinguishing selected files from the file actually opened into the editors
 - tracking which signals are visible in the plot and table
 - tracking which signal is currently active for editing
 - preserving plot zoom while list state changes
@@ -113,10 +115,14 @@ Contributors should preserve these invariants:
 - Domain code must not depend on Qt.
 - File-format adapters must not encode UI rules.
 - The active editable signal is workspace state, not just a visual selection.
+- The opened file is workspace state, not just the currently highlighted file
+  row.
 - Signals imported from one file share the same time axis from the editor’s
   point of view.
 - Plot and table must remain two views over the same logical workspace state.
 - Enumerated signals are always step-interpolated by domain rule.
+- Workbook formats are sheet-aware in the UI even though the service edits one
+  active `SignalLibrary` at a time.
 
 ## Common Feature Placement Guide
 
@@ -132,6 +138,8 @@ Use this rule of thumb:
 
 These areas deserve extra care during review:
 
+- selected file versus opened file behavior
+- workbook sheet switching and per-sheet state
 - signal visibility and active selection rebinding
 - plot zoom preservation when widgets refresh
 - undo and reload interactions

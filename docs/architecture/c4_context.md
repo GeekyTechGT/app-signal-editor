@@ -11,6 +11,7 @@
         ┌───────v────────┐              ┌───────v──────────────────┐
         │ Engineer User  │              │ Local Signal Files       │
         │ edits signals  │              │ CSV / TSV / JSON / XML   │
+        │ in workspace   │              │ / XLSX workbooks         │
         └────────────────┘              └──────────────────────────┘
                 │
         ┌───────v────────┐
@@ -34,6 +35,9 @@ Signal Editor provides:
 
 - a focused local desktop workflow for waveform editing
 - visual and tabular editing paths over the same signal model
+- explicit distinction between selected files, opened file, visible signals,
+  and active signal
+- workbook-aware editing for XML and XLSX documents
 - explicit handling of interpolation and enumerated state mappings
 - a maintainable implementation that separates domain logic from GUI concerns
 
@@ -42,4 +46,5 @@ Signal Editor provides:
 - operates primarily as a local desktop application
 - depends on Qt 6 for GUI delivery
 - keeps network concerns out of the core editing model
-- currently relies on engineering-friendly interchange formats rather than proprietary binary tool formats
+- uses engineering-friendly interchange formats, including native `.xlsx`
+  workbook support but not legacy `.xls`

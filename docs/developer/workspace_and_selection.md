@@ -7,10 +7,12 @@ signal are managed in the desktop application.
 
 ## Why This Needs Its Own Document
 
-Several regressions in the project have come from confusing three related but
+Several regressions in the project have come from confusing four related but
 different concepts:
 
-- a row selected in the Qt list widget
+- one or more files selected in the file list
+- the file currently opened into the editors
+- a row selected in the signal list widget
 - a signal visible in the plot/table
 - the active signal used for editing
 
@@ -22,9 +24,10 @@ The source of truth for workspace state is `MainWindow::LoadedDocument`.
 
 Important fields:
 
-- `library`
-- `visible_signal_indices`
-- `active_signal_index`
+- `sheets`
+- `active_sheet_index`
+- `visible_signal_indices` inside each sheet
+- `active_signal_index` inside each sheet
 - `undo_stack`
 - `dirty`
 
@@ -35,7 +38,8 @@ state.
 
 Each loaded input file gets one `LoadedDocument`. That document keeps its own:
 
-- waveform library
+- one or more sheet-local waveform libraries
+- active sheet
 - active signal
 - set of visible signals
 - undo history
@@ -86,6 +90,7 @@ Reload from disk replaces the library snapshot of one document. The reload flow
 must then realign:
 
 - the reloaded library
+- the reloaded sheet set
 - visible signals
 - active signal
 - list widget state
@@ -93,3 +98,18 @@ must then realign:
 
 If a bug appears only after reload, inspect `MainWindow::onFileReloadRequested`
 first.
+
+## File List Semantics
+
+The file list now distinguishes selection from opening.
+
+Rules that should remain true:
+
+- single-click selects a file row
+- `Ctrl+click` extends file selection for batch deletion
+- double-click or context-menu `Open file` opens one file
+- the opened file, not the merely selected file, drives the signal list, plot, table, and workspace title
+- when several files are selected, the file-list context menu only exposes batch deletion
+
+This split exists so users can batch-select files without accidentally changing
+the signal context shown in the main editors.

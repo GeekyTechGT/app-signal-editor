@@ -16,11 +16,13 @@ Signal Editor is a desktop engineering application for waveform inspection, auth
 The current product emphasizes:
 
 - a multi-document workspace
+- explicit file selection versus file opening semantics
 - interactive plot editing
 - exact table editing
 - explicit interpolation control
 - enumerated signal support
 - reliable multi-format persistence
+- workbook-aware XML/XLSX handling
 
 ## Background and Motivation
 
@@ -45,7 +47,9 @@ Signal Editor exists to occupy this middle ground.
 ### In scope for the current product line
 
 - loading one or more supported signal files into a shared workspace
+- selecting one or more files in the workspace and opening one of them explicitly
 - switching among active workspace documents
+- switching among worksheets inside workbook formats
 - selecting an active signal from the current document
 - editing that signal through either a plot view or a table view
 - creating new signals from predefined templates and enumerated state definitions
@@ -58,7 +62,6 @@ Signal Editor exists to occupy this middle ground.
 
 - collaborative editing
 - remote storage backends
-- native binary Excel workbook parsing
 - broad scientific analysis features such as FFT, filtering suites, or statistics dashboards
 - project/session management beyond currently loaded documents
 
@@ -66,22 +69,25 @@ Signal Editor exists to occupy this middle ground.
 
 | ID | Requirement | Priority | Notes |
 |----|-------------|----------|-------|
-| FR-01 | The product shall load CSV, TSV/TXT, JSON, and SpreadsheetML XML signal files. | High | Core capability |
+| FR-01 | The product shall load CSV, TSV/TXT, JSON, SpreadsheetML XML, and XLSX signal files. | High | Core capability |
 | FR-02 | The product shall support a multi-document workspace with an active document concept. | High | Fundamental navigation model |
-| FR-03 | The product shall present a signal list for the active document. | High | Required for signal selection |
-| FR-04 | The product shall provide a dedicated plot workspace tab for visual waveform editing. | High | Primary interaction path |
-| FR-05 | The product shall provide a dedicated table workspace tab for exact sample editing. | High | Precision editing path |
-| FR-06 | The product shall support drag, insert, remove, and Gaussian brushing operations in the plot for numeric signals. | High | Differentiating editing capability |
-| FR-07 | The product shall support row-based sample editing, insertion, and removal in the table. | High | Complements plot editing |
-| FR-08 | The product shall expose interpolation control at workspace level so it is available from both plot and table workflows. | High | Signal-level property should not be hidden behind one editing mode |
-| FR-09 | The product shall allow creating new signals from waveform templates including constant, sine, cosine, pulse, sawtooth, triangle, ramp, and enumerated states. | High | Covers authoring workflow |
-| FR-10 | The product shall preserve interpolation metadata when supported by the persistence format. | High | Prevents semantic loss |
-| FR-11 | The product shall preserve enumerated label/value mappings when supported by the persistence format. | High | Required for readable state channels |
-| FR-12 | The product shall render enumerated values as human-readable labels in both plot and table contexts. | High | Usability requirement |
-| FR-13 | The product shall support active-document undo. | High | Required for safe interactive editing |
-| FR-14 | The product shall support drag-and-drop file opening in the GUI. | Medium | Important convenience feature |
-| FR-15 | The product shall show document state, signal context, and interaction hints in the workspace shell. | Medium | UX clarity requirement |
-| FR-16 | The product shall persist UI settings in a version-scoped store so each application line can restore its own preferences independently. | Medium | Prevents cross-version settings collisions |
+| FR-03 | The product shall allow file selection independently from file opening in the workspace file list. | High | Prevents accidental context switching during batch selection |
+| FR-04 | The product shall present a signal list for the opened document. | High | Required for signal selection |
+| FR-05 | The product shall support worksheet selection for workbook formats. | High | Required for XML/XLSX multi-sheet workflows |
+| FR-06 | The product shall provide a dedicated plot workspace tab for visual waveform editing. | High | Primary interaction path |
+| FR-07 | The product shall provide a dedicated table workspace tab for exact sample editing. | High | Precision editing path |
+| FR-08 | The product shall support drag, insert, remove, and Gaussian brushing operations in the plot for numeric signals. | High | Differentiating editing capability |
+| FR-09 | The product shall support row-based sample editing, insertion, and removal in the table. | High | Complements plot editing |
+| FR-10 | The product shall expose interpolation control at workspace level so it is available from both plot and table workflows. | High | Signal-level property should not be hidden behind one editing mode |
+| FR-11 | The product shall allow creating new signals from waveform templates including constant, sine, cosine, pulse, sawtooth, triangle, ramp, and enumerated states. | High | Covers authoring workflow |
+| FR-12 | The product shall preserve interpolation metadata when supported by the persistence format. | High | Prevents semantic loss |
+| FR-13 | The product shall preserve enumerated label/value mappings when supported by the persistence format. | High | Required for readable state channels |
+| FR-14 | The product shall render enumerated values as human-readable labels in both plot and table contexts. | High | Usability requirement |
+| FR-15 | The product shall support active-document undo. | High | Required for safe interactive editing |
+| FR-16 | The product shall support reload-from-disk for one workspace file without discarding the rest of the workspace. | High | Important recovery feature |
+| FR-17 | The product shall support drag-and-drop file opening in the GUI. | Medium | Important convenience feature |
+| FR-18 | The product shall show document state, signal context, and interaction hints in the workspace shell. | Medium | UX clarity requirement |
+| FR-19 | The product shall persist UI settings in a version-scoped store so each application line can restore its own preferences independently. | Medium | Prevents cross-version settings collisions |
 
 ## Non-Functional Requirements
 
