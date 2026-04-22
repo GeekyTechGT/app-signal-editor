@@ -6,9 +6,11 @@
 
 #include <cstddef>
 #include <utility>
+#include <vector>
 
 namespace signal_editor {
 class Signal;
+class SignalLibrary;
 }  // namespace signal_editor
 
 namespace signal_editor::adapters::qt {
@@ -21,9 +23,23 @@ namespace signal_editor::adapters::qt {
 /**
  * @brief Interactive waveform canvas used for direct manipulation editing.
  *
- * The widget renders the selected signal, supports waypoint dragging, context
- * insertion/removal, and a Gaussian brush interaction. Ownership stays in the
- * calling controller; the plot only keeps a raw pointer to the active signal.
+ * `SignalPlotWidget` is a stateful rendering and interaction surface for the
+ * signal editor workspace. It knows how to:
+ *
+ * - render the currently visible set of plotted signals
+ * - emphasize one active editable signal over the rest
+ * - preserve and manipulate the visible time window
+ * - expose semantic gestures such as sample drag, insertion, removal, segment
+ *   movement, and Gaussian brush deformation
+ *
+ * The widget intentionally does not commit edits directly into the domain
+ * model. Instead it emits semantic Qt signals and lets `MainWindow` forward
+ * those intentions to `SignalEditorService`. This keeps editing rules in the
+ * application/core layers while the widget remains responsible for visual
+ * feedback and interaction mechanics.
+ *
+ * Ownership stays in the calling controller; the plot only keeps raw pointers
+ * to library state owned elsewhere.
  */
 class SignalPlotWidget : public QWidget {
     Q_OBJECT
@@ -39,6 +55,19 @@ public:
      * @param parent Optional owning widget supplied by Qt.
      */
     explicit SignalPlotWidget(QWidget* parent = nullptr);
+
+    /**
+     * @brief Binds the plot to a library and marks one signal as active.
+     * @param library Signal collection to render, or `nullptr`.
+     * @param active_signal_index Zero-based signal index currently editable.
+     * @param visible_signal_indices Ordered list of signals currently visible
+     * in the plot. The active signal may or may not be included depending on
+     * current UI state, so the widget must handle the "active but hidden"
+     * scenario gracefully.
+     */
+    void set_library(const SignalLibrary* library,
+                     int active_signal_index,
+                     const std::vector<int>& visible_signal_indices = {});
 
     /**
      * @brief Binds the plot to a signal instance.
@@ -103,6 +132,20 @@ signals:
     void editStarted();
     /** @brief Emitted after the bound signal changes through direct manipulation. */
     void signalChanged();
+    /** @brief Emitted when the active sample value or time should be updated. */
+    void sampleMoveRequested(std::size_t sample_index, double t, double y);
+    /** @brief Emitted when a new shared sample should be inserted. */
+    void sampleInsertRequested(double t, double y);
+    /** @brief Emitted when a shared sample should be removed. */
+    void sampleRemoveRequested(std::size_t sample_index);
+    /** @brief Emitted when a vertical segment drag should offset both endpoints. */
+    void segmentMoveRequested(std::size_t start_index, double delta_y);
+    /** @brief Emitted when the active signal should receive a Gaussian brush deformation. */
+    void gaussianBrushRequested(double t_center, double delta_y, double sigma);
+    /** @brief Emitted when every sample of every signal should receive an offset. */
+    void offsetAllRequested(double delta_y);
+    /** @brief Emitted when the selected active sample should receive an offset. */
+    void sampleOffsetRequested(std::size_t sample_index, double delta_y);
     /** @brief Emitted whenever the cursor position over the plot changes. */
     void cursorMoved(double t, double y);
     /** @brief Emitted after the visible time range changes. */
@@ -121,8 +164,8 @@ protected:
 
 private:
     static constexpr int kMargin = 48;
-    static constexpr double kHandleRadius = 6.0;
-    static constexpr double kSelectedHandleRadius = 8.5;
+    static constexpr double kHandleRadius = 4.0;
+    static constexpr double kSelectedHandleRadius = 6.0;
     static constexpr double kPickRadius = 12.0;
 
     Signal* signal_{nullptr};
@@ -138,13 +181,16 @@ private:
         MoveTitleBadge,
         MoveMetaBadge,
         PanView,
-        RectZoom
+        RectZoom,
+        MoveSegment
     };
     DragMode drag_mode_{DragMode::None};
     NavigationMode navigation_mode_{NavigationMode::Edit};
     std::size_t drag_index_{0};
+    std::size_t drag_segment_start_index_{static_cast<std::size_t>(-1)};
     std::size_t selected_index_{static_cast<std::size_t>(-1)};
     std::size_t hovered_index_{static_cast<std::size_t>(-1)};
+    std::size_t hovered_segment_start_index_{static_cast<std::size_t>(-1)};
     QPointF drag_start_data_;
     QPointF drag_anchor_offset_;
     QPointF drag_start_pixel_;
@@ -158,6 +204,9 @@ private:
     QPointF meta_badge_anchor_ratio_{0.04, 0.18};
     QRectF title_badge_rect_;
     QRectF meta_badge_rect_;
+    const SignalLibrary* library_{nullptr};
+    int active_signal_index_{-1};
+    std::vector<int> visible_signal_indices_;
 
     /** @brief Converts a data-space point into plot-local pixel coordinates. */
     QPointF data_to_pixel(double t, double y) const;
@@ -178,10 +227,14 @@ private:
                             const QFontMetrics& metrics);
     /** @brief Finds the nearest visible handle inside the configured pick radius. */
     bool find_handle_near(const QPointF& pixel, std::size_t& out_index) const;
+    /** @brief Finds the nearest active segment inside the configured pick radius. */
+    bool find_segment_near(const QPointF& pixel, std::size_t& out_start_index) const;
     /** @brief Returns whether a sample is currently selected. */
     [[nodiscard]] bool has_selection() const noexcept;
     /** @brief Returns whether the cursor currently hovers a visible handle. */
     [[nodiscard]] bool has_hovered_handle() const noexcept;
+    /** @brief Returns whether the cursor currently hovers a valid segment. */
+    [[nodiscard]] bool has_hovered_segment() const noexcept;
     /** @brief Marks a sample as selected and repaints handle emphasis. */
     void set_selected_index(std::size_t index);
     /** @brief Clears the current selection state. */
@@ -190,6 +243,12 @@ private:
     void set_hovered_index(std::size_t index);
     /** @brief Clears the hovered-handle state. */
     void clear_hovered_index();
+    /** @brief Clears the hovered-segment state. */
+    void clear_hovered_segment() noexcept;
+    /** @brief Returns the currently active signal inside the bound library. */
+    [[nodiscard]] Signal* active_signal() const noexcept;
+    /** @brief Returns whether a library signal is currently visible in the plot. */
+    [[nodiscard]] bool is_signal_visible(int signal_index) const noexcept;
 };
 
 }  // namespace signal_editor::adapters::qt

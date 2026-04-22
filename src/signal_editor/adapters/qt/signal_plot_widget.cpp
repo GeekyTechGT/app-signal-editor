@@ -1,6 +1,7 @@
 #include "signal_editor/adapters/qt/signal_plot_widget.h"
 
 #include "signal_editor/core/domain/signal.h"
+#include "signal_editor/core/domain/signal_library.h"
 
 #include <QAction>
 #include <QCoreApplication>
@@ -8,8 +9,10 @@
 #include <QEvent>
 #include <QFontMetrics>
 #include <QLinearGradient>
+#include <QLineF>
 #include <QMenu>
 #include <QMouseEvent>
+#include <QInputDialog>
 #include <QPaintEvent>
 #include <QPainter>
 #include <QPainterPath>
@@ -19,7 +22,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <limits>
+#include <vector>
 
 namespace signal_editor::adapters::qt {
 
@@ -214,6 +219,53 @@ void draw_badge(QPainter& painter,
     painter.setPen(text_color);
     painter.drawText(badge, Qt::AlignCenter, text);
 }
+
+bool contains_index(const std::vector<int>& indices, int index) {
+    return std::find(indices.begin(), indices.end(), index) != indices.end();
+}
+
+QPainterPath build_signal_path(const Signal& signal,
+                               const std::function<QPointF(double, double)>& map_point) {
+    QPainterPath path;
+    const auto& samples = signal.samples();
+    if (samples.empty()) {
+        return path;
+    }
+
+    path.moveTo(map_point(samples.front().t, samples.front().y));
+    for (std::size_t index = 1; index < samples.size(); ++index) {
+        const QPointF prev_point = map_point(samples[index - 1].t, samples[index - 1].y);
+        const QPointF point = map_point(samples[index].t, samples[index].y);
+        if (signal.interpolation() == Signal::InterpolationMode::Step) {
+            path.lineTo(QPointF(point.x(), prev_point.y()));
+        }
+        path.lineTo(point);
+    }
+    return path;
+}
+
+QColor signal_stroke_color(const PlotColors& colors, int signal_index, bool active) {
+    QColor stroke = colors.curve;
+    const int hue_shift = (signal_index * 32) % 160;
+    stroke = stroke.toHsv();
+    stroke.setHsv((stroke.hue() + hue_shift + 360) % 360,
+                  std::clamp(stroke.saturation() + (active ? 35 : -10), 0, 255),
+                  std::clamp(stroke.value() + (active ? 20 : -5), 0, 255),
+                  active ? 255 : 180);
+    return stroke.toRgb();
+}
+
+QColor signal_handle_fill(const QColor& stroke, bool active) {
+    QColor fill = stroke;
+    fill.setAlpha(active ? 245 : 170);
+    return fill.lighter(active ? 118 : 110);
+}
+
+QColor signal_handle_edge(const QColor& stroke, bool active) {
+    QColor edge = stroke.darker(active ? 138 : 122);
+    edge.setAlpha(active ? 255 : 190);
+    return edge;
+}
 }  // namespace
 
 SignalPlotWidget::SignalPlotWidget(QWidget* parent) : QWidget(parent) {
@@ -224,9 +276,50 @@ SignalPlotWidget::SignalPlotWidget(QWidget* parent) : QWidget(parent) {
     setMinimumSize(360, 180);
 }
 
+void SignalPlotWidget::set_library(const SignalLibrary* library,
+                                   int active_signal_index,
+                                   const std::vector<int>& visible_signal_indices) {
+    library_ = library;
+    active_signal_index_ = active_signal_index;
+    visible_signal_indices_.clear();
+    if (library_ != nullptr) {
+        for (int index : visible_signal_indices) {
+            if (index >= 0 &&
+                index < static_cast<int>(library_->size()) &&
+                !contains_index(visible_signal_indices_, index)) {
+                visible_signal_indices_.push_back(index);
+            }
+        }
+    }
+    if (library_ != nullptr &&
+        active_signal_index_ >= 0 &&
+        active_signal_index_ < static_cast<int>(library_->size())) {
+        signal_ = const_cast<Signal*>(&library_->at(static_cast<std::size_t>(active_signal_index_)));
+    } else {
+        signal_ = nullptr;
+    }
+    drag_mode_ = DragMode::None;
+    drag_segment_start_index_ = std::numeric_limits<std::size_t>::max();
+    hovered_segment_start_index_ = std::numeric_limits<std::size_t>::max();
+    clear_selection();
+    clear_hovered_index();
+    pinned_data_point_visible_ = false;
+    if (signal_ == nullptr) {
+        title_badge_anchor_ratio_ = {0.04, 0.08};
+        meta_badge_anchor_ratio_ = {0.04, 0.18};
+    }
+    auto_fit_view();
+    update();
+}
+
 void SignalPlotWidget::set_signal(Signal* signal) {
+    library_ = nullptr;
+    active_signal_index_ = signal == nullptr ? -1 : 0;
+    visible_signal_indices_.clear();
     signal_ = signal;
     drag_mode_ = DragMode::None;
+    drag_segment_start_index_ = std::numeric_limits<std::size_t>::max();
+    hovered_segment_start_index_ = std::numeric_limits<std::size_t>::max();
     clear_selection();
     clear_hovered_index();
     pinned_data_point_visible_ = false;
@@ -342,6 +435,12 @@ bool SignalPlotWidget::has_hovered_handle() const noexcept {
     return signal_ != nullptr && hovered_index_ < signal_->size();
 }
 
+bool SignalPlotWidget::has_hovered_segment() const noexcept {
+    return signal_ != nullptr &&
+           hovered_segment_start_index_ != std::numeric_limits<std::size_t>::max() &&
+           hovered_segment_start_index_ + 1 < signal_->size();
+}
+
 void SignalPlotWidget::set_selected_index(std::size_t index) {
     selected_index_ = index;
 }
@@ -358,6 +457,22 @@ void SignalPlotWidget::clear_hovered_index() {
     hovered_index_ = std::numeric_limits<std::size_t>::max();
 }
 
+void SignalPlotWidget::clear_hovered_segment() noexcept {
+    hovered_segment_start_index_ = std::numeric_limits<std::size_t>::max();
+}
+
+Signal* SignalPlotWidget::active_signal() const noexcept {
+    return signal_;
+}
+
+bool SignalPlotWidget::is_signal_visible(int signal_index) const noexcept {
+    if (library_ == nullptr || signal_index < 0 ||
+        signal_index >= static_cast<int>(library_->size())) {
+        return false;
+    }
+    return contains_index(visible_signal_indices_, signal_index);
+}
+
 void SignalPlotWidget::auto_fit_view() {
     if (signal_ == nullptr || signal_->empty()) {
         view_t_min_ = 0.0;
@@ -369,8 +484,27 @@ void SignalPlotWidget::auto_fit_view() {
 
     view_t_min_ = signal_->t_min();
     view_t_max_ = signal_->t_max();
-    view_y_min_ = signal_->y_min();
-    view_y_max_ = signal_->y_max();
+
+    double y_min = signal_->y_min();
+    double y_max = signal_->y_max();
+    if (library_ != nullptr) {
+        for (int signal_index : visible_signal_indices_) {
+            if (signal_index < 0 ||
+                signal_index >= static_cast<int>(library_->size())) {
+                continue;
+            }
+            const auto& candidate = library_->at(static_cast<std::size_t>(signal_index));
+            if (candidate.empty()) {
+                continue;
+            }
+            y_min = std::min(y_min, candidate.y_min());
+            y_max = std::max(y_max, candidate.y_max());
+            view_t_min_ = std::min(view_t_min_, candidate.t_min());
+            view_t_max_ = std::max(view_t_max_, candidate.t_max());
+        }
+    }
+    view_y_min_ = y_min;
+    view_y_max_ = y_max;
 
     if (view_t_max_ - view_t_min_ < 1e-12) {
         view_t_max_ = view_t_min_ + 1.0;
@@ -392,21 +526,47 @@ void SignalPlotWidget::update_y_view_for_current_time_window() {
         return;
     }
 
-    double y_min = signal_->interpolate(view_t_min_);
-    double y_max = signal_->interpolate(view_t_min_);
-
-    const auto& samples = signal_->samples();
-    for (const auto& sample : samples) {
-        if (sample.t < view_t_min_ || sample.t > view_t_max_) {
-            continue;
+    bool have_values = false;
+    double y_min = 0.0;
+    double y_max = 0.0;
+    const auto accumulate_signal = [&](const Signal& candidate) {
+        if (candidate.empty()) {
+            return;
         }
-        y_min = std::min(y_min, sample.y);
-        y_max = std::max(y_max, sample.y);
-    }
+        double local_min = candidate.interpolate(view_t_min_);
+        double local_max = local_min;
+        for (const auto& sample : candidate.samples()) {
+            if (sample.t < view_t_min_ || sample.t > view_t_max_) {
+                continue;
+            }
+            local_min = std::min(local_min, sample.y);
+            local_max = std::max(local_max, sample.y);
+        }
+        const double y_at_end = candidate.interpolate(view_t_max_);
+        local_min = std::min(local_min, y_at_end);
+        local_max = std::max(local_max, y_at_end);
+        if (!have_values) {
+            y_min = local_min;
+            y_max = local_max;
+            have_values = true;
+        } else {
+            y_min = std::min(y_min, local_min);
+            y_max = std::max(y_max, local_max);
+        }
+    };
 
-    const double y_at_end = signal_->interpolate(view_t_max_);
-    y_min = std::min(y_min, y_at_end);
-    y_max = std::max(y_max, y_at_end);
+    if (library_ != nullptr && !visible_signal_indices_.empty()) {
+        for (int signal_index : visible_signal_indices_) {
+            if (signal_index < 0 ||
+                signal_index >= static_cast<int>(library_->size())) {
+                continue;
+            }
+            accumulate_signal(library_->at(static_cast<std::size_t>(signal_index)));
+        }
+    }
+    if (!have_values) {
+        accumulate_signal(*signal_);
+    }
 
     if (std::fabs(y_max - y_min) < 1e-12) {
         y_min -= 0.5;
@@ -488,6 +648,42 @@ bool SignalPlotWidget::find_handle_near(const QPointF& pixel, std::size_t& out_i
         if (distance <= best) {
             best = distance;
             out_index = i;
+            found = true;
+        }
+    }
+    return found;
+}
+
+bool SignalPlotWidget::find_segment_near(const QPointF& pixel, std::size_t& out_start_index) const {
+    if (signal_ == nullptr || signal_->size() < 2) {
+        return false;
+    }
+
+    const QRectF content_rect = plot_content_rect(plot_rect());
+    double best_distance = kPickRadius;
+    bool found = false;
+    for (std::size_t index = 0; index + 1 < signal_->size(); ++index) {
+        const QPointF a = data_to_pixel(signal_->samples()[index].t, signal_->samples()[index].y);
+        const QPointF b = data_to_pixel(signal_->samples()[index + 1].t, signal_->samples()[index + 1].y);
+        if (!point_inside_content(a, content_rect, kPickRadius) &&
+            !point_inside_content(b, content_rect, kPickRadius)) {
+            continue;
+        }
+
+        const QLineF line(a, b);
+        const double line_length_sq = line.dx() * line.dx() + line.dy() * line.dy();
+        if (line_length_sq <= 1e-12) {
+            continue;
+        }
+
+        const QPointF ap = pixel - a;
+        const QPointF ab = b - a;
+        const double projection = std::clamp((ap.x() * ab.x() + ap.y() * ab.y()) / line_length_sq, 0.0, 1.0);
+        const QPointF closest = a + projection * ab;
+        const double distance = std::hypot(closest.x() - pixel.x(), closest.y() - pixel.y());
+        if (distance <= best_distance) {
+            best_distance = distance;
+            out_start_index = index;
             found = true;
         }
     }
@@ -628,77 +824,90 @@ void SignalPlotWidget::paintEvent(QPaintEvent* /*event*/) {
         return;
     }
 
-    const auto& samples = signal_->samples();
-    const QString signal_name = QString::fromStdString(signal_->name());
-    const QString interpolation = signal_->interpolation() == Signal::InterpolationMode::Step
-        ? tr("Step interpolation")
-        : tr("Linear interpolation");
-    const QString meta_text = tr("%1 | %2 samples")
-        .arg(interpolation).arg(samples.size());
-    update_badge_rects(signal_name, meta_text, plot_rect, metrics);
-    draw_badge(painter,
-               title_badge_rect_,
-               signal_name,
-               colors.badge_fill,
-               colors.badge_outline,
-               colors.badge_text);
-    draw_badge(painter,
-               meta_badge_rect_,
-               meta_text,
-               colors.badge_fill,
-               colors.info_border,
-               colors.badge_text);
-    const QRectF hint_badge = layout_badge_rect(
-               QPointF(plot_rect.left() + 18.0, plot_rect.bottom() - 36.0),
-               signal_->is_enumerated()
-                   ? tr("Drag states | Double-click to add | Labels drive the Y axis")
-                   : tr("Drag points | Double-click to add | Shift+drag to brush"),
-               metrics);
-    draw_badge(painter,
-               hint_badge,
-               signal_->is_enumerated()
-                   ? tr("Drag states | Double-click to add | Labels drive the Y axis")
-                   : tr("Drag points | Double-click to add | Shift+drag to brush"),
-               colors.hint_badge_fill,
-               colors.hint_badge_outline,
-               colors.hint_badge_text);
-
     const QRectF content_rect = plot_content_rect(plot_rect);
     const QRectF clip_rect = content_rect.adjusted(-1.0, -1.0, 1.0, 1.0);
-
+    const bool active_visible =
+        library_ == nullptr ? true : is_signal_visible(active_signal_index_);
+    const auto* active_samples = active_visible ? &signal_->samples() : nullptr;
     QPainterPath path;
     QPainterPath fill;
-    const QPointF first = data_to_pixel(samples.front().t, samples.front().y);
-    path.moveTo(first);
-    fill.moveTo(QPointF(first.x(), content_rect.bottom()));
-    fill.lineTo(first);
-    for (std::size_t i = 1; i < samples.size(); ++i) {
-        const QPointF prev_point = data_to_pixel(samples[i - 1].t, samples[i - 1].y);
-        const QPointF point = data_to_pixel(samples[i].t, samples[i].y);
-        if (signal_->interpolation() == Signal::InterpolationMode::Step) {
-            const QPointF corner(point.x(), prev_point.y());
-            path.lineTo(corner);
-            path.lineTo(point);
-            fill.lineTo(corner);
-            fill.lineTo(point);
-        } else {
-            path.lineTo(point);
-            fill.lineTo(point);
+    if (active_samples != nullptr && !active_samples->empty()) {
+        path = build_signal_path(*signal_,
+                                 [this](double t, double y) { return data_to_pixel(t, y); });
+        const QPointF first = data_to_pixel(active_samples->front().t, active_samples->front().y);
+        fill.moveTo(QPointF(first.x(), content_rect.bottom()));
+        fill.lineTo(first);
+        for (std::size_t i = 1; i < active_samples->size(); ++i) {
+            const QPointF prev_point = data_to_pixel((*active_samples)[i - 1].t,
+                                                     (*active_samples)[i - 1].y);
+            const QPointF point = data_to_pixel((*active_samples)[i].t,
+                                                (*active_samples)[i].y);
+            if (signal_->interpolation() == Signal::InterpolationMode::Step) {
+                const QPointF corner(point.x(), prev_point.y());
+                fill.lineTo(corner);
+                fill.lineTo(point);
+            } else {
+                fill.lineTo(point);
+            }
         }
+        fill.lineTo(QPointF(data_to_pixel(active_samples->back().t,
+                                          active_samples->back().y).x(),
+                            content_rect.bottom()));
+        fill.closeSubpath();
     }
-    fill.lineTo(QPointF(data_to_pixel(samples.back().t, samples.back().y).x(), content_rect.bottom()));
-    fill.closeSubpath();
 
     painter.save();
     painter.setClipRect(clip_rect);
 
-    painter.setPen(Qt::NoPen);
-    painter.setBrush(colors.curve_fill);
-    painter.drawPath(fill);
+    if (library_ != nullptr) {
+        for (std::size_t signal_index = 0; signal_index < library_->size(); ++signal_index) {
+            if (static_cast<int>(signal_index) == active_signal_index_ ||
+                !is_signal_visible(static_cast<int>(signal_index))) {
+                continue;
+            }
+            const auto& background_signal = library_->at(signal_index);
+            if (background_signal.empty()) {
+                continue;
+            }
 
-    painter.setPen(QPen(colors.curve, 2.4));
-    painter.setBrush(Qt::NoBrush);
-    painter.drawPath(path);
+            const auto& background_samples = background_signal.samples();
+            const QPainterPath background_path = build_signal_path(
+                background_signal,
+                [this](double t, double y) { return data_to_pixel(t, y); });
+            const QColor background_stroke =
+                signal_stroke_color(colors, static_cast<int>(signal_index), false);
+            painter.setPen(QPen(background_stroke, 1.8, Qt::SolidLine,
+                                Qt::RoundCap, Qt::RoundJoin));
+            painter.setBrush(Qt::NoBrush);
+            painter.drawPath(background_path);
+
+            const QColor background_handle_fill = signal_handle_fill(background_stroke, false);
+            const QColor background_handle_edge = signal_handle_edge(background_stroke, false);
+            for (const auto& sample : background_samples) {
+                const QPointF point = data_to_pixel(sample.t, sample.y);
+                constexpr double kBackgroundRadius = 2.6;
+                if (!point_inside_content(point, content_rect, kBackgroundRadius)) {
+                    continue;
+                }
+                painter.setBrush(background_handle_fill);
+                painter.setPen(QPen(background_handle_edge, 0.9));
+                painter.drawEllipse(point, kBackgroundRadius, kBackgroundRadius);
+            }
+        }
+    }
+
+    QColor active_stroke = signal_stroke_color(colors, active_signal_index_, true);
+    QColor active_handle_fill = signal_handle_fill(active_stroke, true);
+    QColor active_handle_edge = signal_handle_edge(active_stroke, true);
+    if (active_samples != nullptr) {
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(colors.curve_fill);
+        painter.drawPath(fill);
+
+        painter.setPen(QPen(active_stroke, 2.9, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        painter.setBrush(Qt::NoBrush);
+        painter.drawPath(path);
+    }
 
     if (pinned_data_point_visible_) {
         const QPointF pinned_pixel = data_to_pixel(pinned_data_point_.x(), pinned_data_point_.y());
@@ -710,21 +919,31 @@ void SignalPlotWidget::paintEvent(QPaintEvent* /*event*/) {
         painter.drawLine(QPointF(pinned_pixel.x(), pinned_pixel.y() - 8.0), QPointF(pinned_pixel.x(), pinned_pixel.y() + 8.0));
     }
 
-    for (std::size_t i = 0; i < samples.size(); ++i) {
-        const auto& sample = samples[i];
-        const QPointF point = data_to_pixel(sample.t, sample.y);
-        const bool selected = has_selection() && selected_index_ == i;
-        const bool hovered = has_hovered_handle() && hovered_index_ == i;
-        const double radius = selected ? kSelectedHandleRadius
-                                       : (hovered ? kSelectedHandleRadius - 1.0
-                                                  : kHandleRadius);
-        if (!point_inside_content(point, content_rect, radius)) {
-            continue;
+    if (active_samples != nullptr) {
+        for (std::size_t i = 0; i < active_samples->size(); ++i) {
+            const auto& sample = (*active_samples)[i];
+            const QPointF point = data_to_pixel(sample.t, sample.y);
+            const bool selected = has_selection() && selected_index_ == i;
+            const bool hovered = has_hovered_handle() && hovered_index_ == i;
+            const double radius = selected ? kSelectedHandleRadius
+                                           : (hovered ? kSelectedHandleRadius - 1.0
+                                                      : kHandleRadius);
+            if (!point_inside_content(point, content_rect, radius)) {
+                continue;
+            }
+            painter.setBrush(selected ? colors.selected_handle : active_handle_fill);
+            painter.setPen(QPen(selected ? colors.selected_handle_edge : active_handle_edge,
+                                (selected || hovered) ? 1.8 : 1.0));
+            painter.drawEllipse(point, radius, radius);
         }
-        painter.setBrush(selected ? colors.selected_handle : colors.handle);
-        painter.setPen(QPen(selected ? colors.selected_handle_edge : colors.handle_edge,
-                            (selected || hovered) ? 1.8 : 1.0));
-        painter.drawEllipse(point, radius, radius);
+
+        if (has_hovered_segment()) {
+            painter.setPen(QPen(colors.selected_handle, 3.0));
+            painter.drawLine(data_to_pixel((*active_samples)[hovered_segment_start_index_].t,
+                                           (*active_samples)[hovered_segment_start_index_].y),
+                             data_to_pixel((*active_samples)[hovered_segment_start_index_ + 1].t,
+                                           (*active_samples)[hovered_segment_start_index_ + 1].y));
+        }
     }
 
     if (drag_mode_ == DragMode::RectZoom) {
@@ -742,6 +961,53 @@ void SignalPlotWidget::paintEvent(QPaintEvent* /*event*/) {
 
     painter.restore();
 
+    if (!active_visible) {
+        const QRectF hidden_badge = layout_badge_rect(
+            QPointF(plot_rect.left() + 18.0, plot_rect.top() + 18.0),
+            tr("Active signal hidden"),
+            metrics);
+        draw_badge(painter,
+                   hidden_badge,
+                   tr("Active signal hidden"),
+                   colors.badge_fill,
+                   colors.info_border,
+                   colors.badge_text);
+    } else {
+        const QString signal_name = QString::fromStdString(signal_->name());
+        const QString interpolation = signal_->interpolation() == Signal::InterpolationMode::Step
+            ? tr("Step interpolation")
+            : tr("Linear interpolation");
+        const QString meta_text = tr("%1 | %2 samples")
+            .arg(interpolation).arg(active_samples == nullptr ? 0 : active_samples->size());
+        update_badge_rects(signal_name, meta_text, plot_rect, metrics);
+        draw_badge(painter,
+                   title_badge_rect_,
+                   signal_name,
+                   colors.badge_fill,
+                   colors.badge_outline,
+                   colors.badge_text);
+        draw_badge(painter,
+                   meta_badge_rect_,
+                   meta_text,
+                   colors.badge_fill,
+                   colors.info_border,
+                   colors.badge_text);
+        const QRectF hint_badge = layout_badge_rect(
+                   QPointF(plot_rect.left() + 18.0, plot_rect.bottom() - 36.0),
+                   signal_->is_enumerated()
+                       ? tr("Drag states | Double-click to add | Labels drive the Y axis")
+                       : tr("Drag points | Double-click to add | Shift+drag to brush"),
+                   metrics);
+        draw_badge(painter,
+                   hint_badge,
+                   signal_->is_enumerated()
+                       ? tr("Drag states | Double-click to add | Labels drive the Y axis")
+                       : tr("Drag points | Double-click to add | Shift+drag to brush"),
+                   colors.hint_badge_fill,
+                   colors.hint_badge_outline,
+                   colors.hint_badge_text);
+    }
+
     if (pinned_data_point_visible_) {
         const QPointF pinned_pixel = data_to_pixel(pinned_data_point_.x(), pinned_data_point_.y());
         draw_coordinate_bubble(painter, plot_rect, pinned_pixel,
@@ -749,8 +1015,8 @@ void SignalPlotWidget::paintEvent(QPaintEvent* /*event*/) {
                                colors);
     }
 
-    if (has_hovered_handle()) {
-        const auto& sample = samples[hovered_index_];
+    if (active_samples != nullptr && has_hovered_handle()) {
+        const auto& sample = (*active_samples)[hovered_index_];
         const QPointF hovered_pixel = data_to_pixel(sample.t, sample.y);
         if (!point_inside_content(hovered_pixel, content_rect)) {
             return;
@@ -773,6 +1039,8 @@ void SignalPlotWidget::mousePressEvent(QMouseEvent* event) {
     const QPointF data_point = pixel_to_data(event->position());
     std::size_t index = 0;
     const bool handle_hit = find_handle_near(event->position(), index);
+    std::size_t segment_start_index = 0;
+    const bool segment_hit = !handle_hit && find_segment_near(event->position(), segment_start_index);
 
     if (event->button() == Qt::LeftButton) {
         if ((navigation_mode_ == NavigationMode::Pan ||
@@ -819,8 +1087,22 @@ void SignalPlotWidget::mousePressEvent(QMouseEvent* event) {
             emit editStarted();
             set_selected_index(index);
             set_hovered_index(index);
+            clear_hovered_segment();
             drag_mode_ = DragMode::MoveSample;
             drag_index_ = index;
+            drag_start_data_ = data_point;
+            update();
+            return;
+        }
+
+        if (segment_hit) {
+            emit editStarted();
+            clear_selection();
+            clear_hovered_index();
+            hovered_segment_start_index_ = segment_start_index;
+            drag_mode_ = DragMode::MoveSegment;
+            drag_segment_start_index_ = segment_start_index;
+            drag_start_data_ = data_point;
             update();
             return;
         }
@@ -828,6 +1110,7 @@ void SignalPlotWidget::mousePressEvent(QMouseEvent* event) {
         if (event->modifiers().testFlag(Qt::ShiftModifier) && !signal_->is_enumerated()) {
             emit editStarted();
             clear_selection();
+            clear_hovered_segment();
             drag_mode_ = DragMode::GaussianBrush;
             drag_start_data_ = data_point;
             update();
@@ -835,6 +1118,7 @@ void SignalPlotWidget::mousePressEvent(QMouseEvent* event) {
         }
 
         clear_selection();
+        clear_hovered_segment();
         update();
         return;
     }
@@ -844,6 +1128,7 @@ void SignalPlotWidget::mousePressEvent(QMouseEvent* event) {
         handle_hit) {
         set_selected_index(index);
         set_hovered_index(index);
+        clear_hovered_segment();
         update();
     }
 }
@@ -854,6 +1139,7 @@ void SignalPlotWidget::mouseMoveEvent(QMouseEvent* event) {
 
     if (signal_ == nullptr) {
         clear_hovered_index();
+        clear_hovered_segment();
         update();
         return;
     }
@@ -925,13 +1211,46 @@ void SignalPlotWidget::mouseMoveEvent(QMouseEvent* event) {
             return;
         }
 
-        drag_index_ = signal_->move_sample(drag_index_, data_point.x(), data_point.y());
-        set_selected_index(drag_index_);
-        set_hovered_index(drag_index_);
+        emit sampleMoveRequested(drag_index_, data_point.x(), data_point.y());
+        if (signal_ != nullptr) {
+            std::size_t refreshed_index = std::min(drag_index_, signal_->size() - 1);
+            for (std::size_t index = 0; index < signal_->size(); ++index) {
+                const auto& sample = signal_->samples()[index];
+                if (std::fabs(sample.t - data_point.x()) < 1e-9 &&
+                    std::fabs(sample.y - signal_->snap_to_enumeration(data_point.y())) < 1e-9) {
+                    refreshed_index = index;
+                    break;
+                }
+            }
+            drag_index_ = refreshed_index;
+            set_selected_index(drag_index_);
+            set_hovered_index(drag_index_);
+        }
         pinned_data_point_ = data_point;
         pinned_data_point_visible_ = true;
         update_y_view_for_current_time_window();
         emit signalChanged();
+        update();
+        return;
+    }
+
+    if (drag_mode_ == DragMode::MoveSegment) {
+        if (!event->buttons().testFlag(Qt::LeftButton)) {
+            drag_mode_ = DragMode::None;
+            emit signalChanged();
+            update();
+            return;
+        }
+
+        const double delta_y = data_point.y() - drag_start_data_.y();
+        if (std::fabs(delta_y) > 1e-12) {
+            emit segmentMoveRequested(drag_segment_start_index_, delta_y);
+            drag_start_data_ = data_point;
+            pinned_data_point_ = data_point;
+            pinned_data_point_visible_ = true;
+            update_y_view_for_current_time_window();
+            emit signalChanged();
+        }
         update();
         return;
     }
@@ -946,7 +1265,7 @@ void SignalPlotWidget::mouseMoveEvent(QMouseEvent* event) {
 
         const double delta_y = data_point.y() - drag_start_data_.y();
         const double sigma = std::max(1e-6, 0.05 * (view_t_max_ - view_t_min_));
-        signal_->apply_gaussian_brush(drag_start_data_.x(), delta_y, sigma);
+        emit gaussianBrushRequested(drag_start_data_.x(), delta_y, sigma);
         drag_start_data_ = data_point;
         update_y_view_for_current_time_window();
         emit signalChanged();
@@ -956,6 +1275,7 @@ void SignalPlotWidget::mouseMoveEvent(QMouseEvent* event) {
 
     if (navigation_mode_ != NavigationMode::Edit) {
         clear_hovered_index();
+        clear_hovered_segment();
         update();
         return;
     }
@@ -963,8 +1283,13 @@ void SignalPlotWidget::mouseMoveEvent(QMouseEvent* event) {
     std::size_t hovered = 0;
     if (find_handle_near(event->position(), hovered)) {
         set_hovered_index(hovered);
+        clear_hovered_segment();
+    } else if (find_segment_near(event->position(), hovered)) {
+        clear_hovered_index();
+        hovered_segment_start_index_ = hovered;
     } else {
         clear_hovered_index();
+        clear_hovered_segment();
     }
 
     update();
@@ -1004,8 +1329,12 @@ void SignalPlotWidget::mouseReleaseEvent(QMouseEvent* event) {
         }
         if (signal_ != nullptr &&
             (completed_mode == DragMode::MoveSample ||
+             completed_mode == DragMode::MoveSegment ||
              completed_mode == DragMode::GaussianBrush)) {
             emit signalChanged();
+        }
+        if (completed_mode != DragMode::MoveSegment) {
+            clear_hovered_segment();
         }
         update();
     }
@@ -1020,11 +1349,9 @@ void SignalPlotWidget::mouseDoubleClickEvent(QMouseEvent* event) {
 
     emit editStarted();
     const QPointF data_point = pixel_to_data(event->position());
-    const std::size_t new_index = signal_->insert_sample(data_point.x(), data_point.y());
+    emit sampleInsertRequested(data_point.x(), data_point.y());
     pinned_data_point_ = data_point;
     pinned_data_point_visible_ = true;
-    set_selected_index(new_index);
-    set_hovered_index(new_index);
     emit signalChanged();
     update_y_view_for_current_time_window();
     update();
@@ -1046,12 +1373,16 @@ void SignalPlotWidget::contextMenuEvent(QContextMenuEvent* event) {
     if (handle_hit) {
         set_selected_index(hit_index);
         set_hovered_index(hit_index);
+        hovered_segment_start_index_ = std::numeric_limits<std::size_t>::max();
     }
 
     QMenu menu(this);
     QAction* add_action = menu.addAction(tr("Add waypoint here"));
     QAction* remove_action = menu.addAction(tr("Remove selected waypoint"));
+    QAction* offset_all_action = menu.addAction(tr("Apply offset to all samples in file"));
+    QAction* offset_sample_action = menu.addAction(tr("Apply offset to selected sample"));
     remove_action->setEnabled(handle_hit || has_selection());
+    offset_sample_action->setEnabled(handle_hit || has_selection());
 
     QAction* chosen = menu.exec(event->globalPos());
     if (chosen == nullptr) {
@@ -1061,9 +1392,7 @@ void SignalPlotWidget::contextMenuEvent(QContextMenuEvent* event) {
 
     if (chosen == add_action) {
         emit editStarted();
-        const std::size_t new_index = signal_->insert_sample(last_context_data_.x(), last_context_data_.y());
-        set_selected_index(new_index);
-        set_hovered_index(new_index);
+        emit sampleInsertRequested(last_context_data_.x(), last_context_data_.y());
         emit signalChanged();
         update_y_view_for_current_time_window();
         update();
@@ -1072,18 +1401,46 @@ void SignalPlotWidget::contextMenuEvent(QContextMenuEvent* event) {
 
     if (chosen == remove_action && has_selection()) {
         emit editStarted();
-        signal_->remove_sample(selected_index_);
-        if (signal_->empty()) {
-            clear_selection();
-            clear_hovered_index();
-        } else {
-            const std::size_t bounded = std::min(selected_index_, signal_->size() - 1);
-            set_selected_index(bounded);
-            set_hovered_index(bounded);
-        }
+        emit sampleRemoveRequested(selected_index_);
+        clear_selection();
+        clear_hovered_index();
         emit signalChanged();
         update_y_view_for_current_time_window();
         update();
+        return;
+    }
+
+    if (chosen == offset_all_action) {
+        bool ok = false;
+        const double delta = QInputDialog::getDouble(
+            this,
+            tr("Offset all samples"),
+            tr("Offset to add to every sample in the current file"),
+            0.0, -1e12, 1e12, 6, &ok);
+        if (ok) {
+            emit editStarted();
+            emit offsetAllRequested(delta);
+            emit signalChanged();
+            update_y_view_for_current_time_window();
+            update();
+        }
+        return;
+    }
+
+    if (chosen == offset_sample_action && has_selection()) {
+        bool ok = false;
+        const double delta = QInputDialog::getDouble(
+            this,
+            tr("Offset selected sample"),
+            tr("Offset to add to the selected sample"),
+            0.0, -1e12, 1e12, 6, &ok);
+        if (ok) {
+            emit editStarted();
+            emit sampleOffsetRequested(selected_index_, delta);
+            emit signalChanged();
+            update_y_view_for_current_time_window();
+            update();
+        }
     }
 }
 

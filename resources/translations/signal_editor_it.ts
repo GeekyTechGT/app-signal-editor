@@ -71,6 +71,10 @@
         <translation>&amp;Salva file corrente...</translation>
     </message>
     <message>
+        <source>Export &amp;plot image...</source>
+        <translation>Esporta immagine &amp;grafico...</translation>
+    </message>
+    <message>
         <source>&amp;Undo</source>
         <translation>&amp;Annulla</translation>
     </message>
@@ -143,12 +147,30 @@
         <translation>Salva file segnale corrente</translation>
     </message>
     <message>
+        <source>Export plot image</source>
+        <translation>Esporta immagine del grafico</translation>
+    </message>
+    <message>
         <source>Export failed</source>
         <translation>Esportazione fallita</translation>
     </message>
     <message>
+        <source>Unable to capture the current plot image.</source>
+        <translation>Impossibile catturare l&apos;immagine corrente del grafico.</translation>
+    </message>
+    <message>
+        <source>Unable to save the plot image to:
+%1</source>
+        <translation>Impossibile salvare l&apos;immagine del grafico in:
+%1</translation>
+    </message>
+    <message>
         <source>Saved %1</source>
         <translation>Salvato %1</translation>
+    </message>
+    <message>
+        <source>Plot image exported to %1</source>
+        <translation>Immagine del grafico esportata in %1</translation>
     </message>
     <message>
         <source>Undo applied</source>
@@ -341,6 +363,26 @@ Lo stato iniziale può essere lasciato vuoto per usare la prima voce della mappa
         <translation>Dettagli file</translation>
     </message>
     <message>
+        <source>Signal options</source>
+        <translation>Opzioni segnale</translation>
+    </message>
+    <message>
+        <source>Edit one enumerated state per line using LABEL:NUMERIC_VALUE. When you apply the new mapping, plot and table are refreshed immediately.</source>
+        <translation>Modifica uno stato enumerato per riga usando ETICHETTA:VALORE_NUMERICO. Quando applichi la nuova mappatura, grafico e tabella vengono aggiornati immediatamente.</translation>
+    </message>
+    <message>
+        <source>The selected signal is numeric. Enumeration mapping can be edited only for enumerated signals.</source>
+        <translation>Il segnale selezionato è numerico. La mappatura enumerativa può essere modificata solo per segnali enumerati.</translation>
+    </message>
+    <message>
+        <source>Signal options failed</source>
+        <translation>Aggiornamento opzioni segnale fallito</translation>
+    </message>
+    <message>
+        <source>Updated enumeration mapping for %1</source>
+        <translation>Mappatura enumerativa aggiornata per %1</translation>
+    </message>
+    <message>
         <source>File: %1
 </source>
         <translation>File: %1
@@ -509,6 +551,10 @@ Segnali:
     <message>
         <source>Reset the plot to fit the selected signal.</source>
         <translation>Ripristina il grafico per adattarlo al segnale selezionato.</translation>
+    </message>
+    <message>
+        <source>Export image</source>
+        <translation>Esporta immagine</translation>
     </message>
     <message>
         <source>Start value of the currently visible time range.</source>
@@ -850,6 +896,18 @@ FALSO:0</translation>
     <message>
         <source>Create a new signal.</source>
         <translation>Crea un nuovo segnale.</translation>
+    </message>
+    <message>
+        <source>Options</source>
+        <translation>Opzioni</translation>
+    </message>
+    <message>
+        <source>Open options for the selected signal.</source>
+        <translation>Apri le opzioni del segnale selezionato.</translation>
+    </message>
+    <message>
+        <source>Configure the selected signal.</source>
+        <translation>Configura il segnale selezionato.</translation>
     </message>
     <message>
         <source>- Remove</source>

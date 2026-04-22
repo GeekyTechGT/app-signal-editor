@@ -8,6 +8,7 @@
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QMenu>
+#include <QSignalBlocker>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -74,6 +75,7 @@ FileListPanel::FileListPanel(QWidget* parent) : QWidget(parent) {
 void FileListPanel::set_files(const std::vector<FileItem>& files) {
     files_ = files;
     const int previous = list_->currentRow();
+    const QSignalBlocker blocker(list_);
     suppress_item_changed_ = true;
     list_->clear();
     for (const auto& file : files_) {
@@ -90,6 +92,7 @@ void FileListPanel::set_files(const std::vector<FileItem>& files) {
         refresh_summary(-1);
     }
     suppress_item_changed_ = false;
+    refresh_summary(list_->currentRow());
 }
 
 void FileListPanel::select(int index) {
@@ -142,11 +145,15 @@ void FileListPanel::onCustomContextMenuRequested(const QPoint& pos) {
     list_->setCurrentRow(row);
 
     QMenu menu(this);
+    QAction* reload_action = menu.addAction(tr("Reload from disk"));
     QAction* rename_action = menu.addAction(tr("Rename"));
     QAction* details_action = menu.addAction(tr("Details"));
     QAction* remove_action = menu.addAction(tr("Remove file from workspace"));
+    reload_action->setEnabled(!files_[static_cast<std::size_t>(row)].full_path.trimmed().isEmpty());
     QAction* chosen = menu.exec(list_->viewport()->mapToGlobal(pos));
-    if (chosen == rename_action) {
+    if (chosen == reload_action) {
+        emit reloadRequested(row);
+    } else if (chosen == rename_action) {
         begin_rename_current();
     } else if (chosen == details_action) {
         emit detailsRequested(row);
@@ -201,7 +208,7 @@ void FileListPanel::refresh_summary(int current_row) {
     if (current_row >= 0 && current_row < static_cast<int>(files_.size())) {
         const auto& item = files_[static_cast<std::size_t>(current_row)];
         detail_label_->setText(
-            tr("Active file: %1\n%2")
+            tr("Active file: %1\n%2\nUndo restores workspace edits; reload restores the file from disk.")
                 .arg(item.display_name, item.full_path));
     } else {
         detail_label_->setText(tr("Select a file to inspect its source path and workspace status."));

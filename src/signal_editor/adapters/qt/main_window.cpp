@@ -474,6 +474,17 @@ std::vector<Signal::EnumerationEntry> parse_enumeration_definition(const QString
     return entries;
 }
 
+QString format_enumeration_definition(const std::vector<Signal::EnumerationEntry>& enumeration) {
+    QStringList lines;
+    lines.reserve(static_cast<qsizetype>(enumeration.size()));
+    for (const auto& entry : enumeration) {
+        lines.push_back(QStringLiteral("%1:%2")
+                            .arg(QString::fromStdString(entry.label))
+                            .arg(QString::number(entry.value, 'g', 15)));
+    }
+    return lines.join(QStringLiteral("\n"));
+}
+
 Signal generate_enumerated_signal(const QString& name, double t_start, double t_end,
                                   double sampling_time,
                                   const std::vector<Signal::EnumerationEntry>& enumeration,
@@ -671,6 +682,7 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
     plot_pan_mode_button_ = new QPushButton(tr("Pan mode"), plot_controls_card);
     plot_rect_mode_button_ = new QPushButton(tr("Rect mode"), plot_controls_card);
     plot_reset_view_button_ = new QPushButton(tr("Fit view"), plot_controls_card);
+    plot_export_button_ = new QPushButton(tr("Export image"), plot_controls_card);
     plot_t_start_edit_ = new QLineEdit(plot_controls_card);
     plot_t_end_edit_ = new QLineEdit(plot_controls_card);
     plot_zoom_in_button_->setObjectName(QStringLiteral("SubtleButton"));
@@ -678,11 +690,13 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
     plot_pan_mode_button_->setObjectName(QStringLiteral("SubtleButton"));
     plot_rect_mode_button_->setObjectName(QStringLiteral("SubtleButton"));
     plot_reset_view_button_->setObjectName(QStringLiteral("AccentButton"));
+    plot_export_button_->setObjectName(QStringLiteral("SubtleButton"));
     plot_zoom_in_button_->setCursor(Qt::PointingHandCursor);
     plot_zoom_out_button_->setCursor(Qt::PointingHandCursor);
     plot_pan_mode_button_->setCursor(Qt::PointingHandCursor);
     plot_rect_mode_button_->setCursor(Qt::PointingHandCursor);
     plot_reset_view_button_->setCursor(Qt::PointingHandCursor);
+    plot_export_button_->setCursor(Qt::PointingHandCursor);
     plot_pan_mode_button_->setCheckable(true);
     plot_rect_mode_button_->setCheckable(true);
     plot_t_start_edit_->setValidator(
@@ -700,6 +714,7 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
     plot_toolbar->addWidget(plot_pan_mode_button_);
     plot_toolbar->addWidget(plot_rect_mode_button_);
     plot_toolbar->addWidget(plot_reset_view_button_);
+    plot_toolbar->addWidget(plot_export_button_);
     plot_toolbar->addSpacing(10);
     plot_t_start_label_ = new QLabel(tr("Visible t start"), plot_controls_card);
     plot_t_end_label_ = new QLabel(tr("Visible t end"), plot_controls_card);
@@ -741,18 +756,22 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
     setCentralWidget(central);
 
     list_panel_->set_library(nullptr);
-    table_panel_->set_signal(nullptr);
+    list_panel_->set_visible_signal_indices({});
+    list_panel_->set_active_signal_index(-1);
+    table_panel_->set_library(nullptr, -1, {});
     update_interpolation_box();
 
     // ── Menu bar ──────────────────────────────────────────────────────────────
     menu_file_   = menuBar()->addMenu(tr("&File"));
     act_open_    = menu_file_->addAction(tr("&Open signal files..."));
     act_save_    = menu_file_->addAction(tr("&Save current file..."));
+    act_export_plot_ = menu_file_->addAction(tr("Export &plot image..."));
     undo_action_ = menu_file_->addAction(tr("&Undo"));
     menu_file_->addSeparator();
     act_quit_    = menu_file_->addAction(tr("&Quit"));
     act_open_->setShortcut(QKeySequence::Open);
     act_save_->setShortcut(QKeySequence::Save);
+    act_export_plot_->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S));
     undo_action_->setShortcut(QKeySequence::Undo);
     act_quit_->setShortcut(QKeySequence::Quit);
 
@@ -777,6 +796,7 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
     main_toolbar_->setIconSize(QSize(20, 20));
     main_toolbar_->addAction(act_open_);
     main_toolbar_->addAction(act_save_);
+    main_toolbar_->addAction(act_export_plot_);
     main_toolbar_->addAction(undo_action_);
     main_toolbar_->addSeparator();
     main_toolbar_->addAction(act_new_);
@@ -794,6 +814,7 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
     // ── Connections ───────────────────────────────────────────────────────────
     connect(act_open_,     &QAction::triggered, this, &MainWindow::onOpen);
     connect(act_save_,     &QAction::triggered, this, &MainWindow::onSave);
+    connect(act_export_plot_, &QAction::triggered, this, &MainWindow::onExportPlotImage);
     connect(undo_action_,  &QAction::triggered, this, &MainWindow::onUndo);
     connect(act_new_,      &QAction::triggered, this, &MainWindow::onNewSignal);
     connect(rename_action_,&QAction::triggered, this, &MainWindow::onRenameSignal);
@@ -809,10 +830,16 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
             this, &MainWindow::onFileRenameRequested);
     connect(file_panel_, &FileListPanel::removeRequested,
             this, &MainWindow::onFileRemoveRequested);
+    connect(file_panel_, &FileListPanel::reloadRequested,
+            this, &MainWindow::onFileReloadRequested);
     connect(file_panel_, &FileListPanel::detailsRequested,
             this, &MainWindow::onFileDetailsRequested);
     connect(list_panel_, &SignalListPanel::selectionChanged,
             this, &MainWindow::onSignalSelectionChanged);
+    connect(list_panel_, &SignalListPanel::visibilityChanged,
+            this, &MainWindow::onSignalVisibilityChanged);
+    connect(list_panel_, &SignalListPanel::optionsRequested,
+            this, &MainWindow::onSignalOptionsRequested);
     connect(list_panel_, &SignalListPanel::renameRequested,
             this, &MainWindow::onRenameRequested);
     connect(list_panel_, &SignalListPanel::addRequested,
@@ -821,6 +848,20 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
             this, &MainWindow::onRemoveRequested);
     connect(plot_, &SignalPlotWidget::editStarted,
             this, &MainWindow::onPlotEditStarted);
+    connect(plot_, &SignalPlotWidget::sampleMoveRequested,
+            this, &MainWindow::onPlotSampleMoveRequested);
+    connect(plot_, &SignalPlotWidget::sampleInsertRequested,
+            this, &MainWindow::onPlotSampleInsertRequested);
+    connect(plot_, &SignalPlotWidget::sampleRemoveRequested,
+            this, &MainWindow::onPlotSampleRemoveRequested);
+    connect(plot_, &SignalPlotWidget::segmentMoveRequested,
+            this, &MainWindow::onPlotSegmentMoveRequested);
+    connect(plot_, &SignalPlotWidget::gaussianBrushRequested,
+            this, &MainWindow::onPlotGaussianBrushRequested);
+    connect(plot_, &SignalPlotWidget::offsetAllRequested,
+            this, &MainWindow::onOffsetAllRequested);
+    connect(plot_, &SignalPlotWidget::sampleOffsetRequested,
+            this, &MainWindow::onPlotSampleOffsetRequested);
     connect(plot_, &SignalPlotWidget::signalChanged,
             this, &MainWindow::onPlotChanged);
     connect(plot_, &SignalPlotWidget::cursorMoved,
@@ -829,6 +870,16 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
             this, &MainWindow::onPlotTimeViewChanged);
     connect(table_panel_, &SignalTablePanel::editStarted,
             this, &MainWindow::onTableEditStarted);
+    connect(table_panel_, &SignalTablePanel::sampleEdited,
+            this, &MainWindow::onTableSampleEdited);
+    connect(table_panel_, &SignalTablePanel::sampleInserted,
+            this, &MainWindow::onTableSampleInserted);
+    connect(table_panel_, &SignalTablePanel::sampleRemoved,
+            this, &MainWindow::onTableSampleRemoved);
+    connect(table_panel_, &SignalTablePanel::offsetAllRequested,
+            this, &MainWindow::onOffsetAllRequested);
+    connect(table_panel_, &SignalTablePanel::sampleOffsetRequested,
+            this, &MainWindow::onTableSampleOffsetRequested);
     connect(table_panel_, &SignalTablePanel::contentChanged,
             this, &MainWindow::onTableChanged);
     connect(interpolation_box_, qOverload<int>(&QComboBox::currentIndexChanged),
@@ -843,6 +894,8 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
             this, &MainWindow::onPlotRectModeToggled);
     connect(plot_reset_view_button_, &QPushButton::clicked,
             plot_, &SignalPlotWidget::reset_time_view);
+    connect(plot_export_button_, &QPushButton::clicked,
+            this, &MainWindow::onExportPlotImage);
     connect(plot_t_start_edit_, &QLineEdit::editingFinished,
             this, &MainWindow::onPlotRangeEditingFinished);
     connect(plot_t_end_edit_, &QLineEdit::editingFinished,
@@ -971,6 +1024,50 @@ void MainWindow::onSave() {
     refresh_status(tr("Saved %1").arg(path));
 }
 
+void MainWindow::onExportPlotImage() {
+    if (plot_ == nullptr) {
+        show_error(tr("Export failed"), tr("Plot widget is not available."));
+        return;
+    }
+
+    QString suggested_name = QStringLiteral("plot_snapshot.png");
+    if (active_document_index_ >= 0 &&
+        active_document_index_ < static_cast<int>(documents_.size())) {
+        const QString base_name =
+            QFileInfo(documents_[static_cast<std::size_t>(active_document_index_)].display_name).completeBaseName();
+        if (!base_name.trimmed().isEmpty()) {
+            suggested_name = QStringLiteral("%1_plot.png").arg(base_name.trimmed());
+        }
+    }
+
+    const QString selected_path = QFileDialog::getSaveFileName(
+        this,
+        tr("Export plot image"),
+        suggested_name,
+        tr("PNG image (*.png);;JPEG image (*.jpg *.jpeg);;BMP image (*.bmp)"));
+    if (selected_path.isEmpty()) {
+        return;
+    }
+
+    QString path = selected_path;
+    if (QFileInfo(path).suffix().isEmpty()) {
+        path += QStringLiteral(".png");
+    }
+
+    const QPixmap snapshot = plot_->grab();
+    if (snapshot.isNull()) {
+        show_error(tr("Export failed"), tr("Unable to capture the current plot image."));
+        return;
+    }
+    if (!snapshot.save(path)) {
+        show_error(tr("Export failed"),
+                   tr("Unable to save the plot image to:\n%1").arg(path));
+        return;
+    }
+
+    refresh_status(tr("Plot image exported to %1").arg(path));
+}
+
 void MainWindow::onUndo() {
     if (active_document_index_ < 0 || active_document_index_ >= static_cast<int>(documents_.size())) {
         return;
@@ -983,11 +1080,14 @@ void MainWindow::onUndo() {
     service_.set_library(state.library);
     sync_active_document_from_service();
     document.dirty = !document.undo_stack.empty();
+    normalize_visible_signal_indices(document);
 
     list_panel_->set_library(&service_.library());
+    list_panel_->set_visible_signal_indices(document.visible_signal_indices);
     if (!service_.library().empty()) {
         const int bounded_index = std::clamp(state.selected_signal_index, 0,
                                              static_cast<int>(service_.library().size()) - 1);
+        list_panel_->set_active_signal_index(bounded_index);
         list_panel_->select(bounded_index);
     }
     rebind_plot();
@@ -1001,7 +1101,7 @@ void MainWindow::onUndo() {
 // ============================================================================
 
 void MainWindow::onNewSignal()    { onAddRequested(); }
-void MainWindow::onRemoveSignal() { onRemoveRequested(list_panel_->current_index()); }
+void MainWindow::onRemoveSignal() { onRemoveRequested(active_signal_index()); }
 void MainWindow::onRenameSignal() {
     if (active_document_index_ < 0 || service_.library().empty()) { return; }
     list_panel_->begin_rename_current();
@@ -1123,7 +1223,99 @@ void MainWindow::onFileSelectionChanged(int index) {
     activate_document(index);
 }
 
-void MainWindow::onSignalSelectionChanged(int /*index*/) { rebind_plot(); }
+void MainWindow::onSignalSelectionChanged(int index) {
+    if (switching_document_) {
+        return;
+    }
+    if (active_document_index_ < 0 ||
+        active_document_index_ >= static_cast<int>(documents_.size())) {
+        rebind_plot();
+        return;
+    }
+
+    auto& document = documents_[static_cast<std::size_t>(active_document_index_)];
+    if (index >= 0) {
+        document.active_signal_index = index;
+        auto& plotted = document.visible_signal_indices;
+        if (std::find(plotted.begin(), plotted.end(), index) == plotted.end()) {
+            plotted.push_back(index);
+            normalize_visible_signal_indices(document);
+            switching_document_ = true;
+            list_panel_->set_visible_signal_indices(plotted);
+            list_panel_->set_active_signal_index(index);
+            list_panel_->select(index);
+            switching_document_ = false;
+        }
+    }
+
+    const bool preserve_time_view = plot_ != nullptr;
+    const std::pair<double, double> previous_time_view =
+        preserve_time_view ? plot_->time_view() : std::pair<double, double>{0.0, 0.0};
+    rebind_plot();
+    if (preserve_time_view && index >= 0 && plot_ != nullptr) {
+        (void)plot_->set_time_view(previous_time_view.first, previous_time_view.second);
+        sync_plot_view_controls();
+    }
+}
+
+void MainWindow::onSignalVisibilityChanged(int index, bool visible) {
+    if (switching_document_ ||
+        active_document_index_ < 0 ||
+        active_document_index_ >= static_cast<int>(documents_.size()) ||
+        index < 0) {
+        return;
+    }
+    const bool preserve_time_view = plot_ != nullptr;
+    const std::pair<double, double> previous_time_view =
+        preserve_time_view ? plot_->time_view() : std::pair<double, double>{0.0, 0.0};
+
+    auto& document = documents_[static_cast<std::size_t>(active_document_index_)];
+    auto& plotted = document.visible_signal_indices;
+    const auto existing = std::find(plotted.begin(), plotted.end(), index);
+    if (visible) {
+        if (existing == plotted.end()) {
+            plotted.push_back(index);
+        }
+    } else if (existing != plotted.end()) {
+        plotted.erase(existing);
+    }
+    normalize_visible_signal_indices(document);
+
+    if (list_panel_ == nullptr) {
+        rebind_plot();
+        if (preserve_time_view && active_signal_index() >= 0 && plot_ != nullptr) {
+            (void)plot_->set_time_view(previous_time_view.first, previous_time_view.second);
+            sync_plot_view_controls();
+        }
+        return;
+    }
+
+    const int current_index = active_signal_index();
+    int next_active_index = current_index;
+    if (!visible) {
+        if (current_index == index) {
+            next_active_index = plotted.empty() ? -1 : plotted.front();
+        }
+    } else if (current_index < 0 ||
+               std::find(plotted.begin(), plotted.end(), current_index) == plotted.end()) {
+        next_active_index = index;
+    }
+    document.active_signal_index = next_active_index;
+
+    switching_document_ = true;
+    list_panel_->set_visible_signal_indices(plotted);
+    list_panel_->set_active_signal_index(next_active_index);
+    list_panel_->select(next_active_index);
+    switching_document_ = false;
+
+    rebind_plot();
+    if (preserve_time_view && active_signal_index() >= 0 && plot_ != nullptr) {
+        (void)plot_->set_time_view(previous_time_view.first, previous_time_view.second);
+        sync_plot_view_controls();
+    }
+}
+
+void MainWindow::onSignalOptionsRequested(int index) { show_signal_options(index); }
 
 void MainWindow::onFileRemoveRequested(int index) {
     if (index < 0 || index >= static_cast<int>(documents_.size())) { return; }
@@ -1140,8 +1332,10 @@ void MainWindow::onFileRemoveRequested(int index) {
         active_document_index_ = -1;
         service_.clear();
         list_panel_->set_library(nullptr);
-        plot_->set_signal(nullptr);
-        table_panel_->set_signal(nullptr);
+        list_panel_->set_visible_signal_indices({});
+        list_panel_->set_active_signal_index(-1);
+        plot_->set_library(nullptr, -1, {});
+        table_panel_->set_library(nullptr, -1, {});
         refresh_file_panel();
         update_undo_action();
         refresh_status(tr("Removed %1 from workspace").arg(file_name));
@@ -1155,6 +1349,108 @@ void MainWindow::onFileRemoveRequested(int index) {
     refresh_file_panel();
     activate_document(next_index);
     refresh_status(tr("Removed %1 from workspace").arg(file_name));
+}
+
+void MainWindow::onFileReloadRequested(int index) {
+    if (index < 0 || index >= static_cast<int>(documents_.size())) {
+        return;
+    }
+
+    auto& document = documents_[static_cast<std::size_t>(index)];
+    const auto previous_document_library = document.library;
+    const auto previous_visible_indices = document.visible_signal_indices;
+    if (document.path.trimmed().isEmpty()) {
+        show_error(tr("Reload failed"),
+                   tr("This workspace item has no source file on disk yet."));
+        return;
+    }
+
+    if (document.dirty) {
+        const auto answer = QMessageBox::question(
+            this,
+            tr("Reload file from disk"),
+            tr("Reload %1 from disk and discard the workspace changes for this file?")
+                .arg(document.display_name));
+        if (answer != QMessageBox::Yes) {
+            return;
+        }
+    }
+
+    const bool had_active_document =
+        active_document_index_ >= 0 &&
+        active_document_index_ < static_cast<int>(documents_.size());
+    const int previous_active_document_index = active_document_index_;
+    const int previous_signal_index = active_signal_index();
+    if (had_active_document) {
+        sync_active_document_from_service();
+    }
+    const SignalLibrary previous_library =
+        had_active_document
+            ? documents_[static_cast<std::size_t>(previous_active_document_index)].library
+            : SignalLibrary{};
+
+    const auto result = service_.load_from(std::filesystem::path(document.path.toStdString()));
+    if (!result.is_ok()) {
+        if (had_active_document) {
+            service_.set_library(previous_library);
+            activate_document(previous_active_document_index, previous_signal_index);
+        } else {
+            service_.clear();
+        }
+        show_error(tr("Reload failed"),
+                   QStringLiteral("%1\n\n%2")
+                       .arg(document.path, QString::fromStdString(result.message)));
+        return;
+    }
+
+    document.library = service_.library();
+    document.dirty = false;
+    document.undo_stack.clear();
+    document.visible_signal_indices.clear();
+    for (int visible_index : previous_visible_indices) {
+        if (visible_index >= 0 &&
+            visible_index < static_cast<int>(document.library.size()) &&
+            std::find(document.visible_signal_indices.begin(),
+                      document.visible_signal_indices.end(),
+                      visible_index) == document.visible_signal_indices.end()) {
+            document.visible_signal_indices.push_back(visible_index);
+        }
+    }
+    if (document.library.size() > previous_document_library.size()) {
+        for (std::size_t signal_index = previous_document_library.size();
+             signal_index < document.library.size();
+             ++signal_index) {
+            document.visible_signal_indices.push_back(static_cast<int>(signal_index));
+        }
+    }
+    normalize_visible_signal_indices(document);
+
+    if (had_active_document) {
+        service_.set_library(previous_library);
+    } else {
+        service_.clear();
+    }
+
+    refresh_file_panel();
+    if (index == active_document_index_) {
+        const int bounded_signal_index =
+            document.library.empty() ? -1
+                                     : std::clamp(previous_signal_index, 0,
+                                                  static_cast<int>(document.library.size()) - 1);
+        activate_document(index, bounded_signal_index);
+        list_panel_->set_library(&service_.library());
+        list_panel_->set_visible_signal_indices(document.visible_signal_indices);
+        list_panel_->set_active_signal_index(bounded_signal_index);
+        list_panel_->refresh();
+        if (bounded_signal_index >= 0) {
+            list_panel_->select(bounded_signal_index);
+        }
+        rebind_plot();
+    } else if (had_active_document) {
+        activate_document(previous_active_document_index, previous_signal_index);
+    }
+    update_undo_action();
+    refresh_status(tr("Reloaded %1 from disk").arg(document.display_name));
 }
 
 void MainWindow::onFileDetailsRequested(int index) { show_file_details(index); }
@@ -1175,6 +1471,155 @@ void MainWindow::onFileRenameRequested(int index, const QString& new_name) {
         refresh_status(tr("Workspace item renamed to %1").arg(trimmed_name));
     }
     refresh_file_panel();
+}
+
+void MainWindow::show_signal_options(int index) {
+    if (active_document_index_ < 0 || index < 0 ||
+        index >= static_cast<int>(service_.library().size())) {
+        return;
+    }
+
+    const Signal& signal = service_.library().at(static_cast<std::size_t>(index));
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("Signal options"));
+    dialog.resize(520, 420);
+    auto* layout = new QVBoxLayout(&dialog);
+
+    auto* summary = new QLabel(
+        tr("Signal: %1\nSamples: %2\nInterpolation: %3")
+            .arg(QString::fromStdString(signal.name()))
+            .arg(static_cast<qulonglong>(signal.size()))
+            .arg(signal.interpolation() == Signal::InterpolationMode::Step ? tr("step")
+                                                                           : tr("linear")),
+        &dialog);
+    summary->setWordWrap(true);
+    layout->addWidget(summary);
+
+    auto* info = new QLabel(&dialog);
+    info->setWordWrap(true);
+    layout->addWidget(info);
+
+    auto* details_view = new QTextEdit(&dialog);
+    details_view->setMinimumHeight(180);
+    details_view->setReadOnly(true);
+    layout->addWidget(details_view, 1);
+
+    if (signal.is_enumerated()) {
+        info->setText(
+            tr("Edit one enumerated state per line using LABEL:NUMERIC_VALUE. "
+               "When you apply the new mapping, plot and table are refreshed immediately."));
+        details_view->setReadOnly(false);
+        details_view->setPlainText(format_enumeration_definition(signal.enumeration()));
+    } else {
+        double min_value = 0.0;
+        double max_value = 0.0;
+        double mean_value = 0.0;
+        double first_value = 0.0;
+        double last_value = 0.0;
+        double min_step = 0.0;
+        double max_step = 0.0;
+        bool has_samples = false;
+        bool has_step = false;
+
+        for (std::size_t sample_index = 0; sample_index < signal.size(); ++sample_index) {
+            const auto& sample = signal.samples()[sample_index];
+            if (!has_samples) {
+                min_value = sample.y;
+                max_value = sample.y;
+                first_value = sample.y;
+                last_value = sample.y;
+                has_samples = true;
+            } else {
+                min_value = std::min(min_value, sample.y);
+                max_value = std::max(max_value, sample.y);
+                last_value = sample.y;
+            }
+            mean_value += sample.y;
+
+            if (sample_index > 0U) {
+                const double dt =
+                    sample.t - signal.samples()[sample_index - 1U].t;
+                if (!has_step) {
+                    min_step = dt;
+                    max_step = dt;
+                    has_step = true;
+                } else {
+                    min_step = std::min(min_step, dt);
+                    max_step = std::max(max_step, dt);
+                }
+            }
+        }
+        if (has_samples) {
+            mean_value /= static_cast<double>(signal.size());
+        }
+
+        info->setText(
+            tr("Numeric signal information. This window shows statistics and metadata useful "
+               "for validation and inspection."));
+        details_view->setPlainText(
+            tr("Signal name: %1\n"
+               "Samples: %2\n"
+               "Interpolation: %3\n"
+               "Enumerated: no\n"
+               "Time range: %4 s .. %5 s\n"
+               "Duration: %6 s\n"
+               "Minimum value: %7\n"
+               "Maximum value: %8\n"
+               "Mean value: %9\n"
+               "First sample value: %10\n"
+               "Last sample value: %11\n"
+               "Sampling step min: %12 s\n"
+               "Sampling step max: %13 s")
+                .arg(QString::fromStdString(signal.name()))
+                .arg(static_cast<qulonglong>(signal.size()))
+                .arg(signal.interpolation() == Signal::InterpolationMode::Step ? tr("step")
+                                                                               : tr("linear"))
+                .arg(signal.empty() ? 0.0 : signal.t_min(), 0, 'f', 6)
+                .arg(signal.empty() ? 0.0 : signal.t_max(), 0, 'f', 6)
+                .arg(signal.empty() ? 0.0 : signal.t_max() - signal.t_min(), 0, 'f', 6)
+                .arg(has_samples ? min_value : 0.0, 0, 'f', 6)
+                .arg(has_samples ? max_value : 0.0, 0, 'f', 6)
+                .arg(has_samples ? mean_value : 0.0, 0, 'f', 6)
+                .arg(has_samples ? first_value : 0.0, 0, 'f', 6)
+                .arg(has_samples ? last_value : 0.0, 0, 'f', 6)
+                .arg(has_step ? min_step : 0.0, 0, 'f', 6)
+                .arg(has_step ? max_step : 0.0, 0, 'f', 6));
+    }
+
+    auto* buttons = new QDialogButtonBox(
+        signal.is_enumerated() ? (QDialogButtonBox::Ok | QDialogButtonBox::Cancel)
+                               : QDialogButtonBox::Close,
+        &dialog);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+
+    if (dialog.exec() != QDialog::Accepted || !signal.is_enumerated()) {
+        return;
+    }
+
+    try {
+        push_undo_state();
+        const auto result = service_.set_signal_enumeration(
+            static_cast<std::size_t>(index),
+            parse_enumeration_definition(details_view->toPlainText()));
+        if (!result.is_ok()) {
+            discard_last_undo_state();
+            show_error(tr("Signal options failed"), QString::fromStdString(result.message));
+            rebind_plot();
+            return;
+        }
+        mark_active_document_dirty();
+        list_panel_->refresh();
+        list_panel_->select(index);
+        rebind_plot();
+        refresh_status(tr("Updated enumeration mapping for %1")
+                           .arg(QString::fromStdString(signal.name())));
+    } catch (const std::exception& ex) {
+        discard_last_undo_state();
+        show_error(tr("Signal options failed"), QString::fromStdString(ex.what()));
+    }
 }
 
 void MainWindow::onRenameRequested(int index, const QString& new_name) {
@@ -1199,6 +1644,31 @@ void MainWindow::onRenameRequested(int index, const QString& new_name) {
 // ============================================================================
 
 void MainWindow::onAddRequested() {
+    double default_t_start = 0.0;
+    double default_t_end = 1.0;
+    QString default_sampling_time = QStringLiteral("0.01");
+    if (active_document_index_ >= 0 &&
+        active_document_index_ < static_cast<int>(documents_.size()) &&
+        !documents_[static_cast<std::size_t>(active_document_index_)].path.trimmed().isEmpty()) {
+        const auto& library = service_.library();
+        for (const auto& signal : library.items()) {
+            if (signal.empty()) {
+                continue;
+            }
+            default_t_start = signal.t_min();
+            default_t_end = signal.t_max();
+            if (signal.size() >= 2U) {
+                const double step =
+                    signal.samples()[1].t - signal.samples()[0].t;
+                if (step > 0.0) {
+                    default_sampling_time =
+                        format_line_edit_double(QLocale(), step, 6);
+                }
+            }
+            break;
+        }
+    }
+
     QDialog dlg(this);
     dlg.setWindowTitle(tr("New signal"));
     dlg.resize(560, 560);
@@ -1210,7 +1680,7 @@ void MainWindow::onAddRequested() {
     auto* interpolation_box     = new QComboBox(&dlg);
     auto* t_start               = new QDoubleSpinBox(&dlg);
     auto* t_end                 = new QDoubleSpinBox(&dlg);
-    auto* sampling_time_edit    = new QLineEdit(QStringLiteral("0.01"), &dlg);
+    auto* sampling_time_edit    = new QLineEdit(default_sampling_time, &dlg);
     auto* computed_samples_label = new QLabel(tr("Not computed yet"), &dlg);
 
     auto* signal_name_validator = new QRegularExpressionValidator(
@@ -1232,8 +1702,8 @@ void MainWindow::onAddRequested() {
     interpolation_box->addItem(tr("Linear"));
     interpolation_box->addItem(tr("Step"));
 
-    t_start->setRange(-1e9, 1e9);  t_start->setValue(0.0); t_start->setDecimals(6);
-    t_end->setRange(-1e9, 1e9);    t_end->setValue(1.0);   t_end->setDecimals(6);
+    t_start->setRange(-1e9, 1e9);  t_start->setValue(default_t_start); t_start->setDecimals(6);
+    t_end->setRange(-1e9, 1e9);    t_end->setValue(default_t_end);     t_end->setDecimals(6);
 
     common_form->addRow(tr("Name"),          name_edit);
     common_form->addRow(tr("Waveform"),      waveform_box);
@@ -1565,6 +2035,8 @@ void MainWindow::onRemoveRequested(int index) {
         index >= static_cast<int>(service_.library().size())) {
         return;
     }
+    auto& document = documents_[static_cast<std::size_t>(active_document_index_)];
+    const std::vector<int> previous_visible = document.visible_signal_indices;
     push_undo_state();
     const auto result = service_.remove_signal(static_cast<std::size_t>(index));
     if (!result.is_ok()) {
@@ -1573,10 +2045,25 @@ void MainWindow::onRemoveRequested(int index) {
         return;
     }
     mark_active_document_dirty();
+    document.visible_signal_indices.clear();
+    for (int visible_index : previous_visible) {
+        if (visible_index == index) {
+            continue;
+        }
+        document.visible_signal_indices.push_back(visible_index > index
+                                                      ? visible_index - 1
+                                                      : visible_index);
+    }
+    normalize_visible_signal_indices(document);
+    list_panel_->set_visible_signal_indices(document.visible_signal_indices);
     list_panel_->refresh();
     if (!service_.library().empty()) {
         const int next_index = std::min(index, static_cast<int>(service_.library().size()) - 1);
+        documents_[static_cast<std::size_t>(active_document_index_)].active_signal_index = next_index;
         list_panel_->select(next_index);
+    } else if (active_document_index_ >= 0 &&
+               active_document_index_ < static_cast<int>(documents_.size())) {
+        documents_[static_cast<std::size_t>(active_document_index_)].active_signal_index = -1;
     }
     rebind_plot();
 }
@@ -1586,6 +2073,100 @@ void MainWindow::onRemoveRequested(int index) {
 // ============================================================================
 
 void MainWindow::onPlotEditStarted() { push_undo_state(); }
+
+void MainWindow::onPlotSampleMoveRequested(std::size_t sample_index, double t, double y) {
+    const int signal_index = active_signal_index();
+    if (active_document_index_ < 0 || signal_index < 0) {
+        return;
+    }
+    const auto result = service_.move_sample_point(static_cast<std::size_t>(signal_index),
+                                                   sample_index, t, y);
+    if (!result.is_ok()) {
+        discard_last_undo_state();
+        show_error(tr("Plot edit failed"), QString::fromStdString(result.message));
+        rebind_plot();
+    }
+}
+
+void MainWindow::onPlotSampleInsertRequested(double t, double y) {
+    const int signal_index = active_signal_index();
+    if (active_document_index_ < 0 || signal_index < 0) {
+        return;
+    }
+    const auto result = service_.insert_sample(static_cast<std::size_t>(signal_index), t, y);
+    if (!result.is_ok()) {
+        discard_last_undo_state();
+        show_error(tr("Insert failed"), QString::fromStdString(result.message));
+        rebind_plot();
+    }
+}
+
+void MainWindow::onPlotSampleRemoveRequested(std::size_t sample_index) {
+    const int signal_index = active_signal_index();
+    if (active_document_index_ < 0 || signal_index < 0) {
+        return;
+    }
+    const auto result = service_.remove_sample(static_cast<std::size_t>(signal_index), sample_index);
+    if (!result.is_ok()) {
+        discard_last_undo_state();
+        show_error(tr("Remove failed"), QString::fromStdString(result.message));
+        rebind_plot();
+    }
+}
+
+void MainWindow::onPlotSegmentMoveRequested(std::size_t start_index, double delta_y) {
+    const int signal_index = active_signal_index();
+    if (active_document_index_ < 0 || signal_index < 0) {
+        return;
+    }
+    const auto result = service_.move_segment(static_cast<std::size_t>(signal_index),
+                                              start_index, delta_y);
+    if (!result.is_ok()) {
+        discard_last_undo_state();
+        show_error(tr("Segment drag failed"), QString::fromStdString(result.message));
+        rebind_plot();
+    }
+}
+
+void MainWindow::onPlotGaussianBrushRequested(double t_center, double delta_y, double sigma) {
+    const int signal_index = active_signal_index();
+    if (active_document_index_ < 0 || signal_index < 0) {
+        return;
+    }
+    const auto result = service_.apply_gaussian_brush(static_cast<std::size_t>(signal_index),
+                                                      t_center, delta_y, sigma);
+    if (!result.is_ok()) {
+        discard_last_undo_state();
+        show_error(tr("Brush edit failed"), QString::fromStdString(result.message));
+        rebind_plot();
+    }
+}
+
+void MainWindow::onOffsetAllRequested(double delta_y) {
+    if (active_document_index_ < 0) {
+        return;
+    }
+    const auto result = service_.apply_offset_to_all_samples(delta_y);
+    if (!result.is_ok()) {
+        discard_last_undo_state();
+        show_error(tr("Offset failed"), QString::fromStdString(result.message));
+        rebind_plot();
+    }
+}
+
+void MainWindow::onPlotSampleOffsetRequested(std::size_t sample_index, double delta_y) {
+    const int signal_index = active_signal_index();
+    if (active_document_index_ < 0 || signal_index < 0) {
+        return;
+    }
+    const auto result = service_.apply_offset_to_sample(static_cast<std::size_t>(signal_index),
+                                                        sample_index, delta_y);
+    if (!result.is_ok()) {
+        discard_last_undo_state();
+        show_error(tr("Offset failed"), QString::fromStdString(result.message));
+        rebind_plot();
+    }
+}
 
 void MainWindow::onPlotChanged() {
     if (active_document_index_ < 0) { return; }
@@ -1602,46 +2183,101 @@ void MainWindow::onTableEditStarted() { push_undo_state(); }
 
 void MainWindow::onTableChanged() {
     if (active_document_index_ < 0) { return; }
-    const int signal_index = list_panel_->current_index();
-    if (signal_index < 0 || signal_index >= static_cast<int>(service_.library().size())) {
-        return;
-    }
-    const auto& current_signal = service_.library().at(static_cast<std::size_t>(signal_index));
-    Signal replacement(current_signal.name(), table_panel_->samples(), current_signal.interpolation());
-    if (current_signal.is_enumerated()) {
-        replacement.set_enumeration(current_signal.enumeration());
-    }
-    const auto result = service_.replace_signal(static_cast<std::size_t>(signal_index),
-                                                 std::move(replacement));
-    if (!result.is_ok()) {
-        discard_last_undo_state();
-        show_error(tr("Table edit failed"), QString::fromStdString(result.message));
-        rebind_plot();
-        return;
-    }
     mark_active_document_dirty();
     list_panel_->refresh();
     rebind_plot();
     update_interpolation_box();
 }
 
+void MainWindow::onTableSampleEdited(int row, double t, double y) {
+    const int signal_index = active_signal_index();
+    if (active_document_index_ < 0 ||
+        signal_index < 0 ||
+        signal_index >= static_cast<int>(service_.library().size())) {
+        return;
+    }
+
+    const auto& current_signal = service_.library().at(static_cast<std::size_t>(signal_index));
+    if (row < 0 || row >= static_cast<int>(current_signal.size())) {
+        return;
+    }
+
+    const auto& original_sample = current_signal.samples()[static_cast<std::size_t>(row)];
+    signal_editor::Result result = std::fabs(original_sample.t - t) > kSamplingEpsilon
+        ? service_.move_sample_point(static_cast<std::size_t>(signal_index),
+                                     static_cast<std::size_t>(row), t, y)
+        : service_.move_sample(static_cast<std::size_t>(signal_index),
+                               static_cast<std::size_t>(row), y);
+    if (!result.is_ok()) {
+        discard_last_undo_state();
+        show_error(tr("Table edit failed"), QString::fromStdString(result.message));
+        rebind_plot();
+    }
+}
+
+void MainWindow::onTableSampleInserted(double t, double y) {
+    const int signal_index = active_signal_index();
+    if (active_document_index_ < 0 || signal_index < 0) {
+        return;
+    }
+    const auto result = service_.insert_sample(static_cast<std::size_t>(signal_index), t, y);
+    if (!result.is_ok()) {
+        discard_last_undo_state();
+        show_error(tr("Insert failed"), QString::fromStdString(result.message));
+        rebind_plot();
+    }
+}
+
+void MainWindow::onTableSampleRemoved(int row) {
+    const int signal_index = active_signal_index();
+    if (active_document_index_ < 0 || signal_index < 0 || row < 0) {
+        return;
+    }
+    const auto result = service_.remove_sample(static_cast<std::size_t>(signal_index),
+                                               static_cast<std::size_t>(row));
+    if (!result.is_ok()) {
+        discard_last_undo_state();
+        show_error(tr("Remove failed"), QString::fromStdString(result.message));
+        rebind_plot();
+    }
+}
+
+void MainWindow::onTableSampleOffsetRequested(int row, double delta_y) {
+    const int signal_index = active_signal_index();
+    if (active_document_index_ < 0 || signal_index < 0 || row < 0) {
+        return;
+    }
+    const auto result = service_.apply_offset_to_sample(static_cast<std::size_t>(signal_index),
+                                                        static_cast<std::size_t>(row), delta_y);
+    if (!result.is_ok()) {
+        discard_last_undo_state();
+        show_error(tr("Offset failed"), QString::fromStdString(result.message));
+        rebind_plot();
+    }
+}
+
 void MainWindow::onSignalInterpolationChanged(int mode) {
     if (active_document_index_ < 0) { return; }
-    const int signal_index = list_panel_->current_index();
-    if (signal_index < 0 || signal_index >= static_cast<int>(service_.library().size())) {
+    const auto plotted_indices = active_visible_signal_indices();
+    if (plotted_indices.empty()) {
         return;
     }
     const std::pair<double, double> preserved_time_view =
         plot_ != nullptr ? plot_->time_view() : std::pair<double, double>{0.0, 0.0};
     push_undo_state();
-    const auto result = service_.set_signal_interpolation(
-        static_cast<std::size_t>(signal_index),
-        static_cast<Signal::InterpolationMode>(mode));
-    if (!result.is_ok()) {
-        discard_last_undo_state();
-        show_error(tr("Interpolation change failed"), QString::fromStdString(result.message));
-        rebind_plot();
-        return;
+    for (int signal_index : plotted_indices) {
+        if (signal_index < 0 || signal_index >= static_cast<int>(service_.library().size())) {
+            continue;
+        }
+        const auto result = service_.set_signal_interpolation(
+            static_cast<std::size_t>(signal_index),
+            static_cast<Signal::InterpolationMode>(mode));
+        if (!result.is_ok()) {
+            discard_last_undo_state();
+            show_error(tr("Interpolation change failed"), QString::fromStdString(result.message));
+            rebind_plot();
+            return;
+        }
     }
     mark_active_document_dirty();
     list_panel_->refresh();
@@ -1654,7 +2290,7 @@ void MainWindow::onSignalInterpolationChanged(int mode) {
 }
 
 void MainWindow::onCursorMoved(double t, double y) {
-    const int signal_index = list_panel_->current_index();
+    const int signal_index = active_signal_index();
     const Signal* signal = (signal_index >= 0 &&
                             signal_index < static_cast<int>(service_.library().size()))
         ? &service_.library().at(static_cast<std::size_t>(signal_index))
@@ -1737,30 +2373,100 @@ void MainWindow::onPlotTimeViewChanged(double t_start, double t_end) {
 
 void MainWindow::open_paths(const QStringList& paths) {
     for (const QString& path : paths) {
-        if (!path.isEmpty()) { load_document(path); }
+        if (path.isEmpty()) {
+            continue;
+        }
+        try {
+            load_document(path);
+        } catch (const std::exception& ex) {
+            show_error(tr("Load failed"),
+                       QStringLiteral("%1\n\n%2").arg(path, QString::fromLocal8Bit(ex.what())));
+        } catch (...) {
+            show_error(tr("Load failed"),
+                       QStringLiteral("%1\n\n%2")
+                           .arg(path, tr("Unknown error while loading the document.")));
+        }
     }
 }
 
 void MainWindow::load_document(const QString& path) {
-    const auto result = service_.load_from(std::filesystem::path(path.toStdString()));
-    if (!result.is_ok()) {
-        show_error(tr("Load failed"),
-                   QStringLiteral("%1\n\n%2").arg(path, QString::fromStdString(result.message)));
-        return;
+    const bool had_active_document =
+        active_document_index_ >= 0 &&
+        active_document_index_ < static_cast<int>(documents_.size());
+    const int previous_document_index = active_document_index_;
+    const int previous_signal_index = active_signal_index();
+    if (had_active_document) {
+        sync_active_document_from_service();
     }
-    sync_active_document_from_service();
+    const SignalLibrary previous_library =
+        had_active_document
+            ? documents_[static_cast<std::size_t>(previous_document_index)].library
+            : SignalLibrary{};
+    const auto previous_documents = documents_;
 
-    LoadedDocument document;
-    document.path         = path;
-    document.display_name = QFileInfo(path).fileName();
-    document.library      = service_.library();
-    document.undo_stack.clear();
-    document.dirty = false;
-    documents_.push_back(std::move(document));
+    try {
+        switching_document_ = true;
+        list_panel_->set_library(nullptr);
+        list_panel_->set_visible_signal_indices({});
+        list_panel_->set_active_signal_index(-1);
+        plot_->set_library(nullptr, -1, {});
+        table_panel_->set_library(nullptr, -1, {});
+        switching_document_ = false;
 
-    refresh_file_panel();
-    activate_document(static_cast<int>(documents_.size()) - 1);
-    refresh_status(tr("Loaded %1").arg(path));
+        const auto result = service_.load_from(std::filesystem::path(path.toStdString()));
+        if (!result.is_ok()) {
+            if (had_active_document) {
+                service_.set_library(previous_library);
+                activate_document(previous_document_index, previous_signal_index);
+            } else {
+                service_.clear();
+                rebind_plot();
+            }
+            show_error(tr("Load failed"),
+                       QStringLiteral("%1\n\n%2").arg(path, QString::fromStdString(result.message)));
+            return;
+        }
+
+        SignalLibrary loaded_library = service_.library();
+        if (had_active_document) {
+            service_.set_library(previous_library);
+        } else {
+            service_.clear();
+        }
+
+        LoadedDocument document;
+        document.path         = path;
+        document.display_name = QFileInfo(path).fileName();
+        document.library      = std::move(loaded_library);
+    document.visible_signal_indices =
+            document.library.empty() ? std::vector<int>{} : std::vector<int>{0};
+        document.active_signal_index = document.library.empty() ? -1 : 0;
+        document.undo_stack.clear();
+        document.dirty = false;
+
+        documents_.push_back(std::move(document));
+
+        refresh_file_panel();
+        activate_document(static_cast<int>(documents_.size()) - 1);
+        refresh_status(tr("Loaded %1").arg(path));
+    } catch (...) {
+        documents_ = previous_documents;
+        if (had_active_document) {
+            service_.set_library(previous_library);
+            activate_document(previous_document_index, previous_signal_index);
+        } else {
+            service_.clear();
+            active_document_index_ = -1;
+            list_panel_->set_library(nullptr);
+            list_panel_->set_visible_signal_indices({});
+            list_panel_->set_active_signal_index(-1);
+            plot_->set_library(nullptr, -1, {});
+            table_panel_->set_library(nullptr, -1, {});
+            refresh_file_panel();
+            refresh_status();
+        }
+        throw;
+    }
 }
 
 /**
@@ -1783,6 +2489,9 @@ int MainWindow::ensure_workspace_document() {
     LoadedDocument document;
     document.path = {};
     document.library = service_.library();
+    document.visible_signal_indices = service_.library().empty() ? std::vector<int>{}
+                                                                : std::vector<int>{0};
+    document.active_signal_index = service_.library().empty() ? -1 : 0;
     document.undo_stack.clear();
     document.dirty = false;
 
@@ -1809,6 +2518,7 @@ void MainWindow::sync_active_document_from_service() {
         return;
     }
     documents_[static_cast<std::size_t>(active_document_index_)].library = service_.library();
+    normalize_visible_signal_indices(documents_[static_cast<std::size_t>(active_document_index_)]);
 }
 
 void MainWindow::activate_document(int index, int preferred_signal_index) {
@@ -1816,8 +2526,10 @@ void MainWindow::activate_document(int index, int preferred_signal_index) {
         active_document_index_ = -1;
         service_.clear();
         list_panel_->set_library(nullptr);
-        plot_->set_signal(nullptr);
-        table_panel_->set_signal(nullptr);
+        list_panel_->set_visible_signal_indices({});
+        list_panel_->set_active_signal_index(-1);
+        plot_->set_library(nullptr, -1, {});
+        table_panel_->set_library(nullptr, -1, {});
         update_undo_action();
         refresh_status();
         return;
@@ -1826,15 +2538,27 @@ void MainWindow::activate_document(int index, int preferred_signal_index) {
     switching_document_    = true;
     active_document_index_ = index;
     service_.set_library(documents_[static_cast<std::size_t>(index)].library);
+    normalize_visible_signal_indices(documents_[static_cast<std::size_t>(index)]);
     list_panel_->set_library(&service_.library());
-    if (!service_.library().empty()) {
-        const int bounded_index = std::clamp(preferred_signal_index, 0,
-                                             static_cast<int>(service_.library().size()) - 1);
-        list_panel_->select(bounded_index);
+    list_panel_->set_visible_signal_indices(documents_[static_cast<std::size_t>(index)].visible_signal_indices);
+    int resolved_index = preferred_signal_index;
+    if (resolved_index < 0) {
+        resolved_index = documents_[static_cast<std::size_t>(index)].active_signal_index;
     }
-    rebind_plot();
+    if (!service_.library().empty() && resolved_index >= 0) {
+        const int bounded_index = std::clamp(resolved_index, 0,
+                                             static_cast<int>(service_.library().size()) - 1);
+        documents_[static_cast<std::size_t>(index)].active_signal_index = bounded_index;
+        list_panel_->set_active_signal_index(bounded_index);
+        list_panel_->select(bounded_index);
+    } else {
+        documents_[static_cast<std::size_t>(index)].active_signal_index = -1;
+        list_panel_->set_active_signal_index(-1);
+        list_panel_->select(-1);
+    }
     file_panel_->select(index);
     switching_document_ = false;
+    rebind_plot();
     update_undo_action();
     refresh_status();
 }
@@ -1857,7 +2581,7 @@ void MainWindow::push_undo_state() {
     }
     sync_active_document_from_service();
     auto& document = documents_[static_cast<std::size_t>(active_document_index_)];
-    document.undo_stack.push_back(UndoState{document.library, list_panel_->current_index()});
+    document.undo_stack.push_back(UndoState{document.library, active_signal_index()});
     update_undo_action();
 }
 
@@ -1959,15 +2683,47 @@ void MainWindow::refresh_file_panel() {
     switching_document_ = false;
 }
 
+void MainWindow::normalize_visible_signal_indices(LoadedDocument& document) const {
+    std::vector<int> normalized;
+    normalized.reserve(document.visible_signal_indices.size());
+    for (int index : document.visible_signal_indices) {
+        if (index < 0 || index >= static_cast<int>(document.library.size())) {
+            continue;
+        }
+        if (std::find(normalized.begin(), normalized.end(), index) == normalized.end()) {
+            normalized.push_back(index);
+        }
+    }
+    document.visible_signal_indices = std::move(normalized);
+}
+
+std::vector<int> MainWindow::active_visible_signal_indices() const {
+    if (active_document_index_ < 0 ||
+        active_document_index_ >= static_cast<int>(documents_.size())) {
+        return {};
+    }
+    return documents_[static_cast<std::size_t>(active_document_index_)].visible_signal_indices;
+}
+
+int MainWindow::active_signal_index() const {
+    if (active_document_index_ < 0 ||
+        active_document_index_ >= static_cast<int>(documents_.size())) {
+        return -1;
+    }
+    return documents_[static_cast<std::size_t>(active_document_index_)].active_signal_index;
+}
+
 void MainWindow::rebind_plot() {
-    const int idx = list_panel_->current_index();
+    const int idx = active_signal_index();
+    list_panel_->set_visible_signal_indices(active_visible_signal_indices());
     if (idx < 0 || idx >= static_cast<int>(service_.library().size())) {
-        plot_->set_signal(nullptr);
-        table_panel_->set_signal(nullptr);
+        list_panel_->set_active_signal_index(-1);
+        plot_->set_library(nullptr, -1, active_visible_signal_indices());
+        table_panel_->set_library(&service_.library(), -1, active_visible_signal_indices());
     } else {
-        auto* signal = &service_.library().at(static_cast<std::size_t>(idx));
-        plot_->set_signal(signal);
-        table_panel_->set_signal(signal);
+        list_panel_->set_active_signal_index(idx);
+        plot_->set_library(&service_.library(), idx, active_visible_signal_indices());
+        table_panel_->set_library(&service_.library(), idx, active_visible_signal_indices());
     }
     sync_plot_view_controls();
     update_interpolation_box();
@@ -1989,9 +2745,9 @@ void MainWindow::sync_plot_navigation_mode_controls() {
 
 void MainWindow::sync_plot_view_controls() {
     const bool has_signal = plot_ != nullptr &&
-                            list_panel_ != nullptr &&
-                            list_panel_->current_index() >= 0 &&
-                            list_panel_->current_index() < static_cast<int>(service_.library().size());
+                            active_signal_index() >= 0 &&
+                            active_signal_index() < static_cast<int>(service_.library().size());
+    const bool has_plot = plot_ != nullptr;
     if (plot_zoom_in_button_ != nullptr) {
         plot_zoom_in_button_->setEnabled(has_signal);
     }
@@ -2012,6 +2768,12 @@ void MainWindow::sync_plot_view_controls() {
     }
     if (plot_t_end_edit_ != nullptr) {
         plot_t_end_edit_->setEnabled(has_signal);
+    }
+    if (plot_export_button_ != nullptr) {
+        plot_export_button_->setEnabled(has_plot);
+    }
+    if (act_export_plot_ != nullptr) {
+        act_export_plot_->setEnabled(has_plot);
     }
 
     if (!has_signal) {
@@ -2045,21 +2807,36 @@ void MainWindow::update_undo_action() {
 
 void MainWindow::update_interpolation_box() {
     if (interpolation_box_ == nullptr) { return; }
-    const int signal_index = list_panel_ == nullptr ? -1 : list_panel_->current_index();
-    const bool has_signal  = signal_index >= 0 &&
-                             signal_index < static_cast<int>(service_.library().size());
-    if (!has_signal) {
+    const auto plotted_indices = active_visible_signal_indices();
+    if (plotted_indices.empty()) {
         interpolation_box_->blockSignals(true);
         interpolation_box_->setCurrentIndex(static_cast<int>(Signal::InterpolationMode::Linear));
         interpolation_box_->blockSignals(false);
         interpolation_box_->setEnabled(false);
         return;
     }
-    const auto& signal = service_.library().at(static_cast<std::size_t>(signal_index));
+
+    Signal::InterpolationMode displayed_mode = Signal::InterpolationMode::Linear;
+    bool found_reference_signal = false;
+    bool all_enumerated = true;
+    for (int signal_index : plotted_indices) {
+        if (signal_index < 0 || signal_index >= static_cast<int>(service_.library().size())) {
+            continue;
+        }
+        const auto& signal = service_.library().at(static_cast<std::size_t>(signal_index));
+        if (!found_reference_signal) {
+            displayed_mode = signal.interpolation();
+            found_reference_signal = true;
+        }
+        if (!signal.is_enumerated()) {
+            all_enumerated = false;
+        }
+    }
+
     interpolation_box_->blockSignals(true);
-    interpolation_box_->setCurrentIndex(static_cast<int>(signal.interpolation()));
+    interpolation_box_->setCurrentIndex(static_cast<int>(displayed_mode));
     interpolation_box_->blockSignals(false);
-    interpolation_box_->setEnabled(!signal.is_enumerated());
+    interpolation_box_->setEnabled(!all_enumerated);
 }
 
 void MainWindow::refresh_status(const QString& transient_message) {
@@ -2095,7 +2872,7 @@ void MainWindow::refresh_status(const QString& transient_message) {
             .arg(dirty_text)
             .arg(undo_text));
     }
-    const int signal_index   = list_panel_->current_index();
+    const int signal_index   = active_signal_index();
     const Signal* active_signal = (signal_index >= 0 &&
                                    signal_index < static_cast<int>(service_.library().size()))
         ? &service_.library().at(static_cast<std::size_t>(signal_index))
@@ -2143,6 +2920,7 @@ void MainWindow::retranslate_ui() {
     if (plot_pan_mode_button_)  plot_pan_mode_button_->setText(tr("Pan mode"));
     if (plot_rect_mode_button_) plot_rect_mode_button_->setText(tr("Rect mode"));
     if (plot_reset_view_button_) plot_reset_view_button_->setText(tr("Fit view"));
+    if (plot_export_button_) plot_export_button_->setText(tr("Export image"));
     if (plot_zoom_in_button_) {
         plot_zoom_in_button_->setToolTip(tr("Reduce the visible time range around the current center."));
         plot_zoom_in_button_->setStatusTip(tr("Zoom in on the plot time axis."));
@@ -2162,6 +2940,10 @@ void MainWindow::retranslate_ui() {
     if (plot_reset_view_button_) {
         plot_reset_view_button_->setToolTip(tr("Restore the full visible range of the selected signal."));
         plot_reset_view_button_->setStatusTip(tr("Reset the plot to fit the selected signal."));
+    }
+    if (plot_export_button_) {
+        plot_export_button_->setToolTip(tr("Save a screenshot of the current plot content as an image file."));
+        plot_export_button_->setStatusTip(tr("Export the current plot as an image."));
     }
     if (plot_t_start_label_) {
         plot_t_start_label_->setText(tr("Visible t start"));
@@ -2214,6 +2996,7 @@ void MainWindow::retranslate_ui() {
     // File actions
     if (act_open_)    act_open_->setText(tr("&Open signal files..."));
     if (act_save_)    act_save_->setText(tr("&Save current file..."));
+    if (act_export_plot_) act_export_plot_->setText(tr("Export &plot image..."));
     if (undo_action_) undo_action_->setText(tr("&Undo"));
     if (act_quit_)    act_quit_->setText(tr("&Quit"));
     if (act_open_) {
@@ -2223,6 +3006,10 @@ void MainWindow::retranslate_ui() {
     if (act_save_) {
         act_save_->setToolTip(tr("Save the active workspace file using its current format."));
         act_save_->setStatusTip(tr("Save the active signal file."));
+    }
+    if (act_export_plot_) {
+        act_export_plot_->setToolTip(tr("Save the current plot content as an image file."));
+        act_export_plot_->setStatusTip(tr("Export the current plot as an image."));
     }
     if (undo_action_) {
         undo_action_->setToolTip(tr("Revert the latest change applied to the active document."));

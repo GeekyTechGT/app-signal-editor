@@ -77,10 +77,28 @@ class SignalTablePanel;
 /**
  * @brief Top-level Qt shell for the Signal Editor desktop experience.
  *
- * Coordinates multi-file management, undo snapshots, dialog flows, and
- * rebinding the currently selected signal into the dedicated plot and table
- * widgets.  Integrates with SettingsPanelDialog (lib-qt-custom-widgets) for
- * runtime theme / font / language switching.
+ * `MainWindow` is the orchestration hub of the desktop application. It owns
+ * the workspace-level document model, coordinates sidebar selections, drives
+ * plot and table rebinding, and translates UI gestures into calls on
+ * `SignalEditorService`.
+ *
+ * The class deliberately keeps business rules out of individual widgets.
+ * Instead, the supporting widgets emit semantic signals such as
+ * "sample moved", "visibility changed", or "reload requested", and the main
+ * window decides how that intent affects the currently active workspace
+ * document.
+ *
+ * Important responsibilities of this class include:
+ *
+ * - maintaining the multi-document workspace state
+ * - tracking which signals are visible in the plot and table
+ * - tracking the active editable signal independently from raw Qt selection
+ * - preserving undo history at the document level
+ * - preserving view state such as plot zoom across relevant rebinding flows
+ * - mediating persistence, reload, and settings application workflows
+ *
+ * The resulting design keeps the UI modular while still giving contributors a
+ * single, predictable place to inspect the end-to-end application flow.
  */
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -103,6 +121,7 @@ protected:
 private slots:
     void onOpen();
     void onSave();
+    void onExportPlotImage();
     void onUndo();
     void onNewSignal();
     void onRemoveSignal();
@@ -112,16 +131,30 @@ private slots:
 
     void onFileSelectionChanged(int index);
     void onFileRemoveRequested(int index);
+    void onFileReloadRequested(int index);
     void onFileDetailsRequested(int index);
     void onFileRenameRequested(int index, const QString& new_name);
     void onSignalSelectionChanged(int index);
+    void onSignalVisibilityChanged(int index, bool visible);
+    void onSignalOptionsRequested(int index);
     void onRenameRequested(int index, const QString& new_name);
     void onAddRequested();
     void onRemoveRequested(int index);
     void onPlotEditStarted();
     void onPlotChanged();
+    void onPlotSampleMoveRequested(std::size_t sample_index, double t, double y);
+    void onPlotSampleInsertRequested(double t, double y);
+    void onPlotSampleRemoveRequested(std::size_t sample_index);
+    void onPlotSegmentMoveRequested(std::size_t start_index, double delta_y);
+    void onPlotGaussianBrushRequested(double t_center, double delta_y, double sigma);
+    void onOffsetAllRequested(double delta_y);
+    void onPlotSampleOffsetRequested(std::size_t sample_index, double delta_y);
     void onTableEditStarted();
     void onTableChanged();
+    void onTableSampleEdited(int row, double t, double y);
+    void onTableSampleInserted(double t, double y);
+    void onTableSampleRemoved(int row);
+    void onTableSampleOffsetRequested(int row, double delta_y);
     void onSignalInterpolationChanged(int mode);
     void onCursorMoved(double t, double y);
     void onPlotZoomInRequested();
@@ -137,6 +170,10 @@ private slots:
 private:
     /**
      * @brief Undo snapshot tied to the active workspace document.
+     *
+     * The snapshot stores both the library content and the active signal index
+     * because restoring waveform data without restoring selection context would
+     * yield a confusing desktop experience after undo.
      */
     struct UndoState {
         SignalLibrary library;
@@ -145,11 +182,27 @@ private:
 
     /**
      * @brief Workspace-level state tracked for each loaded document.
+     *
+     * Each loaded input file is represented as a self-contained document state.
+     * The state carries:
+     *
+     * - the persisted source path and current display label
+     * - a `SignalLibrary` snapshot used when the document becomes active
+     * - the set of signals currently visible in the plot/table
+     * - the active editable signal index
+     * - the undo stack associated only with that document
+     * - a dirty flag describing whether the in-memory state diverged from disk
+     *
+     * Keeping this state here, instead of scattering it across widgets, makes
+     * document switching deterministic and simplifies onboarding for new
+     * contributors.
      */
     struct LoadedDocument {
         QString path;
         QString display_name;
         SignalLibrary library;
+        std::vector<int> visible_signal_indices;
+        int active_signal_index{-1};
         std::vector<UndoState> undo_stack;
         bool dirty{false};
     };
@@ -177,6 +230,7 @@ private:
     QPushButton*      plot_pan_mode_button_{nullptr};
     QPushButton*      plot_rect_mode_button_{nullptr};
     QPushButton*      plot_reset_view_button_{nullptr};
+    QPushButton*      plot_export_button_{nullptr};
     QTabWidget*       workspace_tabs_{nullptr};
     QToolBar*         main_toolbar_{nullptr};
 
@@ -190,6 +244,7 @@ private:
     QAction* act_open_{nullptr};
     QAction* act_save_{nullptr};
     QAction* act_quit_{nullptr};
+    QAction* act_export_plot_{nullptr};
     QAction* act_new_{nullptr};
     QAction* act_remove_{nullptr};
     QAction* act_about_{nullptr};
@@ -240,8 +295,16 @@ private:
     void refresh_file_panel();
     /** @brief Shows the details dialog for the selected document. */
     void show_file_details(int index);
+    /** @brief Shows options for the addressed signal inside the active document. */
+    void show_signal_options(int index);
     /** @brief Rebinds the active signal into the plot and table views. */
     void rebind_plot();
+    /** @brief Keeps plotted-signal state valid for one document. */
+    void normalize_visible_signal_indices(LoadedDocument& document) const;
+    /** @brief Returns the plotted signals for the active document. */
+    [[nodiscard]] std::vector<int> active_visible_signal_indices() const;
+    /** @brief Returns the active signal index for the current document. */
+    [[nodiscard]] int active_signal_index() const;
     /** @brief Synchronizes the time-range controls with the plot viewport. */
     void sync_plot_view_controls();
     /** @brief Synchronizes toolbar toggle state with the plot navigation mode. */

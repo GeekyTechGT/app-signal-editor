@@ -3,6 +3,7 @@
 #include <QWidget>
 
 #include <cstddef>
+#include <vector>
 
 class QLabel;
 class QListWidget;
@@ -24,9 +25,21 @@ namespace signal_editor::adapters::qt {
 /**
  * @brief Sidebar that exposes the signals contained in the active document.
  *
- * The panel mirrors the bound library without taking ownership of it. It keeps
- * the list presentation, surfaces quick metadata about the current selection,
- * and forwards user intent back to the window controller via Qt signals.
+ * `SignalListPanel` is intentionally a thin presentation and interaction
+ * widget. It reflects three pieces of state supplied by the controller:
+ *
+ * - the library currently loaded for the active document
+ * - the set of signals visible in plot/table
+ * - the single active editable signal
+ *
+ * The panel does not own signal data and does not decide persistence or
+ * editing rules. Its job is to render the list, make the active signal obvious
+ * to the user, and emit semantic events when the user selects, renames, adds,
+ * removes, or toggles visibility of a signal.
+ *
+ * This separation is especially important because "selected in the Qt list",
+ * "visible in the plot", and "active editable signal" are related but not
+ * identical concepts in the workspace model.
  */
 class SignalListPanel : public QWidget {
     Q_OBJECT
@@ -43,6 +56,10 @@ public:
      * @param library Library currently shown in the workspace, or `nullptr`.
      */
     void set_library(const SignalLibrary* library);
+    /** @brief Updates which signals are currently plotted. */
+    void set_visible_signal_indices(const std::vector<int>& indices);
+    /** @brief Marks one signal as the active editable signal. */
+    void set_active_signal_index(int index);
 
     /**
      * @brief Rebuilds the list from the currently bound library.
@@ -75,6 +92,10 @@ signals:
     void addRequested();
     /** @brief Emitted when the user requests removal of the active signal. */
     void removeRequested(int index);
+    /** @brief Emitted when the user requests options for the active signal. */
+    void optionsRequested(int index);
+    /** @brief Emitted when the user toggles plot visibility for one signal. */
+    void visibilityChanged(int index, bool visible);
 
 protected:
     void changeEvent(QEvent* event) override;
@@ -84,6 +105,7 @@ private slots:
     void onItemChanged(QListWidgetItem* item);
     void onAddClicked();
     void onRemoveClicked();
+    void onOptionsClicked();
 
 private:
     const SignalLibrary* library_{nullptr};
@@ -93,7 +115,10 @@ private:
     QListWidget* list_{nullptr};
     QPushButton* add_button_{nullptr};
     QPushButton* remove_button_{nullptr};
+    QPushButton* options_button_{nullptr};
     bool suppress_item_changed_{false};
+    std::vector<int> visible_signal_indices_;
+    int active_signal_index_{-1};
 
     /** @brief Retranslates labels, tooltips, and action buttons. */
     void retranslate_ui();

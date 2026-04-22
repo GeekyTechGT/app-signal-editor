@@ -71,6 +71,10 @@
         <translation>&amp;Save current file...</translation>
     </message>
     <message>
+        <source>Export &amp;plot image...</source>
+        <translation>Export &amp;plot image...</translation>
+    </message>
+    <message>
         <source>&amp;Undo</source>
         <translation>&amp;Undo</translation>
     </message>
@@ -143,12 +147,30 @@
         <translation>Save current signal file</translation>
     </message>
     <message>
+        <source>Export plot image</source>
+        <translation>Export plot image</translation>
+    </message>
+    <message>
         <source>Export failed</source>
         <translation>Export failed</translation>
     </message>
     <message>
+        <source>Unable to capture the current plot image.</source>
+        <translation>Unable to capture the current plot image.</translation>
+    </message>
+    <message>
+        <source>Unable to save the plot image to:
+%1</source>
+        <translation>Unable to save the plot image to:
+%1</translation>
+    </message>
+    <message>
         <source>Saved %1</source>
         <translation>Saved %1</translation>
+    </message>
+    <message>
+        <source>Plot image exported to %1</source>
+        <translation>Plot image exported to %1</translation>
     </message>
     <message>
         <source>Undo applied</source>
@@ -341,6 +363,26 @@ The initial state can be left empty to use the first mapping entry.</translation
         <translation>File details</translation>
     </message>
     <message>
+        <source>Signal options</source>
+        <translation>Signal options</translation>
+    </message>
+    <message>
+        <source>Edit one enumerated state per line using LABEL:NUMERIC_VALUE. When you apply the new mapping, plot and table are refreshed immediately.</source>
+        <translation>Edit one enumerated state per line using LABEL:NUMERIC_VALUE. When you apply the new mapping, plot and table are refreshed immediately.</translation>
+    </message>
+    <message>
+        <source>The selected signal is numeric. Enumeration mapping can be edited only for enumerated signals.</source>
+        <translation>The selected signal is numeric. Enumeration mapping can be edited only for enumerated signals.</translation>
+    </message>
+    <message>
+        <source>Signal options failed</source>
+        <translation>Signal options failed</translation>
+    </message>
+    <message>
+        <source>Updated enumeration mapping for %1</source>
+        <translation>Updated enumeration mapping for %1</translation>
+    </message>
+    <message>
         <source>File: %1
 </source>
         <translation>File: %1
@@ -509,6 +551,10 @@ Signals:
     <message>
         <source>Reset the plot to fit the selected signal.</source>
         <translation>Reset the plot to fit the selected signal.</translation>
+    </message>
+    <message>
+        <source>Export image</source>
+        <translation>Export image</translation>
     </message>
     <message>
         <source>Start value of the currently visible time range.</source>
@@ -850,6 +896,18 @@ FALSE:0</translation>
     <message>
         <source>Create a new signal.</source>
         <translation>Create a new signal.</translation>
+    </message>
+    <message>
+        <source>Options</source>
+        <translation>Options</translation>
+    </message>
+    <message>
+        <source>Open options for the selected signal.</source>
+        <translation>Open options for the selected signal.</translation>
+    </message>
+    <message>
+        <source>Configure the selected signal.</source>
+        <translation>Configure the selected signal.</translation>
     </message>
     <message>
         <source>- Remove</source>

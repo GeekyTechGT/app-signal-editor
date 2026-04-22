@@ -17,10 +17,12 @@
 #include <QApplication>
 #include <QDir>
 #include <QIcon>
+#include <QMessageBox>
 #include <QSettings>
 #include <QTimer>
 #include <QTranslator>
 
+#include <exception>
 #include <memory>
 
 #ifdef LIB_QT_CUSTOM_WIDGETS_AVAILABLE
@@ -29,6 +31,27 @@
 
 namespace {
 namespace ui = signal_editor::adapters::qt::constants;
+
+class SafeApplication : public QApplication {
+public:
+    using QApplication::QApplication;
+
+    bool notify(QObject* receiver, QEvent* event) override {
+        try {
+            return QApplication::notify(receiver, event);
+        } catch (const std::exception& ex) {
+            QMessageBox::critical(nullptr,
+                                  QStringLiteral("Unhandled exception"),
+                                  QStringLiteral("A runtime error occurred:\n%1")
+                                      .arg(QString::fromLocal8Bit(ex.what())));
+        } catch (...) {
+            QMessageBox::critical(nullptr,
+                                  QStringLiteral("Unhandled exception"),
+                                  QStringLiteral("An unknown runtime error occurred."));
+        }
+        return false;
+    }
+};
 
 /**
  * @brief Normalizes a persisted locale value to a two-letter language code.
@@ -232,7 +255,7 @@ QProgressBar#splashProgressBar::chunk {
 }  // namespace
 
 int main(int argc, char* argv[]) {
-    QApplication app(argc, argv);
+    SafeApplication app(argc, argv);
     QApplication::setApplicationName(
         signal_editor::adapters::qt::constants::app_id());
     QApplication::setOrganizationName(

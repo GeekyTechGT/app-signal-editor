@@ -74,6 +74,8 @@ signals:
     void renameRequested(int index, const QString& new_name);
     /** @brief Emitted when the user asks to remove a file from the workspace. */
     void removeRequested(int index);
+    /** @brief Emitted when the user asks to reload a file from disk. */
+    void reloadRequested(int index);
     /** @brief Emitted when the user requests file metadata/details. */
     void detailsRequested(int index);
 
