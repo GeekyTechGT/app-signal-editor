@@ -127,6 +127,10 @@ public:
     /**
      * @brief Replaces the enumeration mapping used by the signal.
      * @param enumeration Ordered label/value pairs defined by the user.
+     *
+     * When the signal is already enumerated, samples keep their semantic state
+     * by remapping through the previous labels whenever those labels still
+     * exist in the new mapping.
      */
     void set_enumeration(std::vector<EnumerationEntry> enumeration);
 
@@ -165,6 +169,19 @@ public:
     void set_sample_value(std::size_t index, double new_y);
 
     /**
+     * @brief Applies a uniform offset to every sample value.
+     * @param delta_y Signed value added to all samples.
+     */
+    void apply_offset(double delta_y);
+
+    /**
+     * @brief Applies an offset to a single sample value.
+     * @param index Zero-based sample index.
+     * @param delta_y Signed value added to the addressed sample.
+     */
+    void apply_offset_to_sample(std::size_t index, double delta_y);
+
+    /**
      * @brief Moves a sample and keeps time ordering intact.
      * @param index Zero-based sample index.
      * @param new_t New timestamp.
@@ -186,6 +203,13 @@ public:
      * @param index Zero-based sample index.
      */
     void remove_sample(std::size_t index);
+
+    /**
+     * @brief Moves a segment vertically by offsetting both endpoint samples.
+     * @param start_index Zero-based index of the left endpoint.
+     * @param delta_y Signed offset applied to both segment endpoints.
+     */
+    void move_segment(std::size_t start_index, double delta_y);
 
     /**
      * @brief Applies a smooth Gaussian deformation to all samples.

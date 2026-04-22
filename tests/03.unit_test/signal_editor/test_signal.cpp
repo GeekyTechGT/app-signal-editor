@@ -90,6 +90,20 @@ TEST(SignalTest, EnumeratedSignalsResolveLabelsAndSnapInsertedValues) {
     EXPECT_DOUBLE_EQ(s.samples()[inserted].y, 0.0);
 }
 
+TEST(SignalTest, EnumeratedRemapPreservesLabelsAcrossNumericChanges) {
+    Signal s = Signal::create_uniform("enum", 0.0, 2.0, 3, 0.0, Signal::InterpolationMode::Step);
+    s.set_enumeration({{"OFF", 0.0}, {"ON", 1.0}});
+    s.set_sample_value(1, 1.0);
+
+    s.set_enumeration({{"OFF", 10.0}, {"ON", 20.0}});
+
+    ASSERT_EQ(s.enumeration().size(), 2u);
+    EXPECT_DOUBLE_EQ(s.samples()[0].y, 10.0);
+    EXPECT_DOUBLE_EQ(s.samples()[1].y, 20.0);
+    EXPECT_DOUBLE_EQ(s.samples()[2].y, 10.0);
+    EXPECT_EQ(s.label_for_value(s.samples()[1].y), "ON");
+}
+
 TEST(SignalTest, ClearEnumerationRestoresLinearInterpolation) {
     Signal s = Signal::create_uniform("enum", 0.0, 1.0, 3, 0.0);
     s.set_enumeration({{"FALSE", 0.0}, {"TRUE", 1.0}});

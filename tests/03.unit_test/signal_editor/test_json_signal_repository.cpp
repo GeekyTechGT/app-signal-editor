@@ -52,3 +52,32 @@ TEST(JsonSignalRepositoryTest, LoadJsonWithEnumeratedLabels) {
     EXPECT_EQ(signal.label_for_value(signal.samples()[1].y), "TRUE");
     std::filesystem::remove(path);
 }
+
+TEST(JsonSignalRepositoryTest, LoadJsonWithEnumeratedLabelsWithoutExplicitMapping) {
+    auto path = make_temp_path("se_test_signals_implicit_enum.json");
+    write_file(path, R"({
+  "signals": [
+    {
+      "name": "state",
+      "samples": [
+        {"t": 0.0, "y": "IDLE"},
+        {"t": 1.0, "y": "RUN"},
+        {"t": 2.0, "y": "IDLE"}
+      ]
+    }
+  ]
+})");
+
+    JsonSignalRepository repository;
+    auto library = repository.load(path);
+
+    ASSERT_EQ(library.size(), 1u);
+    const auto& signal = library.at(0);
+    ASSERT_TRUE(signal.is_enumerated());
+    ASSERT_EQ(signal.enumeration().size(), 2u);
+    EXPECT_DOUBLE_EQ(signal.samples()[0].y, 0.0);
+    EXPECT_DOUBLE_EQ(signal.samples()[1].y, 1.0);
+    EXPECT_EQ(signal.label_for_value(signal.samples()[0].y), "IDLE");
+    EXPECT_EQ(signal.label_for_value(signal.samples()[1].y), "RUN");
+    std::filesystem::remove(path);
+}

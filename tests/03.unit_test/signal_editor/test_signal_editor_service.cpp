@@ -125,18 +125,53 @@ TEST(SignalEditorServiceTest, MoveAndInsertAndRemoveSamples) {
     StubRepository repo;
     SignalEditorService svc(repo);
     svc.create_signal("a", 0.0, 1.0, 3, 0.0);  // 3 samples at t=0,0.5,1.0
+    svc.create_signal("b", 0.0, 1.0, 3, 10.0);
 
     EXPECT_TRUE(svc.move_sample(0, 1, 9.0).is_ok());
     EXPECT_DOUBLE_EQ(svc.library().at(0).samples()[1].y, 9.0);
+    EXPECT_DOUBLE_EQ(svc.library().at(1).samples()[1].y, 10.0);
 
     std::size_t new_idx = 0;
     EXPECT_TRUE(svc.insert_sample(0, 0.25, 5.0, &new_idx).is_ok());
     EXPECT_EQ(new_idx, 1u);
     EXPECT_EQ(svc.library().at(0).size(), 4u);
+    EXPECT_EQ(svc.library().at(1).size(), 4u);
+    EXPECT_DOUBLE_EQ(svc.library().at(1).samples()[1].y, 10.0);
 
     EXPECT_TRUE(svc.remove_sample(0, 0).is_ok());
     EXPECT_EQ(svc.library().at(0).size(), 3u);
+    EXPECT_EQ(svc.library().at(1).size(), 3u);
     EXPECT_DOUBLE_EQ(svc.library().at(0).samples()[0].t, 0.25);
+}
+
+TEST(SignalEditorServiceTest, MoveSharedSamplePointKeepsTimeAxisAligned) {
+    StubRepository repo;
+    SignalEditorService svc(repo);
+    svc.create_signal("a", 0.0, 1.0, 3, 1.0);
+    svc.create_signal("b", 0.0, 1.0, 3, 2.0);
+
+    std::size_t new_index = 0;
+    EXPECT_TRUE(svc.move_sample_point(0, 1, 0.75, 7.0, &new_index).is_ok());
+    EXPECT_EQ(new_index, 1u);
+    EXPECT_DOUBLE_EQ(svc.library().at(0).samples()[1].t, 0.75);
+    EXPECT_DOUBLE_EQ(svc.library().at(1).samples()[1].t, 0.75);
+    EXPECT_DOUBLE_EQ(svc.library().at(0).samples()[1].y, 7.0);
+    EXPECT_DOUBLE_EQ(svc.library().at(1).samples()[1].y, 2.0);
+}
+
+TEST(SignalEditorServiceTest, OffsetOperationsApplyExpectedScope) {
+    StubRepository repo;
+    SignalEditorService svc(repo);
+    svc.create_signal("a", 0.0, 1.0, 3, 1.0);
+    svc.create_signal("b", 0.0, 1.0, 3, 2.0);
+
+    EXPECT_TRUE(svc.apply_offset_to_sample(0, 1, 3.0).is_ok());
+    EXPECT_DOUBLE_EQ(svc.library().at(0).samples()[1].y, 4.0);
+    EXPECT_DOUBLE_EQ(svc.library().at(1).samples()[1].y, 2.0);
+
+    EXPECT_TRUE(svc.apply_offset_to_all_samples(2.0).is_ok());
+    EXPECT_DOUBLE_EQ(svc.library().at(0).samples()[1].y, 6.0);
+    EXPECT_DOUBLE_EQ(svc.library().at(1).samples()[1].y, 4.0);
 }
 
 TEST(SignalEditorServiceTest, GaussianBrushReportsErrors) {

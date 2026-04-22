@@ -12,6 +12,25 @@ namespace {
 constexpr double kTimeEpsilon = 1e-12;
 constexpr double kEnumValueEpsilon = 1e-9;
 
+const Signal::EnumerationEntry* find_enumeration_by_label(
+    const std::vector<Signal::EnumerationEntry>& enumeration,
+    const std::string& label) {
+    const auto it = std::find_if(enumeration.begin(), enumeration.end(),
+                                 [&](const Signal::EnumerationEntry& entry) {
+                                     return entry.label == label;
+                                 });
+    return it == enumeration.end() ? nullptr : &(*it);
+}
+
+std::string enumeration_label_for_value(const std::vector<Signal::EnumerationEntry>& enumeration,
+                                        double value) {
+    const auto it = std::find_if(enumeration.begin(), enumeration.end(),
+                                 [&](const Signal::EnumerationEntry& entry) {
+                                     return std::fabs(entry.value - value) < kEnumValueEpsilon;
+                                 });
+    return it == enumeration.end() ? std::string{} : it->label;
+}
+
 void sort_and_dedupe(std::vector<SamplePoint>& samples) {
     std::sort(samples.begin(), samples.end(),
               [](const SamplePoint& a, const SamplePoint& b) { return a.t < b.t; });
@@ -169,9 +188,19 @@ void Signal::set_interpolation(InterpolationMode interpolation) noexcept {
 
 void Signal::set_enumeration(std::vector<EnumerationEntry> enumeration) {
     validate_enumeration(enumeration);
+    const auto previous_enumeration = enumeration_;
     enumeration_ = std::move(enumeration);
     interpolation_ = InterpolationMode::Step;
     for (auto& sample : samples_) {
+        const std::string previous_label =
+            enumeration_label_for_value(previous_enumeration, sample.y);
+        if (!previous_label.empty()) {
+            if (const auto* next_entry = find_enumeration_by_label(enumeration_, previous_label);
+                next_entry != nullptr) {
+                sample.y = next_entry->value;
+                continue;
+            }
+        }
         sample.y = snap_to_enumeration(sample.y);
     }
 }
@@ -218,6 +247,19 @@ void Signal::set_sample_value(std::size_t index, double new_y) {
     samples_[index].y = snap_to_enumeration(new_y);
 }
 
+void Signal::apply_offset(double delta_y) {
+    for (auto& sample : samples_) {
+        sample.y = snap_to_enumeration(sample.y + delta_y);
+    }
+}
+
+void Signal::apply_offset_to_sample(std::size_t index, double delta_y) {
+    if (index >= samples_.size()) {
+        throw std::out_of_range("sample index out of range");
+    }
+    samples_[index].y = snap_to_enumeration(samples_[index].y + delta_y);
+}
+
 std::size_t Signal::move_sample(std::size_t index, double new_t, double new_y) {
     if (index >= samples_.size()) {
         throw std::out_of_range("sample index out of range");
@@ -244,6 +286,14 @@ void Signal::remove_sample(std::size_t index) {
         throw std::out_of_range("sample index out of range");
     }
     samples_.erase(samples_.begin() + static_cast<std::ptrdiff_t>(index));
+}
+
+void Signal::move_segment(std::size_t start_index, double delta_y) {
+    if (start_index + 1 >= samples_.size()) {
+        throw std::out_of_range("segment index out of range");
+    }
+    apply_offset_to_sample(start_index, delta_y);
+    apply_offset_to_sample(start_index + 1, delta_y);
 }
 
 void Signal::apply_gaussian_brush(double t_center, double delta_y, double sigma) {

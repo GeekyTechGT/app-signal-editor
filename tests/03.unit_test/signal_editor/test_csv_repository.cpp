@@ -12,6 +12,14 @@ using namespace signal_editor::adapters;
 
 namespace {
 
+std::filesystem::path source_data_path(const std::string& relative_path) {
+#ifdef SIGNAL_EDITOR_SOURCE_DIR
+    return std::filesystem::path(SIGNAL_EDITOR_SOURCE_DIR) / relative_path;
+#else
+    return std::filesystem::path(relative_path);
+#endif
+}
+
 std::filesystem::path make_temp_path(const std::string& name) {
     auto p = std::filesystem::temp_directory_path() / name;
     std::filesystem::remove(p);
@@ -43,17 +51,31 @@ TEST(CsvRepositoryTest, LoadHeaderedCsv) {
     std::filesystem::remove(p);
 }
 
-TEST(CsvRepositoryTest, LoadHeaderlessCsvAutoNamesSignals) {
+TEST(CsvRepositoryTest, LoadRequiresNamedTimeColumn) {
     auto p = make_temp_path("se_test_headerless.csv");
     write_file(p,
                "0.0,0.0,1.0\n"
                "1.0,1.0,0.0\n");
     CsvSignalRepository repo;
-    auto lib = repo.load(p);
-    ASSERT_EQ(lib.size(), 2u);
-    EXPECT_EQ(lib.at(0).name(), "signal_1");
-    EXPECT_EQ(lib.at(1).name(), "signal_2");
+    EXPECT_THROW(repo.load(p), std::runtime_error);
     std::filesystem::remove(p);
+}
+
+TEST(CsvRepositoryTest, LoadUsesNamedTimeColumnEvenWhenNotFirst) {
+    const auto path = source_data_path("tests/01.data/sample_time_column_valid.csv");
+    CsvSignalRepository repo;
+    auto lib = repo.load(path);
+    ASSERT_EQ(lib.size(), 2u);
+    EXPECT_EQ(lib.at(0).name(), "speed");
+    EXPECT_EQ(lib.at(1).name(), "torque");
+    EXPECT_DOUBLE_EQ(lib.at(0).samples()[1].t, 0.5);
+    EXPECT_DOUBLE_EQ(lib.at(1).samples()[2].y, 19.0);
+}
+
+TEST(CsvRepositoryTest, LoadRejectsMissingNamedTimeColumn) {
+    const auto path = source_data_path("tests/01.data/sample_time_column_invalid.csv");
+    CsvSignalRepository repo;
+    EXPECT_THROW(repo.load(path), std::runtime_error);
 }
 
 TEST(CsvRepositoryTest, LoadRejectsNonMonotonicTime) {
@@ -96,12 +118,12 @@ TEST(CsvRepositoryTest, LoadEnumeratedMetadataAndLabels) {
     std::filesystem::remove(p);
 }
 
-TEST(CsvRepositoryTest, LoadInlineEnumeratedTokensWithoutMetadata) {
-    auto p = make_temp_path("se_test_enum_inline.csv");
+TEST(CsvRepositoryTest, LoadEnumeratedStringsWithoutMetadata) {
+    auto p = make_temp_path("se_test_enum_strings.csv");
     write_file(p,
                "time,state\n"
-               "0.0,FALSE:0\n"
-               "1.0,TRUE:1\n"
+               "0.0,FALSE\n"
+               "1.0,TRUE\n"
                "2.0,FALSE\n");
     CsvSignalRepository repo;
     auto lib = repo.load(p);
@@ -111,6 +133,8 @@ TEST(CsvRepositoryTest, LoadInlineEnumeratedTokensWithoutMetadata) {
     ASSERT_EQ(signal.enumeration().size(), 2u);
     EXPECT_EQ(signal.label_for_value(signal.samples()[0].y), "FALSE");
     EXPECT_EQ(signal.label_for_value(signal.samples()[1].y), "TRUE");
+    EXPECT_DOUBLE_EQ(signal.samples()[0].y, 0.0);
+    EXPECT_DOUBLE_EQ(signal.samples()[1].y, 1.0);
     std::filesystem::remove(p);
 }
 

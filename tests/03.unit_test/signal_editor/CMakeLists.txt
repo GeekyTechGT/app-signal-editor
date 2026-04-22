@@ -22,6 +22,11 @@ target_include_directories(test_signal_editor
         ${CMAKE_BINARY_DIR}/generated
 )
 
+target_compile_definitions(test_signal_editor
+    PRIVATE
+        SIGNAL_EDITOR_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+)
+
 myprj_configure_target(test_signal_editor)
 
 gtest_discover_tests(test_signal_editor

@@ -34,6 +34,11 @@ bool is_enum_metadata_row(const std::vector<std::string>& row) {
     return !row.empty() && (row.front() == "# enum_map" || row.front() == "#enum_map");
 }
 
+bool is_time_header(std::string header) {
+    header = to_lower_copy(trim_copy(header));
+    return header == "t" || header == "time";
+}
+
 std::string format_number(double value) {
     std::ostringstream stream;
     stream << std::setprecision(12) << value;
@@ -180,13 +185,14 @@ std::string trim_copy(std::string_view text) {
 }
 
 std::optional<double> try_parse_double(const std::string& text) {
-    if (text.empty()) {
+    const std::string trimmed = trim_copy(text);
+    if (trimmed.empty()) {
         return std::nullopt;
     }
     try {
         std::size_t consumed = 0;
-        const double value = std::stod(text, &consumed);
-        if (consumed != text.size()) {
+        const double value = std::stod(trimmed, &consumed);
+        if (consumed != trimmed.size()) {
             return std::nullopt;
         }
         return value;
@@ -224,21 +230,30 @@ const char* interpolation_mode_to_text(Signal::InterpolationMode interpolation) 
 
 std::optional<double> resolve_enumerated_cell(const std::string& cell,
                                               std::vector<Signal::EnumerationEntry>& mapping) {
-    if (const auto numeric = try_parse_double(cell); numeric.has_value()) {
+    const std::string normalized = trim_copy(cell);
+    if (normalized.empty()) {
+        return std::nullopt;
+    }
+    if (const auto numeric = try_parse_double(normalized); numeric.has_value()) {
         return numeric;
     }
-    if (const auto inline_entry = try_parse_inline_enum_value(cell); inline_entry.has_value()) {
+    if (const auto inline_entry = try_parse_inline_enum_value(normalized); inline_entry.has_value()) {
         merge_enum_entry(mapping, *inline_entry);
         return inline_entry->value;
     }
     const auto it = std::find_if(mapping.begin(), mapping.end(),
                                  [&](const Signal::EnumerationEntry& entry) {
-                                     return entry.label == cell;
+                                     return entry.label == normalized;
                                  });
     if (it != mapping.end()) {
         return it->value;
     }
-    return std::nullopt;
+    const Signal::EnumerationEntry generated_entry{
+        normalized,
+        static_cast<double>(mapping.size())
+    };
+    merge_enum_entry(mapping, generated_entry);
+    return generated_entry.value;
 }
 
 SignalLibrary rows_to_library(const std::vector<std::vector<std::string>>& rows) {
@@ -269,38 +284,50 @@ SignalLibrary rows_to_library(const std::vector<std::vector<std::string>>& rows)
     }
 
     const bool has_header = !row_is_numeric(rows[row_index]);
-    std::vector<std::string> headers;
-    std::size_t data_start = row_index;
-    if (has_header) {
-        headers = rows[row_index];
-        data_start = row_index + 1;
-        if (rows.size() <= data_start) {
-            throw std::runtime_error("Header row has no sample rows");
-        }
+    if (!has_header) {
+        throw std::runtime_error("Missing header row with a 't' or 'time' column");
+    }
+
+    const std::vector<std::string> headers = rows[row_index];
+    const std::size_t data_start = row_index + 1;
+    if (rows.size() <= data_start) {
+        throw std::runtime_error("Header row has no sample rows");
     }
 
     const std::size_t ncols = rows[data_start].size();
     if (ncols < 2) {
         throw std::runtime_error("A tabular import needs at least one time column and one signal column");
     }
-    if (has_header && headers.size() != ncols) {
+    if (headers.size() != ncols) {
         throw std::runtime_error("Header column count does not match data column count");
     }
-    if (!interpolations.empty() && interpolations.size() != ncols - 1) {
+
+    const auto time_it = std::find_if(headers.begin(), headers.end(),
+                                      [](const std::string& header) { return is_time_header(header); });
+    if (time_it == headers.end()) {
+        throw std::runtime_error("Missing required time column named 't' or 'time'");
+    }
+    const std::size_t time_column = static_cast<std::size_t>(std::distance(headers.begin(), time_it));
+    if (time_column + 1 >= ncols) {
+        throw std::runtime_error("The time column must be followed by at least one signal column");
+    }
+
+    const std::size_t signal_count = ncols - time_column - 1;
+    if (!interpolations.empty() && interpolations.size() != signal_count) {
         throw std::runtime_error("Interpolation metadata column count does not match signal count");
     }
-    if (!enumerations.empty() && enumerations.size() != ncols - 1) {
+    if (!enumerations.empty() && enumerations.size() != signal_count) {
         throw std::runtime_error("Enumeration metadata column count does not match signal count");
     }
     if (interpolations.empty()) {
-        interpolations.assign(ncols - 1, Signal::InterpolationMode::Linear);
+        interpolations.assign(signal_count, Signal::InterpolationMode::Linear);
     }
     if (enumerations.empty()) {
-        enumerations.assign(ncols - 1, {});
+        enumerations.assign(signal_count, {});
     }
 
     std::vector<double> time;
-    std::vector<std::vector<double>> values(ncols - 1);
+    std::vector<std::vector<double>> values(signal_count);
     double previous_t = 0.0;
     bool first = true;
     for (std::size_t row_number = data_start; row_number < rows.size(); ++row_number) {
@@ -308,7 +335,7 @@ SignalLibrary rows_to_library(const std::vector<std::vector<std::string>>& rows)
         if (row.size() != ncols) {
             throw std::runtime_error("Inconsistent column count at row " + std::to_string(row_number + 1));
         }
-        const auto t = try_parse_double(row[0]);
+        const auto t = try_parse_double(row[time_column]);
         if (!t.has_value()) {
             throw std::runtime_error("Non-numeric time at row " + std::to_string(row_number + 1));
         }
@@ -319,20 +346,21 @@ SignalLibrary rows_to_library(const std::vector<std::vector<std::string>>& rows)
         first = false;
         time.push_back(*t);
 
-        for (std::size_t column = 1; column < ncols; ++column) {
-            auto& mapping = enumerations[column - 1];
+        for (std::size_t signal_offset = 0; signal_offset < signal_count; ++signal_offset) {
+            const std::size_t column = time_column + 1 + signal_offset;
+            auto& mapping = enumerations[signal_offset];
             const auto value = resolve_enumerated_cell(row[column], mapping);
             if (!value.has_value()) {
                 throw std::runtime_error("Unsupported value at row " + std::to_string(row_number + 1) +
                                          " column " + std::to_string(column + 1));
             }
-            values[column - 1].push_back(*value);
+            values[signal_offset].push_back(*value);
         }
     }
 
     SignalLibrary library;
     for (std::size_t column = 0; column < values.size(); ++column) {
-        std::string name = has_header ? headers[column + 1] : "signal_" + std::to_string(column + 1);
+        std::string name = headers[time_column + 1 + column];
         if (name.empty()) {
             name = "signal_" + std::to_string(column + 1);
         }
