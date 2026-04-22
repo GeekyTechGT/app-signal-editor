@@ -56,6 +56,26 @@ The project intentionally keeps the domain model independent from Qt so waveform
 - Hexagonal architecture with isolated domain, use cases, ports, and adapters
 - Python-driven build manager with dependency validation and Rich TUI
 
+## Documentation Map
+
+Signal Editor now ships with two complementary documentation layers:
+
+- API-oriented English Doxygen comments in the main public headers
+- narrative developer documentation in [`docs/`](docs)
+
+Recommended entry points for contributors:
+
+- [`docs/architecture/architecture_overview.md`](docs/architecture/architecture_overview.md)
+- [`docs/developer/onboarding.md`](docs/developer/onboarding.md)
+- [`docs/developer/plot_subsystem.md`](docs/developer/plot_subsystem.md)
+- [`docs/developer/workspace_and_selection.md`](docs/developer/workspace_and_selection.md)
+- [`docs/developer/filesystem_and_persistence.md`](docs/developer/filesystem_and_persistence.md)
+
+The developer documents focus on how the code is actually structured today:
+which classes are involved, which state lives where, what assumptions the UI
+makes about shared time axes, and which choices were intentional rather than
+accidental.
+
 ## Why This Project Exists
 
 Signal Editor closes a practical gap between quick scripting and heavyweight engineering suites.
@@ -63,6 +83,29 @@ Signal Editor closes a practical gap between quick scripting and heavyweight eng
 Spreadsheets are flexible but fragile for waveform manipulation. Ad hoc scripts are powerful but difficult to operationalize for non-developers. Large calibration and simulation tools are often too expensive in time and cognitive overhead for fast inspection-and-correction loops.
 
 This project focuses on a narrower, more disciplined tool: one that feels fast in daily use, preserves data semantics, and stays architecturally clean as features evolve.
+
+## Codebase Orientation
+
+The project follows a hexagonal structure with a desktop-specific orchestration
+layer:
+
+- `src/signal_editor/core/domain/`
+  Domain entities and invariants such as samples, interpolation rules, and
+  enumerated-state semantics.
+- `src/signal_editor/core/usecases/`
+  Application service logic used by the GUI and reusable by future adapters.
+- `src/signal_editor/ports/`
+  Repository abstractions consumed by the use-case layer.
+- `src/signal_editor/adapters/filesystem/`
+  Concrete format adapters for CSV, delimited tables, JSON, and SpreadsheetML.
+- `src/signal_editor/adapters/qt/`
+  Desktop shell, side panels, plot, table, dialogs, and runtime settings glue.
+- `apps/signal_editor/gui/`
+  Composition root for the Qt executable.
+
+The most important practical rule is that Qt widgets do not own waveform
+business rules. Widgets emit semantic intent, `MainWindow` coordinates document
+state, and `SignalEditorService` applies edits to the domain model.
 
 ## Setup
 
@@ -258,6 +301,19 @@ Persisted UI keys:
 This versioned layout lets users upgrade without automatically overwriting settings from a different application line. It also makes troubleshooting easier because the persistence scope is explicit and deterministic.
 
 When `lib-qt-custom-widgets` is not linked, the settings button opens an informational message instead.
+
+## Developer Docs
+
+Additional developer-facing documentation is available in [`docs/developer/`](docs/developer):
+
+- onboarding and reading order for new contributors
+- plot subsystem design and editing flow
+- workspace/document/signal selection model
+- persistence and reload behavior
+
+These pages are meant to speed up onboarding for developers who need to modify
+UI behavior safely without reverse-engineering the whole application from
+scratch.
 
 ## Internationalization
 

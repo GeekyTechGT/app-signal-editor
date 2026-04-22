@@ -123,3 +123,14 @@ If a change affects any of the following, the architecture documentation should 
 - adapter responsibilities
 - workspace navigation model
 - interpolation or enumerated-state behavior that changes the boundaries between core and UI
+
+## 10. Developer Onboarding Material
+
+Architecture-level documents in this folder describe the structural intent of
+the system. For day-to-day contributor onboarding, also read the developer
+material in [`docs/developer/`](../developer/README.md), especially:
+
+- onboarding and reading order
+- workspace and selection model
+- plot subsystem notes
+- persistence and reload behavior
