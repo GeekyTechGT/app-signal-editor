@@ -2,17 +2,24 @@ if(NOT SIGNAL_EDITOR_BUILD_GUI)
     return()
 endif()
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets LinguistTools)
+find_package(Qt6 REQUIRED COMPONENTS Widgets LinguistTools Svg)
 
 qt_add_executable(signal_editor_gui
+    bootstrap.h
+    bootstrap.cpp
     main.cpp
     resources.qrc
+)
+
+set_target_properties(signal_editor_gui PROPERTIES
+    AUTORCC ON
 )
 
 target_link_libraries(signal_editor_gui
     PRIVATE
         signal_editor_qt
         signal_editor_core
+        Qt6::Svg
         Qt6::Widgets
 )
 

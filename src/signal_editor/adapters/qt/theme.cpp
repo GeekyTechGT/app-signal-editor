@@ -60,12 +60,9 @@ QWidget#PanelCard {
     border: 1px solid rgba(118, 142, 166, 0.18);
     border-radius: 16px;
 }
-QWidget#PlotControlCard {
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                                stop:0 rgba(22, 32, 45, 0.96),
-                                stop:1 rgba(14, 22, 31, 0.92));
-    border: 1px solid rgba(118, 142, 166, 0.22);
-    border-radius: 14px;
+QWidget#PlotTools {
+    background: transparent;
+    border: none;
 }
 QLabel#PanelTitle {
     color: #f4f7fb;
@@ -197,12 +194,9 @@ QWidget#PanelCard {
     border: 1px solid rgba(0, 0, 0, 0.08);
     border-radius: 16px;
 }
-QWidget#PlotControlCard {
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                                stop:0 rgba(255, 255, 255, 0.98),
-                                stop:1 rgba(239, 245, 251, 0.96));
-    border: 1px solid rgba(100, 130, 170, 0.18);
-    border-radius: 14px;
+QWidget#PlotTools {
+    background: transparent;
+    border: none;
 }
 QLabel#PanelTitle {
     color: #1A2236;

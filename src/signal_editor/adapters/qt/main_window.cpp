@@ -1,7 +1,9 @@
+#include "signal_editor/adapters/qt/branding.h"
 #include "signal_editor/adapters/qt/constants.hpp"
 #include "signal_editor/adapters/qt/main_window.h"
 
 #include "signal_editor/adapters/qt/file_list_panel.h"
+#include "signal_editor/adapters/qt/icon_theme.h"
 #include "signal_editor/adapters/qt/signal_list_panel.h"
 #include "signal_editor/adapters/qt/signal_plot_widget.h"
 #include "signal_editor/adapters/qt/signal_table_panel.h"
@@ -13,6 +15,7 @@
 #include "signal_editor/core/usecases/signal_editor_service.h"
 
 #include <QAction>
+#include <QAbstractButton>
 #include <QApplication>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -209,6 +212,32 @@ QString import_file_filter() {
         "JSON files (*.json);;"
         "SpreadsheetML XML files (*.xml);;"
         "Excel workbook files (*.xlsx)");
+}
+
+QIcon application_window_icon() {
+    return QApplication::windowIcon();
+}
+
+void apply_application_icon(QWidget* widget) {
+    if (widget == nullptr) {
+        return;
+    }
+    const QIcon icon = application_window_icon();
+    if (!icon.isNull()) {
+        widget->setWindowIcon(icon);
+    }
+}
+
+QPixmap application_logo_pixmap(const QSize& size = QSize(96, 96)) {
+    QPixmap pixmap = render_application_logo(size);
+    if (!pixmap.isNull()) {
+        return pixmap;
+    }
+    const QIcon icon = application_window_icon();
+    if (!icon.isNull()) {
+        return icon.pixmap(size);
+    }
+    return {};
 }
 
 QString export_file_filter() {
@@ -604,6 +633,7 @@ Signal generate_waveform_signal(WaveformKind kind, const QString& name,
 MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
     : QMainWindow(parent), service_(service) {
     setWindowTitle(tr("Signal Editor"));
+    apply_application_icon(this);
     resize(1400, 820);
     setAcceptDrops(true);
     app_settings_.theme = QStringLiteral("light");
@@ -630,41 +660,26 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
     central_layout->setContentsMargins(16, 14, 16, 14);
     central_layout->setSpacing(10);
 
-    // Workspace header
-    auto* workspace_header = new QWidget(central);
-    workspace_header->setObjectName(QStringLiteral("WorkspaceHeader"));
-    auto* workspace_layout = new QVBoxLayout(workspace_header);
-    workspace_layout->setContentsMargins(16, 12, 16, 12);
-    workspace_layout->setSpacing(2);
-
-    workspace_title_label_ = new QLabel(tr("Signal Editor Workspace"), workspace_header);
-    workspace_title_label_->setObjectName(QStringLiteral("WorkspaceTitle"));
-
-    workspace_meta_label_ = new QLabel(tr("No active document"), workspace_header);
-    workspace_meta_label_->setObjectName(QStringLiteral("WorkspaceMeta"));
-
-    workspace_hint_label_ = new QLabel(
-        tr("Import a signal file or create one, then edit it through plot and table."),
-        workspace_header);
-    workspace_hint_label_->setObjectName(QStringLiteral("WorkspaceHint"));
-    workspace_hint_label_->setWordWrap(true);
-
-    workspace_layout->addWidget(workspace_title_label_);
-    workspace_layout->addWidget(workspace_meta_label_);
-    workspace_layout->addWidget(workspace_hint_label_);
-    central_layout->addWidget(workspace_header);
-
     // ── Side panel ────────────────────────────────────────────────────────────
     auto* outer_splitter = new QSplitter(Qt::Horizontal, central);
     auto* side_panel     = new QWidget(outer_splitter);
     auto* side_layout    = new QVBoxLayout(side_panel);
     side_layout->setContentsMargins(0, 0, 0, 0);
-    side_layout->setSpacing(12);
+    side_layout->setSpacing(0);
 
-    file_panel_ = new FileListPanel(side_panel);
-    list_panel_ = new SignalListPanel(side_panel);
-    side_layout->addWidget(file_panel_, 1);
-    side_layout->addWidget(list_panel_, 2);
+    auto* side_splitter = new QSplitter(Qt::Vertical, side_panel);
+    side_splitter->setChildrenCollapsible(false);
+    side_splitter->setHandleWidth(10);
+
+    file_panel_ = new FileListPanel(side_splitter);
+    list_panel_ = new SignalListPanel(side_splitter);
+    side_splitter->addWidget(file_panel_);
+    side_splitter->addWidget(list_panel_);
+    side_splitter->setStretchFactor(0, 1);
+    side_splitter->setStretchFactor(1, 2);
+    side_splitter->setSizes({320, 520});
+
+    side_layout->addWidget(side_splitter, 1);
 
     // ── Center panel ──────────────────────────────────────────────────────────
     auto* center_panel  = new QWidget(outer_splitter);
@@ -697,22 +712,30 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
     plot_page->setAttribute(Qt::WA_StyledBackground, true);
     plot_page->setAutoFillBackground(true);
     auto* plot_layout = new QVBoxLayout(plot_page);
-    plot_layout->setContentsMargins(0, 0, 0, 0);
-    plot_layout->setSpacing(12);
-    auto* plot_controls_card = new QWidget(plot_page);
-    plot_controls_card->setObjectName(QStringLiteral("PlotControlCard"));
-    plot_controls_card->setAttribute(Qt::WA_StyledBackground, true);
-    auto* plot_toolbar = new QHBoxLayout(plot_controls_card);
-    plot_toolbar->setContentsMargins(14, 12, 14, 12);
+    plot_layout->setContentsMargins(12, 12, 12, 12);
+    plot_layout->setSpacing(10);
+
+    auto* plot_content = new QWidget(plot_page);
+    auto* plot_content_layout = new QVBoxLayout(plot_content);
+    plot_content_layout->setContentsMargins(0, 0, 0, 0);
+    plot_content_layout->setSpacing(10);
+
+    auto* plot_tools = new QWidget(plot_content);
+    plot_tools->setObjectName(QStringLiteral("PlotTools"));
+    plot_tools->setAttribute(Qt::WA_StyledBackground, true);
+    plot_tools->setAutoFillBackground(false);
+    plot_tools->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    auto* plot_toolbar = new QHBoxLayout(plot_tools);
+    plot_toolbar->setContentsMargins(0, 0, 0, 0);
     plot_toolbar->setSpacing(10);
-    plot_zoom_in_button_ = new QPushButton(tr("Zoom in"), plot_controls_card);
-    plot_zoom_out_button_ = new QPushButton(tr("Zoom out"), plot_controls_card);
-    plot_pan_mode_button_ = new QPushButton(tr("Pan mode"), plot_controls_card);
-    plot_rect_mode_button_ = new QPushButton(tr("Rect mode"), plot_controls_card);
-    plot_reset_view_button_ = new QPushButton(tr("Fit view"), plot_controls_card);
-    plot_export_button_ = new QPushButton(tr("Export image"), plot_controls_card);
-    plot_t_start_edit_ = new QLineEdit(plot_controls_card);
-    plot_t_end_edit_ = new QLineEdit(plot_controls_card);
+    plot_zoom_in_button_ = new QPushButton(plot_tools);
+    plot_zoom_out_button_ = new QPushButton(plot_tools);
+    plot_pan_mode_button_ = new QPushButton(plot_tools);
+    plot_rect_mode_button_ = new QPushButton(plot_tools);
+    plot_reset_view_button_ = new QPushButton(plot_tools);
+    plot_export_button_ = new QPushButton(plot_tools);
+    plot_t_start_edit_ = new QLineEdit(plot_tools);
+    plot_t_end_edit_ = new QLineEdit(plot_tools);
     plot_zoom_in_button_->setObjectName(QStringLiteral("SubtleButton"));
     plot_zoom_out_button_->setObjectName(QStringLiteral("SubtleButton"));
     plot_pan_mode_button_->setObjectName(QStringLiteral("SubtleButton"));
@@ -725,6 +748,12 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
     plot_rect_mode_button_->setCursor(Qt::PointingHandCursor);
     plot_reset_view_button_->setCursor(Qt::PointingHandCursor);
     plot_export_button_->setCursor(Qt::PointingHandCursor);
+    plot_zoom_in_button_->setToolTip(tr("Zoom in"));
+    plot_zoom_out_button_->setToolTip(tr("Zoom out"));
+    plot_pan_mode_button_->setToolTip(tr("Pan mode"));
+    plot_rect_mode_button_->setToolTip(tr("Rect mode"));
+    plot_reset_view_button_->setToolTip(tr("Fit view"));
+    plot_export_button_->setToolTip(tr("Export image"));
     plot_pan_mode_button_->setCheckable(true);
     plot_rect_mode_button_->setCheckable(true);
     plot_t_start_edit_->setValidator(
@@ -744,8 +773,8 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
     plot_toolbar->addWidget(plot_reset_view_button_);
     plot_toolbar->addWidget(plot_export_button_);
     plot_toolbar->addSpacing(10);
-    plot_t_start_label_ = new QLabel(tr("Visible t start"), plot_controls_card);
-    plot_t_end_label_ = new QLabel(tr("Visible t end"), plot_controls_card);
+    plot_t_start_label_ = new QLabel(tr("Visible t start"), plot_tools);
+    plot_t_end_label_ = new QLabel(tr("Visible t end"), plot_tools);
     plot_t_start_label_->setObjectName(QStringLiteral("PanelDetail"));
     plot_t_end_label_->setObjectName(QStringLiteral("PanelDetail"));
     plot_toolbar->addWidget(plot_t_start_label_);
@@ -753,18 +782,19 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
     plot_toolbar->addWidget(plot_t_end_label_);
     plot_toolbar->addWidget(plot_t_end_edit_);
     plot_toolbar->addStretch(1);
-    plot_layout->addWidget(plot_controls_card);
-    plot_ = new SignalPlotWidget(plot_page);
+    plot_ = new SignalPlotWidget(plot_content);
     plot_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    plot_layout->addWidget(plot_);
+    plot_content_layout->addWidget(plot_tools, 0);
+    plot_content_layout->addWidget(plot_, 1);
+    plot_layout->addWidget(plot_content, 1);
 
     auto* table_page   = new QWidget(workspace_tabs_);
     table_page->setObjectName(QStringLiteral("WorkspaceTabPage"));
     table_page->setAttribute(Qt::WA_StyledBackground, true);
     table_page->setAutoFillBackground(true);
     auto* table_layout = new QVBoxLayout(table_page);
-    table_layout->setContentsMargins(0, 0, 0, 0);
-    table_layout->setSpacing(0);
+    table_layout->setContentsMargins(12, 12, 12, 12);
+    table_layout->setSpacing(10);
     table_panel_ = new SignalTablePanel(table_page);
     table_layout->addWidget(table_panel_);
 
@@ -816,6 +846,7 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
     settings_action_->setShortcut(QKeySequence::Preferences);
 
     menu_help_ = menuBar()->addMenu(tr("&Help"));
+    act_manual_ = menu_help_->addAction(tr("&User manual..."));
     act_about_ = menu_help_->addAction(tr("&About"));
 
     // ── Toolbar ───────────────────────────────────────────────────────────────
@@ -833,11 +864,27 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
 
     // ── Status bar — settings button (permanent area, never covered) ─────────
     settings_btn_ = new QToolButton(this);
-    settings_btn_->setText(QStringLiteral("\u2699 ") + tr("Settings"));  // ⚙
     settings_btn_->setToolTip(tr("Open application settings"));
+    settings_btn_->setStatusTip(tr("Open preferences and visual settings."));
     settings_btn_->setAutoRaise(true);
     settings_btn_->setCursor(Qt::PointingHandCursor);
     statusBar()->addPermanentWidget(settings_btn_, 0);
+
+    register_svg_icon(act_open_, QStringLiteral(":/img/open.svg"));
+    register_svg_icon(act_save_, QStringLiteral(":/img/save.svg"));
+    register_svg_icon(act_export_plot_, QStringLiteral(":/img/screen-share.svg"));
+    register_svg_icon(undo_action_, QStringLiteral(":/img/undo.svg"));
+    register_svg_icon(act_new_, QStringLiteral(":/img/new.svg"));
+    register_svg_icon(rename_action_, QStringLiteral(":/img/rename.svg"));
+    register_svg_icon(act_remove_, QStringLiteral(":/img/remove.svg"));
+    register_svg_icon(plot_zoom_in_button_, QStringLiteral(":/img/zoom-in.svg"));
+    register_svg_icon(plot_zoom_out_button_, QStringLiteral(":/img/zoom-out.svg"));
+    register_svg_icon(plot_pan_mode_button_, QStringLiteral(":/img/pan.svg"));
+    register_svg_icon(plot_rect_mode_button_, QStringLiteral(":/img/zoom-selection.svg"));
+    register_svg_icon(plot_reset_view_button_, QStringLiteral(":/img/zoom-fit.svg"));
+    register_svg_icon(plot_export_button_, QStringLiteral(":/img/screen-share.svg"));
+    register_svg_icon(settings_btn_, QStringLiteral(":/img/settings.svg"));
+    refresh_registered_svg_icons();
 
     // ── Connections ───────────────────────────────────────────────────────────
     connect(act_open_,     &QAction::triggered, this, &MainWindow::onOpen);
@@ -847,6 +894,7 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
     connect(act_new_,      &QAction::triggered, this, &MainWindow::onNewSignal);
     connect(rename_action_,&QAction::triggered, this, &MainWindow::onRenameSignal);
     connect(act_remove_,   &QAction::triggered, this, &MainWindow::onRemoveSignal);
+    connect(act_manual_,   &QAction::triggered, this, &MainWindow::onOpenManualPlaceholder);
     connect(act_about_,    &QAction::triggered, this, &MainWindow::onAbout);
     connect(act_quit_,     &QAction::triggered, qApp, &QApplication::quit);
     connect(settings_action_, &QAction::triggered, this, &MainWindow::onOpenSettings);
@@ -1144,14 +1192,36 @@ void MainWindow::onRenameSignal() {
 }
 
 void MainWindow::onAbout() {
-    QMessageBox::about(
-        this,
-        tr("About Signal Editor"),
+    QMessageBox box(this);
+    apply_application_icon(&box);
+    box.setWindowTitle(tr("About Signal Editor"));
+    box.setIconPixmap(application_logo_pixmap(QSize(96, 96)));
+    box.setTextFormat(Qt::RichText);
+    box.setText(
         tr("<h3>Signal Editor</h3>"
-           "<p>Multi-file waveform editor built with C++23 and Qt 6.</p>"
-           "<p>Supports CSV, JSON, tab-delimited and SpreadsheetML XML workspaces, "
-           "enumerated-state signals, file switching, renaming, undo, waypoint drag/edit, "
-           "point insertion and Gaussian brushing.</p>"));
+           "<p>Desktop waveform editor for engineering workflows.</p>"
+           "<p><b>Version:</b> %1</p>"
+           "<p>Signal Editor provides multi-file and multi-sheet signal editing with "
+           "synchronized plot and table workflows, numeric and enumerated signal support, "
+           "workbook-aware XLSX handling, undo, reload-from-disk, and plot image export.</p>")
+            .arg(ui::application_version()));
+    box.setStandardButtons(QMessageBox::Ok);
+    box.exec();
+}
+
+void MainWindow::onOpenManualPlaceholder() {
+    QMessageBox box(this);
+    apply_application_icon(&box);
+    box.setWindowTitle(tr("User manual"));
+    box.setIconPixmap(application_logo_pixmap(QSize(72, 72)));
+    box.setTextFormat(Qt::RichText);
+    box.setText(
+        tr("<h3>User manual placeholder</h3>"
+           "<p>The integrated user manual entry point is reserved here.</p>"
+           "<p>You can later connect this action to the PDF generated from the "
+           "Markdown manual under <code>docs/user/user_manual.md</code>.</p>"));
+    box.setStandardButtons(QMessageBox::Ok);
+    box.exec();
 }
 
 // ============================================================================
@@ -1161,6 +1231,7 @@ void MainWindow::onAbout() {
 void MainWindow::onOpenSettings() {
 #ifdef LIB_QT_CUSTOM_WIDGETS_AVAILABLE
     lib_qt_custom_widgets::SettingsPanelDialog dlg(this);
+    apply_application_icon(&dlg);
     dlg.setCurrentSettings(app_settings_);
     auto preview_settings = visual_settings_;
 
@@ -1579,6 +1650,7 @@ void MainWindow::show_signal_options(int index) {
     const Signal& signal = service_.library().at(static_cast<std::size_t>(index));
 
     QDialog dialog(this);
+    apply_application_icon(&dialog);
     dialog.setWindowTitle(tr("Signal options"));
     dialog.resize(520, 420);
     auto* layout = new QVBoxLayout(&dialog);
@@ -1767,6 +1839,7 @@ void MainWindow::onAddRequested() {
     }
 
     QDialog dlg(this);
+    apply_application_icon(&dlg);
     dlg.setWindowTitle(tr("New signal"));
     dlg.resize(560, 560);
     auto* layout      = new QVBoxLayout(&dlg);
@@ -2822,6 +2895,7 @@ void MainWindow::show_file_details(int index) {
     const bool show_sheet_selector = document.format == DocumentFormat::Xlsx;
 
     QDialog dialog(this);
+    apply_application_icon(&dialog);
     dialog.setWindowTitle(tr("File options"));
     dialog.resize(820, 620);
     auto* dlg_layout = new QVBoxLayout(&dialog);
@@ -3248,7 +3322,9 @@ void MainWindow::refresh_status(const QString& transient_message) {
 }
 
 void MainWindow::show_error(const QString& title, const QString& message) {
-    QMessageBox::warning(this, title, message);
+    QMessageBox box(QMessageBox::Warning, title, message, QMessageBox::Ok, this);
+    apply_application_icon(&box);
+    box.exec();
 }
 
 void MainWindow::retranslate_ui() {
@@ -3271,12 +3347,6 @@ void MainWindow::retranslate_ui() {
     if (interp_label_) {
         interp_label_->setToolTip(tr("Interpolation method used to render and evaluate the selected signal."));
     }
-    if (plot_zoom_in_button_)   plot_zoom_in_button_->setText(tr("Zoom in"));
-    if (plot_zoom_out_button_)  plot_zoom_out_button_->setText(tr("Zoom out"));
-    if (plot_pan_mode_button_)  plot_pan_mode_button_->setText(tr("Pan mode"));
-    if (plot_rect_mode_button_) plot_rect_mode_button_->setText(tr("Rect mode"));
-    if (plot_reset_view_button_) plot_reset_view_button_->setText(tr("Fit view"));
-    if (plot_export_button_) plot_export_button_->setText(tr("Export image"));
     if (plot_zoom_in_button_) {
         plot_zoom_in_button_->setToolTip(tr("Reduce the visible time range around the current center."));
         plot_zoom_in_button_->setStatusTip(tr("Zoom in on the plot time axis."));
@@ -3399,6 +3469,11 @@ void MainWindow::retranslate_ui() {
         settings_action_->setToolTip(tr("Open application settings"));
         settings_action_->setStatusTip(tr("Open preferences and visual settings."));
     }
+    if (act_manual_) {
+        act_manual_->setText(tr("&User manual..."));
+        act_manual_->setToolTip(tr("Open the user manual entry point."));
+        act_manual_->setStatusTip(tr("Open the user manual placeholder."));
+    }
     if (act_about_) {
         act_about_->setText(tr("&About"));
         act_about_->setToolTip(tr("Show application information and supported features."));
@@ -3413,13 +3488,61 @@ void MainWindow::retranslate_ui() {
 
     // Status bar button
     if (settings_btn_) {
-        settings_btn_->setText(QStringLiteral("\u2699 ") + tr("Settings"));
         settings_btn_->setToolTip(tr("Open application settings"));
         settings_btn_->setStatusTip(tr("Open preferences and visual settings."));
     }
 
     // Refresh dynamic status-bar and workspace meta labels
     refresh_status();
+}
+
+void MainWindow::register_svg_icon(QAction* action, const QString& resource_path) {
+    if (action == nullptr || resource_path.isEmpty()) {
+        return;
+    }
+    svg_action_icons_.push_back({action, resource_path});
+}
+
+void MainWindow::register_svg_icon(QAbstractButton* button, const QString& resource_path) {
+    if (button == nullptr || resource_path.isEmpty()) {
+        return;
+    }
+    svg_button_icons_.push_back({button, resource_path});
+}
+
+bool MainWindow::use_light_svg_icons() const {
+    const AppTheme theme = theme_from_string(visual_settings_.theme);
+    if (theme == AppTheme::Dark) {
+        return true;
+    }
+    if (theme == AppTheme::Light) {
+        return false;
+    }
+
+    const QColor window_color = qApp->palette().color(QPalette::Window);
+    const double luminance =
+        0.299 * window_color.redF() + 0.587 * window_color.greenF() + 0.114 * window_color.blueF();
+    return luminance < 0.5;
+}
+
+void MainWindow::refresh_registered_svg_icons() {
+    const SvgIconMode mode =
+        use_light_svg_icons() ? SvgIconMode::LightMonochrome : SvgIconMode::Original;
+    const QColor tint = visual_settings_.highContrastMode
+        ? QColor(255, 255, 255)
+        : QColor(245, 245, 245);
+
+    for (const SvgActionIconBinding& binding : svg_action_icons_) {
+        if (binding.action != nullptr) {
+            binding.action->setIcon(load_svg_icon(binding.resource_path, mode, tint));
+        }
+    }
+
+    for (const SvgButtonIconBinding& binding : svg_button_icons_) {
+        if (binding.button != nullptr) {
+            binding.button->setIcon(load_svg_icon(binding.resource_path, mode, tint));
+        }
+    }
 }
 
 void MainWindow::load_persisted_settings() {
@@ -3501,6 +3624,9 @@ void MainWindow::apply_visual_settings(const lib_qt_custom_widgets::AppSettings&
     }
 
     visual_settings_ = settings;
+    if (force_apply || style_changed) {
+        refresh_registered_svg_icons();
+    }
 }
 
 void MainWindow::apply_density(const QString& density) {

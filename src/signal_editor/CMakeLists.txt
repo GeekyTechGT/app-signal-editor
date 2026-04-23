@@ -67,14 +67,18 @@ configure_file(
 # signal_editor — Qt adapter (only built when GUI is enabled)
 # =============================================================================
 if(SIGNAL_EDITOR_BUILD_GUI)
-    find_package(Qt6 REQUIRED COMPONENTS Widgets)
+    find_package(Qt6 REQUIRED COMPONENTS Widgets Svg)
 
     set(CMAKE_AUTOMOC ON)
     set(CMAKE_AUTORCC ON)
 
     add_library(signal_editor_qt STATIC
+        adapters/qt/branding.cpp
+        adapters/qt/branding.h
         adapters/qt/file_list_panel.cpp
         adapters/qt/file_list_panel.h
+        adapters/qt/icon_theme.cpp
+        adapters/qt/icon_theme.h
         adapters/qt/main_window.cpp
         adapters/qt/main_window.h
         adapters/qt/signal_list_panel.cpp
@@ -97,6 +101,7 @@ if(SIGNAL_EDITOR_BUILD_GUI)
     target_link_libraries(signal_editor_qt
         PUBLIC
             signal_editor_core
+            Qt6::Svg
             Qt6::Widgets
     )
 

@@ -13,6 +13,7 @@
 #include <vector>
 
 class QAction;
+class QAbstractButton;
 class QComboBox;
 class QCloseEvent;
 class QLineEdit;
@@ -136,6 +137,7 @@ private slots:
     void onNewSignal();
     void onRemoveSignal();
     void onRenameSignal();
+    void onOpenManualPlaceholder();
     void onAbout();
     void onOpenSettings();
 
@@ -270,6 +272,7 @@ private:
     QAction* act_save_{nullptr};
     QAction* act_quit_{nullptr};
     QAction* act_export_plot_{nullptr};
+    QAction* act_manual_{nullptr};
     QAction* act_new_{nullptr};
     QAction* act_remove_{nullptr};
     QAction* act_about_{nullptr};
@@ -280,6 +283,19 @@ private:
     // Status bar settings button (kept in the permanent area so status
     // messages do not cover it).
     QToolButton* settings_btn_{nullptr};
+
+    struct SvgActionIconBinding {
+        QAction* action{nullptr};
+        QString resource_path;
+    };
+
+    struct SvgButtonIconBinding {
+        QAbstractButton* button{nullptr};
+        QString resource_path;
+    };
+
+    std::vector<SvgActionIconBinding> svg_action_icons_;
+    std::vector<SvgButtonIconBinding> svg_button_icons_;
 
     // Current application settings restored from and persisted to the versioned
     // QSettings namespace.
@@ -354,6 +370,14 @@ private:
     void show_error(const QString& title, const QString& message);
     /** @brief Retranslates all window-owned UI strings after a language change. */
     void retranslate_ui();
+    /** @brief Registers an action icon that must react to theme changes. */
+    void register_svg_icon(QAction* action, const QString& resource_path);
+    /** @brief Registers a button icon that must react to theme changes. */
+    void register_svg_icon(QAbstractButton* button, const QString& resource_path);
+    /** @brief Reapplies themed SVG icons after a visual theme change. */
+    void refresh_registered_svg_icons();
+    /** @brief Returns whether toolbar icons should switch to the light variant. */
+    [[nodiscard]] bool use_light_svg_icons() const;
     /** @brief Restores persisted geometry and visual settings from QSettings. */
     void load_persisted_settings();
     /** @brief Persists the current UI settings and window state. */

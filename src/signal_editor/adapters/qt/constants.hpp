@@ -25,8 +25,12 @@ inline constexpr auto kAppId = SIGNAL_EDITOR_UI_APP_ID;
 inline constexpr auto kDisplayName = "Signal Editor";
 /** @brief Company name exposed to Qt metadata and branded UI elements. */
 inline constexpr auto kCompanyName = "GeekyTech";
-/** @brief Default application icon embedded in the Qt resource collection. */
-inline constexpr auto kLogoResourcePath = ":/img/app_logo.png";
+/** @brief Branded logo embedded in the Qt resource collection for splash/about surfaces. */
+inline constexpr auto kLogoResourcePath = ":/img/app_logo.svg";
+/** @brief Application icon source embedded in the Qt resource collection. */
+inline constexpr auto kWindowIconResourcePath = ":/img/app_logo.svg";
+/** @brief Splash screen stylesheet embedded in the Qt resource collection. */
+inline constexpr auto kSplashStylesheetResourcePath = ":/themes/splash_screen.qss";
 /** @brief Directory name used when loading translation catalogs from disk. */
 inline constexpr auto kTranslationsDirName = "translations";
 /** @brief Translation basename prefix shared by packaged `.qm` catalogs. */
@@ -77,9 +81,19 @@ inline QString company_name() {
     return QString::fromUtf8(kCompanyName);
 }
 
-/** @brief Returns the packaged icon resource path. */
+/** @brief Returns the packaged logo resource path. */
 inline QString logo_resource_path() {
     return QString::fromUtf8(kLogoResourcePath);
+}
+
+/** @brief Returns the packaged application icon resource path. */
+inline QString window_icon_resource_path() {
+    return QString::fromUtf8(kWindowIconResourcePath);
+}
+
+/** @brief Returns the packaged splash screen stylesheet resource path. */
+inline QString splash_stylesheet_resource_path() {
+    return QString::fromUtf8(kSplashStylesheetResourcePath);
 }
 
 /** @brief Returns the on-disk translations directory name. */

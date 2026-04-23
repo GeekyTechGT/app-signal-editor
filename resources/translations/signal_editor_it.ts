@@ -805,16 +805,28 @@ FALSO:0</translation>
 <context>
     <name>FileListPanel</name>
     <message>
+        <source>Delete files</source>
+        <translation>Elimina file</translation>
+    </message>
+    <message>
+        <source>Open file</source>
+        <translation>Apri file</translation>
+    </message>
+    <message>
+        <source>Reload from disk</source>
+        <translation>Ricarica da disco</translation>
+    </message>
+    <message>
         <source>Rename</source>
         <translation>Rinomina</translation>
     </message>
     <message>
-        <source>Details</source>
-        <translation>Dettagli</translation>
+        <source>Options</source>
+        <translation>Opzioni</translation>
     </message>
     <message>
-        <source>Remove file from workspace</source>
-        <translation>Rimuovi file dall&apos;area di lavoro</translation>
+        <source>Delete file</source>
+        <translation>Elimina file</translation>
     </message>
     <message>
         <source>Files</source>
@@ -829,16 +841,16 @@ FALSO:0</translation>
         <translation>Riepilogo rapido dei file caricati e delle modifiche in sospeso.</translation>
     </message>
     <message>
-        <source>Shows details for the currently selected workspace file.</source>
-        <translation>Mostra i dettagli del file dell&apos;area di lavoro attualmente selezionato.</translation>
+        <source>Shows details and sheet options for the currently selected workspace file.</source>
+        <translation>Mostra dettagli e opzioni dei fogli per il file dell&apos;area di lavoro attualmente selezionato.</translation>
     </message>
     <message>
-        <source>Select a file to make it active. Double-click a name to rename it.</source>
-        <translation>Seleziona un file per renderlo attivo. Fai doppio clic sul nome per rinominarlo.</translation>
+        <source>Single click selects files. Double-click or use the context menu to open one file. Use Ctrl+click for multi-select.</source>
+        <translation>Un clic seleziona i file. Fai doppio clic o usa il menu contestuale per aprirne uno. Usa Ctrl+clic per la selezione multipla.</translation>
     </message>
     <message>
-        <source>No CSV loaded yet</source>
-        <translation>Nessun CSV caricato</translation>
+        <source>No signal file loaded yet</source>
+        <translation>Nessun file segnale caricato</translation>
     </message>
     <message>
         <source>Open files or drop them into the workspace.</source>
@@ -849,14 +861,30 @@ FALSO:0</translation>
         <translation>%1 file nell&apos;area di lavoro, %2 modificati</translation>
     </message>
     <message>
-        <source>Active file: %1
-%2</source>
-        <translation>File attivo: %1
-%2</translation>
+        <source>No file opened</source>
+        <translation>Nessun file aperto</translation>
     </message>
     <message>
-        <source>Select a file to inspect its source path and workspace status.</source>
-        <translation>Seleziona un file per ispezionarne il percorso sorgente e lo stato nell&apos;area di lavoro.</translation>
+        <source>Opened file: %1</source>
+        <translation>File aperto: %1</translation>
+    </message>
+    <message>
+        <source>%1
+Selected file: %2
+Selected files: %3
+%4
+Undo restores workspace edits; reload restores the file from disk.</source>
+        <translation>%1
+File selezionato: %2
+File selezionati: %3
+%4
+Annulla ripristina le modifiche dell&apos;area di lavoro; ricarica ripristina il file da disco.</translation>
+    </message>
+    <message>
+        <source>%1
+Select a file to inspect its source path and workspace status.</source>
+        <translation>%1
+Seleziona un file per ispezionarne il percorso sorgente e lo stato nell&apos;area di lavoro.</translation>
     </message>
 </context>
 <context>

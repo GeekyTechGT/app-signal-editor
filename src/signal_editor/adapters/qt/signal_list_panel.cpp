@@ -43,6 +43,14 @@ enum ItemRole : int {
     StoredNameRole,
 };
 
+QColor contrast_text_color(const QColor& background) {
+    const double luminance =
+        0.299 * background.redF() +
+        0.587 * background.greenF() +
+        0.114 * background.blueF();
+    return luminance > 0.55 ? QColor(18, 24, 32) : QColor(245, 248, 251);
+}
+
 class SignalListItemDelegate final : public QStyledItemDelegate {
 public:
     explicit SignalListItemDelegate(QObject* parent = nullptr)
@@ -65,8 +73,10 @@ public:
 
         QRectF card = opt.rect.adjusted(4, 4, -4, -4);
         QColor fill = opt.palette.base().color();
+        QColor text_color = opt.palette.text().color();
         if (opt.state.testFlag(QStyle::State_Selected)) {
-            fill = opt.palette.highlight().color().lighter(182);
+            fill = opt.palette.highlight().color();
+            text_color = contrast_text_color(fill);
         } else if (opt.features.testFlag(QStyleOptionViewItem::Alternate)) {
             fill = opt.palette.alternateBase().color();
         }
@@ -116,7 +126,7 @@ public:
             painter->drawText(badge_rect, Qt::AlignCenter, badge_text);
         }
 
-        painter->setPen(opt.palette.text().color());
+        painter->setPen(text_color);
         painter->setFont(text_font);
         painter->drawText(text_rect,
                           Qt::AlignVCenter | Qt::AlignLeft,
