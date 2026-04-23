@@ -247,3 +247,21 @@ TEST(XlsxSignalRepositoryTest, LoadRealFixtureWorkbook) {
     EXPECT_EQ(workbook.sheets[0].library.at(0).name(), "engine_speed_rpm");
     EXPECT_EQ(workbook.sheets[1].library.at(1).name(), "gear_state");
 }
+
+TEST(XlsxSignalRepositoryTest, LoadEditedFixtureWorkbook) {
+    if (!xlsx_supported()) {
+        GTEST_SKIP() << "Native XLSX support is not available in this build";
+    }
+
+    XlsxSignalRepository repository;
+    const auto workbook =
+        repository.load_workbook(source_data_path("tests/01.data/sample_automotive_signals_2_tab_new.xlsx"));
+
+    ASSERT_EQ(workbook.sheets.size(), 2u);
+    EXPECT_EQ(workbook.sheets[0].name, "INPUT_1");
+    EXPECT_EQ(workbook.sheets[1].name, "INPUT_2");
+    EXPECT_EQ(workbook.sheets[0].library.at(4).name(), "new_signal");
+    EXPECT_EQ(workbook.sheets[0].library.at(4).size(), 6u);
+    EXPECT_EQ(workbook.sheets[0].library.at(4).samples()[3].t, 0.3);
+    EXPECT_EQ(workbook.sheets[0].library.at(4).samples()[4].t, 0.4);
+}

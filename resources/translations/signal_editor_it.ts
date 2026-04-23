@@ -371,6 +371,104 @@ Lo stato iniziale può essere lasciato vuoto per usare la prima voce della mappa
         <translation>Caricamento di %1 (%2/%3)...</translation>
     </message>
     <message>
+        <source>File: %1
+Path: %2
+
+Problem:
+%3</source>
+        <translation>File: %1
+Percorso: %2
+
+Problema:
+%3</translation>
+    </message>
+    <message>
+        <source>The reported row is %1. Compare that row with the previous data row.</source>
+        <translation>La riga segnalata è %1. Confronta quella riga con la riga dati precedente.</translation>
+    </message>
+    <message>
+        <source>Compare the reported row with the previous data row.</source>
+        <translation>Confronta la riga segnalata con la riga dati precedente.</translation>
+    </message>
+    <message>
+        <source>What this means:
+The time column must be strictly increasing. Every timestamp must be greater than the one before it.</source>
+        <translation>Cosa significa:
+La colonna time deve essere strettamente crescente. Ogni timestamp deve essere maggiore di quello precedente.</translation>
+    </message>
+    <message>
+        <source>Most likely cause:
+Two rows have the same time value, or a later row has a smaller time value than the row above it.</source>
+        <translation>Causa più probabile:
+Due righe hanno lo stesso valore di time, oppure una riga successiva ha un valore più piccolo della riga sopra.</translation>
+    </message>
+    <message>
+        <source>How to fix it:
+Open the file in Excel or another spreadsheet editor. %1 If the message mentions a sheet name, fix that sheet. Then save and reload the file.</source>
+        <translation>Come risolvere:
+Apri il file in Excel o in un altro editor di fogli di calcolo. %1 Se il messaggio indica il nome di un foglio, correggi quel foglio. Poi salva e ricarica il file.</translation>
+    </message>
+    <message>
+        <source>What this means:
+A value in the time column is not a number.</source>
+        <translation>Cosa significa:
+Un valore nella colonna time non è un numero.</translation>
+    </message>
+    <message>
+        <source>How to fix it:
+Check the reported row and replace text, empty cells, or formulas that do not produce a numeric timestamp.</source>
+        <translation>Come risolvere:
+Controlla la riga segnalata e sostituisci testo, celle vuote o formule che non producono un timestamp numerico.</translation>
+    </message>
+    <message>
+        <source>What this means:
+The importer could not find a required column named 'time' or 't'.</source>
+        <translation>Cosa significa:
+L'importer non ha trovato una colonna obbligatoria chiamata 'time' o 't'.</translation>
+    </message>
+    <message>
+        <source>How to fix it:
+Rename the timestamp column to 'time' or 't', then reload the file.</source>
+        <translation>Come risolvere:
+Rinomina la colonna dei timestamp in 'time' o 't', poi ricarica il file.</translation>
+    </message>
+    <message>
+        <source>What this means:
+One row has a different number of cells than the header row.</source>
+        <translation>Cosa significa:
+Una riga ha un numero di celle diverso dalla riga di intestazione.</translation>
+    </message>
+    <message>
+        <source>How to fix it:
+Check the reported row for missing or extra cells, then reload the file.</source>
+        <translation>Come risolvere:
+Controlla se nella riga segnalata mancano celle o ci sono celle extra, poi ricarica il file.</translation>
+    </message>
+    <message>
+        <source>Preparing signal generation...</source>
+        <translation>Preparazione generazione segnale...</translation>
+    </message>
+    <message>
+        <source>Preparing %1 samples...</source>
+        <translation>Preparazione di %1 campioni...</translation>
+    </message>
+    <message>
+        <source>Generating %1/%2 samples...</source>
+        <translation>Generazione di %1/%2 campioni...</translation>
+    </message>
+    <message>
+        <source>Finalizing signal...</source>
+        <translation>Finalizzazione segnale...</translation>
+    </message>
+    <message>
+        <source>Signal generation cancelled</source>
+        <translation>Generazione segnale annullata</translation>
+    </message>
+    <message>
+        <source>Signal generation did not produce any data.</source>
+        <translation>La generazione del segnale non ha prodotto dati.</translation>
+    </message>
+    <message>
         <source>Load cancelled</source>
         <translation>Caricamento annullato</translation>
     </message>
@@ -1047,8 +1145,8 @@ Seleziona un file per ispezionarne il percorso sorgente e lo stato nell&apos;are
         <translation>Valore del campione, oppure etichetta di stato per i segnali enumerati.</translation>
     </message>
     <message>
-        <source>Insert a new sample after the current table content.</source>
-        <translation>Inserisce un nuovo campione dopo il contenuto attuale della tabella.</translation>
+        <source>Insert a new sample near the selected row.</source>
+        <translation>Inserisce un nuovo campione vicino alla riga selezionata.</translation>
     </message>
     <message>
         <source>+ Sample</source>

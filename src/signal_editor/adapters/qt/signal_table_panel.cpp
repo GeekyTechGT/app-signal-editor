@@ -356,26 +356,34 @@ void SignalTablePanel::onAddClicked() {
 
     emit editStarted();
 
-    const int insert_row = table_->rowCount();
+    const int selected_row = table_->currentRow();
+    const bool insert_before_selected =
+        is_row_display_truncated() &&
+        selected_row >= 0 &&
+        selected_row + 1 >= table_->rowCount();
+    const int insert_row = selected_row >= 0
+        ? (insert_before_selected ? selected_row : std::min(selected_row + 1, table_->rowCount()))
+        : table_->rowCount();
     const int edit_column = active_value_column() > 0 ? active_value_column() : 0;
+    const double insert_time = default_insert_time();
+    const double insert_value = default_insert_value();
 
     suppress_item_changed_ = true;
     table_->insertRow(insert_row);
     set_row_values(insert_row);
     auto* time_item = table_->item(insert_row, 0);
     if (time_item != nullptr) {
-        time_item->setData(Qt::EditRole, default_insert_time());
+        time_item->setData(Qt::EditRole, insert_time);
     }
     if (edit_column > 0) {
         auto* value_item = table_->item(insert_row, edit_column);
         if (value_item != nullptr) {
             const Signal* signal = active_signal();
-            const double value = default_insert_value();
             if (signal != nullptr && signal->is_enumerated()) {
                 value_item->setData(Qt::EditRole,
-                                    QString::fromStdString(signal->label_for_value(value)));
+                                    QString::fromStdString(signal->label_for_value(insert_value)));
             } else {
-                value_item->setData(Qt::EditRole, value);
+                value_item->setData(Qt::EditRole, insert_value);
             }
         }
     }
@@ -385,7 +393,7 @@ void SignalTablePanel::onAddClicked() {
     table_->setCurrentCell(insert_row, edit_column);
     table_->scrollToItem(table_->item(insert_row, edit_column), QAbstractItemView::PositionAtCenter);
     remove_button_->setEnabled(true);
-    emit sampleInserted(default_insert_time(), default_insert_value());
+    emit sampleInserted(insert_time, insert_value);
     emit contentChanged();
 
     QTimer::singleShot(0, this, [this, insert_row, edit_column]() {
@@ -507,7 +515,7 @@ void SignalTablePanel::retranslate_ui() {
     }
     if (add_button_ != nullptr) {
         add_button_->setText(tr("+ Sample"));
-        add_button_->setToolTip(tr("Insert a new sample after the current table content."));
+        add_button_->setToolTip(tr("Insert a new sample near the selected row."));
         add_button_->setStatusTip(tr("Add a new sample row."));
     }
     if (remove_button_ != nullptr) {
@@ -624,6 +632,35 @@ double SignalTablePanel::default_insert_time() const {
     }
 
     const auto& signal_samples = signal->samples();
+    const int current_row = table_ == nullptr ? -1 : table_->currentRow();
+    if (current_row >= 0 &&
+        static_cast<std::size_t>(current_row) < signal_samples.size()) {
+        const std::size_t current_index = static_cast<std::size_t>(current_row);
+        const double current_time = signal_samples[current_index].t;
+        if (is_row_display_truncated() &&
+            current_row + 1 >= displayed_row_count_ &&
+            current_index > 0U) {
+            const double prev_time = signal_samples[current_index - 1U].t;
+            if (current_time > prev_time + 1e-9) {
+                return prev_time + (current_time - prev_time) * 0.5;
+            }
+        }
+        if (current_index + 1U < signal_samples.size()) {
+            const double next_time = signal_samples[current_index + 1U].t;
+            if (next_time > current_time + 1e-9) {
+                return current_time + (next_time - current_time) * 0.5;
+            }
+        }
+        if (current_index > 0U) {
+            const double prev_time = signal_samples[current_index - 1U].t;
+            const double step = std::fabs(current_time - prev_time) > 1e-9
+                ? current_time - prev_time
+                : 1.0;
+            return current_time + step;
+        }
+        return current_time + 1.0;
+    }
+
     if (signal_samples.size() >= 2) {
         const double last = signal_samples.back().t;
         const double prev = signal_samples[signal_samples.size() - 2].t;
@@ -638,6 +675,12 @@ double SignalTablePanel::default_insert_value() const {
     const Signal* signal = active_signal();
     if (signal == nullptr) {
         return 0.0;
+    }
+
+    const int current_row = table_ == nullptr ? -1 : table_->currentRow();
+    if (current_row >= 0 &&
+        static_cast<std::size_t>(current_row) < signal->samples().size()) {
+        return signal->samples()[static_cast<std::size_t>(current_row)].y;
     }
 
     if (signal->is_enumerated() && !signal->enumeration().empty()) {

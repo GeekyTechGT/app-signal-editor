@@ -401,7 +401,11 @@ WorkbookDocument load_xlsx_workbook(const std::filesystem::path& source) {
                 metadata = parse_metadata_rows(rows);
                 continue;
             }
-            workbook.sheets.push_back(WorkbookSheet{name, tabular_rows::rows_to_library(rows)});
+            try {
+                workbook.sheets.push_back(WorkbookSheet{name, tabular_rows::rows_to_library(rows)});
+            } catch (const std::exception& ex) {
+                throw std::runtime_error("Sheet '" + name + "': " + ex.what());
+            }
         }
         zip_close(archive);
 

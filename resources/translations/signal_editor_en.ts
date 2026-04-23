@@ -371,6 +371,104 @@ The initial state can be left empty to use the first mapping entry.</translation
         <translation>Loading %1 (%2/%3)...</translation>
     </message>
     <message>
+        <source>File: %1
+Path: %2
+
+Problem:
+%3</source>
+        <translation>File: %1
+Path: %2
+
+Problem:
+%3</translation>
+    </message>
+    <message>
+        <source>The reported row is %1. Compare that row with the previous data row.</source>
+        <translation>The reported row is %1. Compare that row with the previous data row.</translation>
+    </message>
+    <message>
+        <source>Compare the reported row with the previous data row.</source>
+        <translation>Compare the reported row with the previous data row.</translation>
+    </message>
+    <message>
+        <source>What this means:
+The time column must be strictly increasing. Every timestamp must be greater than the one before it.</source>
+        <translation>What this means:
+The time column must be strictly increasing. Every timestamp must be greater than the one before it.</translation>
+    </message>
+    <message>
+        <source>Most likely cause:
+Two rows have the same time value, or a later row has a smaller time value than the row above it.</source>
+        <translation>Most likely cause:
+Two rows have the same time value, or a later row has a smaller time value than the row above it.</translation>
+    </message>
+    <message>
+        <source>How to fix it:
+Open the file in Excel or another spreadsheet editor. %1 If the message mentions a sheet name, fix that sheet. Then save and reload the file.</source>
+        <translation>How to fix it:
+Open the file in Excel or another spreadsheet editor. %1 If the message mentions a sheet name, fix that sheet. Then save and reload the file.</translation>
+    </message>
+    <message>
+        <source>What this means:
+A value in the time column is not a number.</source>
+        <translation>What this means:
+A value in the time column is not a number.</translation>
+    </message>
+    <message>
+        <source>How to fix it:
+Check the reported row and replace text, empty cells, or formulas that do not produce a numeric timestamp.</source>
+        <translation>How to fix it:
+Check the reported row and replace text, empty cells, or formulas that do not produce a numeric timestamp.</translation>
+    </message>
+    <message>
+        <source>What this means:
+The importer could not find a required column named 'time' or 't'.</source>
+        <translation>What this means:
+The importer could not find a required column named 'time' or 't'.</translation>
+    </message>
+    <message>
+        <source>How to fix it:
+Rename the timestamp column to 'time' or 't', then reload the file.</source>
+        <translation>How to fix it:
+Rename the timestamp column to 'time' or 't', then reload the file.</translation>
+    </message>
+    <message>
+        <source>What this means:
+One row has a different number of cells than the header row.</source>
+        <translation>What this means:
+One row has a different number of cells than the header row.</translation>
+    </message>
+    <message>
+        <source>How to fix it:
+Check the reported row for missing or extra cells, then reload the file.</source>
+        <translation>How to fix it:
+Check the reported row for missing or extra cells, then reload the file.</translation>
+    </message>
+    <message>
+        <source>Preparing signal generation...</source>
+        <translation>Preparing signal generation...</translation>
+    </message>
+    <message>
+        <source>Preparing %1 samples...</source>
+        <translation>Preparing %1 samples...</translation>
+    </message>
+    <message>
+        <source>Generating %1/%2 samples...</source>
+        <translation>Generating %1/%2 samples...</translation>
+    </message>
+    <message>
+        <source>Finalizing signal...</source>
+        <translation>Finalizing signal...</translation>
+    </message>
+    <message>
+        <source>Signal generation cancelled</source>
+        <translation>Signal generation cancelled</translation>
+    </message>
+    <message>
+        <source>Signal generation did not produce any data.</source>
+        <translation>Signal generation did not produce any data.</translation>
+    </message>
+    <message>
         <source>Load cancelled</source>
         <translation>Load cancelled</translation>
     </message>
@@ -1019,8 +1117,8 @@ FALSE:0</translation>
         <translation>Sample value, or state label for enumerated signals.</translation>
     </message>
     <message>
-        <source>Insert a new sample after the current table content.</source>
-        <translation>Insert a new sample after the current table content.</translation>
+        <source>Insert a new sample near the selected row.</source>
+        <translation>Insert a new sample near the selected row.</translation>
     </message>
     <message>
         <source>+ Sample</source>

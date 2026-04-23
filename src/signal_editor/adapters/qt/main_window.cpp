@@ -75,6 +75,7 @@
 #include <filesystem>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <utility>
 
@@ -338,6 +339,53 @@ QStringList translation_candidates(const QString& app_dir,
         QStringLiteral("translations/%1.qm").arg(translation_base)));
     add_candidate(current_dir.filePath(QStringLiteral("%1.qm").arg(translation_base)));
     return candidates;
+}
+
+QString format_load_failure_message(const QString& path, const QString& parser_message) {
+    const QFileInfo file_info(path);
+    QString message = tr("File: %1\nPath: %2\n\nProblem:\n%3")
+                          .arg(file_info.fileName(), file_info.absoluteFilePath(), parser_message);
+
+    const QString lower_message = parser_message.toLower();
+    if (lower_message.contains(QStringLiteral("time column is not strictly increasing"))) {
+        const QRegularExpression row_expression(QStringLiteral(R"(row\s+(\d+))"),
+                                                QRegularExpression::CaseInsensitiveOption);
+        const QRegularExpressionMatch row_match = row_expression.match(parser_message);
+        const QString row_hint = row_match.hasMatch()
+            ? tr("The reported row is %1. Compare that row with the previous data row.")
+                  .arg(row_match.captured(1))
+            : tr("Compare the reported row with the previous data row.");
+
+        message += QStringLiteral("\n\n");
+        message += tr("What this means:\nThe time column must be strictly increasing. "
+                      "Every timestamp must be greater than the one before it.");
+        message += QStringLiteral("\n\n");
+        message += tr("Most likely cause:\nTwo rows have the same time value, or a later row "
+                      "has a smaller time value than the row above it.");
+        message += QStringLiteral("\n\n");
+        message += tr("How to fix it:\nOpen the file in Excel or another spreadsheet editor. "
+                      "%1 If the message mentions a sheet name, fix that sheet. Then save and reload the file.")
+                       .arg(row_hint);
+    } else if (lower_message.contains(QStringLiteral("non-numeric time"))) {
+        message += QStringLiteral("\n\n");
+        message += tr("What this means:\nA value in the time column is not a number.");
+        message += QStringLiteral("\n\n");
+        message += tr("How to fix it:\nCheck the reported row and replace text, empty cells, "
+                      "or formulas that do not produce a numeric timestamp.");
+    } else if (lower_message.contains(QStringLiteral("missing required time column"))) {
+        message += QStringLiteral("\n\n");
+        message += tr("What this means:\nThe importer could not find a required column named "
+                      "'time' or 't'.");
+        message += QStringLiteral("\n\n");
+        message += tr("How to fix it:\nRename the timestamp column to 'time' or 't', then reload the file.");
+    } else if (lower_message.contains(QStringLiteral("inconsistent column count"))) {
+        message += QStringLiteral("\n\n");
+        message += tr("What this means:\nOne row has a different number of cells than the header row.");
+        message += QStringLiteral("\n\n");
+        message += tr("How to fix it:\nCheck the reported row for missing or extra cells, then reload the file.");
+    }
+
+    return message;
 }
 
 enum class WaveformKind {
@@ -2182,41 +2230,105 @@ void MainWindow::onAddRequested() {
     try {
         const std::size_t sample_count =
             compute_sample_count(t_start->value(), t_end->value(), sampling_time);
+        const double start_time = t_start->value();
+        const double end_time = t_end->value();
+        const auto enumeration = waveform == WaveformKind::Enumerated
+            ? parse_enumeration_definition(enum_mapping->toPlainText())
+            : std::vector<Signal::EnumerationEntry>{};
+        const QString initial_enum_label = enum_initial_label->text();
+
         QProgressDialog progress_dialog(
-            tr("Generating %1 samples...").arg(static_cast<qulonglong>(sample_count)),
+            tr("Preparing %1 samples...")
+                .arg(static_cast<qulonglong>(sample_count)),
             tr("Cancel"),
             0,
             1000,
             this);
         apply_application_icon(&progress_dialog);
         progress_dialog.setWindowModality(Qt::ApplicationModal);
-        progress_dialog.setMinimumDuration(sample_count > 250'000U ? 0 : 1000);
+        progress_dialog.setAutoClose(false);
+        progress_dialog.setAutoReset(false);
+        progress_dialog.setMinimumDuration(0);
         progress_dialog.setValue(0);
+        progress_dialog.show();
+        QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
 
-        const GenerationProgress progress = [&progress_dialog](std::size_t completed,
-                                                               std::size_t total) {
-            const int value = total == 0U
-                ? 0
-                : static_cast<int>((static_cast<unsigned long long>(completed) * 1000ULL) /
-                                   static_cast<unsigned long long>(total));
-            progress_dialog.setValue(std::clamp(value, 0, 1000));
-            QApplication::processEvents(QEventLoop::AllEvents, 50);
-            return !progress_dialog.wasCanceled();
-        };
+        auto cancelled = std::make_shared<std::atomic_bool>(false);
+        connect(&progress_dialog, &QProgressDialog::canceled, this, [cancelled]() {
+            cancelled->store(true);
+        });
 
-        Signal signal = waveform == WaveformKind::Enumerated
-            ? generate_enumerated_signal(signal_name,
-                                         t_start->value(), t_end->value(),
-                                         sampling_time,
-                                         parse_enumeration_definition(enum_mapping->toPlainText()),
-                                         enum_initial_label->text(),
-                                         progress)
-            : generate_waveform_signal(waveform, signal_name,
-                                       t_start->value(), t_end->value(),
-                                       sampling_time,
-                                       params_a, params_b,
-                                       progress);
+        auto generated_signal = std::make_shared<std::optional<Signal>>();
+        auto generation_error = std::make_shared<QString>();
+        QPointer<QProgressDialog> progress_guard(&progress_dialog);
+        QPointer<MainWindow> window_guard(this);
+        QEventLoop generation_loop;
+
+        QThread* worker = QThread::create([=]() {
+            const GenerationProgress progress =
+                [progress_guard, window_guard, cancelled](std::size_t completed,
+                                                          std::size_t total) {
+                    if (cancelled->load()) {
+                        return false;
+                    }
+                    const int value = total == 0U
+                        ? 0
+                        : static_cast<int>((static_cast<unsigned long long>(completed) * 1000ULL) /
+                                           static_cast<unsigned long long>(total));
+                    if (window_guard != nullptr) {
+                        QMetaObject::invokeMethod(window_guard, [progress_guard, completed, total, value]() {
+                            if (progress_guard == nullptr) {
+                                return;
+                            }
+                            progress_guard->setLabelText(
+                                tr("Generating %1/%2 samples...")
+                                    .arg(static_cast<qulonglong>(completed))
+                                    .arg(static_cast<qulonglong>(total)));
+                            progress_guard->setValue(std::clamp(value, 0, 1000));
+                        }, Qt::QueuedConnection);
+                    }
+                    return !cancelled->load();
+                };
+
+            try {
+                *generated_signal = waveform == WaveformKind::Enumerated
+                    ? generate_enumerated_signal(signal_name,
+                                                 start_time, end_time,
+                                                 sampling_time,
+                                                 enumeration,
+                                                 initial_enum_label,
+                                                 progress)
+                    : generate_waveform_signal(waveform, signal_name,
+                                               start_time, end_time,
+                                               sampling_time,
+                                               params_a, params_b,
+                                               progress);
+            } catch (const std::exception& ex) {
+                *generation_error = QString::fromStdString(ex.what());
+            }
+        });
+        connect(worker, &QThread::finished, &generation_loop, &QEventLoop::quit);
+        connect(worker, &QThread::finished, worker, &QObject::deleteLater);
+        worker->start();
+        generation_loop.exec();
+
+        if (cancelled->load()) {
+            statusBar()->showMessage(tr("Signal generation cancelled"), 3000);
+            return;
+        }
+        if (!generation_error->isEmpty()) {
+            show_error(tr("Create failed"), *generation_error);
+            return;
+        }
+        if (!generated_signal->has_value()) {
+            show_error(tr("Create failed"), tr("Signal generation did not produce any data."));
+            return;
+        }
+        progress_dialog.setLabelText(tr("Finalizing signal..."));
         progress_dialog.setValue(1000);
+        QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+
+        Signal signal = std::move(**generated_signal);
 
         if (ensure_workspace_document() < 0) {
             show_error(tr("Create failed"),
@@ -2240,6 +2352,7 @@ void MainWindow::onAddRequested() {
         list_panel_->refresh();
         list_panel_->select(static_cast<int>(service_.library().size()) - 1);
         rebind_plot();
+        progress_dialog.close();
     } catch (const std::exception& ex) {
         show_error(tr("Create failed"), QString::fromStdString(ex.what()));
     }
@@ -2614,7 +2727,8 @@ void MainWindow::open_paths(const QStringList& paths) {
         normalized_paths.size(),
         this);
     apply_application_icon(progress);
-    progress->setWindowModality(Qt::ApplicationModal);
+    progress->setModal(false);
+    progress->setWindowModality(Qt::NonModal);
     progress->setMinimumDuration(0);
     progress->setAutoClose(false);
     progress->setAutoReset(false);
@@ -2734,7 +2848,7 @@ void MainWindow::apply_loaded_documents(AsyncLoadResult result) {
     if (result.loaded.empty()) {
         for (const auto& failure : result.failed) {
             show_error(tr("Load failed"),
-                       QStringLiteral("%1\n\n%2").arg(failure.path, failure.message));
+                       format_load_failure_message(failure.path, failure.message));
         }
         refresh_status(result.failed.empty() ? tr("Load cancelled") : tr("No files loaded"));
         return;
@@ -2758,7 +2872,7 @@ void MainWindow::apply_loaded_documents(AsyncLoadResult result) {
                            .arg(result.failed.size()));
         for (const auto& failure : result.failed) {
             show_error(tr("Load failed"),
-                       QStringLiteral("%1\n\n%2").arg(failure.path, failure.message));
+                       format_load_failure_message(failure.path, failure.message));
         }
     }
 
