@@ -65,9 +65,11 @@ Signal Editor now ships with two complementary documentation layers:
 
 - API-oriented English Doxygen comments in the main public headers
 - narrative developer documentation in [`docs/`](docs)
+- an end-user manual intended to be exported to PDF and shipped with the GUI help system
 
 Recommended entry points for contributors:
 
+- [`docs/user/user_manual.md`](docs/user/user_manual.md)
 - [`docs/architecture/architecture_overview.md`](docs/architecture/architecture_overview.md)
 - [`docs/developer/onboarding.md`](docs/developer/onboarding.md)
 - [`docs/developer/plot_subsystem.md`](docs/developer/plot_subsystem.md)
