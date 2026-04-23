@@ -23,6 +23,8 @@ If you are completely new to the codebase, read the following in order:
 4. [`src/signal_editor/adapters/qt/main_window.h`](../../src/signal_editor/adapters/qt/main_window.h)
 5. [`plot_subsystem.md`](plot_subsystem.md)
 6. [`workspace_and_selection.md`](workspace_and_selection.md)
+7. [`lod_rendering.md`](lod_rendering.md)
+8. [`source_file_guide.md`](source_file_guide.md)
 
 ## Mental Model
 
@@ -88,6 +90,10 @@ Important classes:
 - `SignalListPanel`
 - `FileListPanel`
 
+If you need a file-by-file explanation, use
+[`source_file_guide.md`](source_file_guide.md). It describes what each
+important source, CMake, resource, script, and test file contains.
+
 ## What `MainWindow` Actually Does
 
 New contributors often underestimate how much workspace coordination lives in
@@ -104,6 +110,8 @@ It is responsible for:
 - tracking which signal is currently active for editing
 - preserving plot zoom while list state changes
 - synchronizing widgets after edits
+- launching file imports on a worker thread while preserving a responsive main window
+- showing detailed import diagnostics when a file fails validation
 
 If a change affects more than one panel or mixes document state with widget
 state, `MainWindow` is usually the correct place to inspect first.
@@ -123,6 +131,9 @@ Contributors should preserve these invariants:
 - Enumerated signals are always step-interpolated by domain rule.
 - Workbook formats are sheet-aware in the UI even though the service edits one
   active `SignalLibrary` at a time.
+- Dense signals must not be rendered raw when the current zoom would map many
+  samples to one pixel. Use the LOD module instead.
+- Very large tables are previews, not full materializations of every sample.
 
 ## Common Feature Placement Guide
 
@@ -145,6 +156,8 @@ These areas deserve extra care during review:
 - undo and reload interactions
 - shared time-axis edits across multiple plotted signals
 - enumerated-signal remapping
+- worker-thread load/generation flows
+- LOD cache invalidation and visible-range rendering
 
 ## Good First Debugging Strategy
 

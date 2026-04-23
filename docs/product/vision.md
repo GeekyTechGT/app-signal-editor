@@ -28,6 +28,8 @@ The current product direction is intentionally practical rather than generic:
   numeric
 - persistence should round-trip workbook structure and enum metadata without
   turning the user-facing data sheets into application-specific clutter
+- dense signals should remain explorable without freezing the desktop
+- import errors should tell users what to fix, not only that parsing failed
 
 ## Target Users
 
@@ -61,6 +63,8 @@ That means the product should make it obvious:
 - which interpolation mode is in effect
 - whether the user is working in the plot or the sample table
 - whether the active document contains unsaved changes
+- whether a long-running load or generation operation is in progress
+- what went wrong when a file cannot be imported
 
 ## Non-Goals
 
@@ -81,5 +85,7 @@ The product is moving in the right direction when:
 - enumerated signals remain readable from import through export
 - workbook-oriented flows behave predictably across sheet switching, reload, and
   save
+- dense signals remain responsive during zooming and inspection
+- users can repair invalid input files from the information shown in the error dialog
 - new persistence or UI capabilities can be introduced without refactoring the domain model
 - documentation remains aligned with implementation rather than lagging behind it

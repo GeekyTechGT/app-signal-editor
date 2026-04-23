@@ -51,3 +51,5 @@ The Qt container also owns a meaningful amount of workspace orchestration:
 - active worksheet behavior for workbook formats
 - visible-signal versus active-signal behavior
 - reload clear-and-rebind flows that keep widgets from holding stale bindings
+- worker-thread file loading and user-facing import diagnostics
+- dense-signal plot rendering through the LOD helper module

@@ -54,5 +54,7 @@ Examples:
 
 - adding JSON or SpreadsheetML support: usually `MINOR`
 - fixing a parsing bug without changing the supported contract: usually `PATCH`
+- improving import diagnostics without changing accepted file semantics: usually `PATCH`
+- adding dense-signal LOD rendering while preserving signal data semantics: usually `MINOR`
 - changing the CSV metadata contract in a backward-incompatible way: likely `MAJOR`
 - reworking workspace navigation without breaking file semantics: usually `MINOR` or `PATCH`, depending on scope and release policy

@@ -57,6 +57,8 @@ From that it renders:
 - the active signal with stronger visual emphasis
 - sample handles for both active and non-active signals
 - overlay badges and cursor feedback
+- raw polylines when the visible range contains a manageable number of samples
+- min/max LOD envelopes when zoomed out over dense signals
 
 The plot must also handle the case where:
 
@@ -96,6 +98,18 @@ That split is intentional:
 If a feature changes when zoom should be preserved, modify the rebinding flow in
 `MainWindow` before modifying low-level plot code.
 
+## Dense-Signal Rendering
+
+Dense signal rendering is delegated to
+[`signal_lod_pyramid.h/.cpp`](../../src/signal_editor/adapters/qt/signal_lod_pyramid.h).
+The plot widget owns the visual decision of when to draw raw samples versus
+bucket envelopes, but the pyramid module owns the aggregation data structure.
+
+The key rule is that zoomed-out views should draw approximately viewport-sized
+work, not one primitive per original sample. This preserves responsiveness for
+signals with millions of samples while still showing spikes through min/max
+buckets.
+
 ## Editing Assumptions
 
 The active signal is the only signal directly editable in the plot.
@@ -118,6 +132,8 @@ The plot has historically been sensitive to:
 - sentinel indices for hovered/selected segments
 - losing zoom during rebinding
 - hidden-active-signal states
+- invalidating LOD caches when the library or visible signal set changes
+- accidentally drawing every raw sample when many samples fall into the same pixel
 
 When modifying the plot, always think in terms of event ordering and controller
 rebinding rather than only painting.

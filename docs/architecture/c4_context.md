@@ -39,6 +39,8 @@ Signal Editor provides:
   and active signal
 - workbook-aware editing for XML and XLSX documents
 - explicit handling of interpolation and enumerated state mappings
+- responsive dense-signal inspection through LOD rendering
+- actionable import diagnostics for common malformed input files
 - a maintainable implementation that separates domain logic from GUI concerns
 
 ## Constraints
@@ -48,3 +50,5 @@ Signal Editor provides:
 - keeps network concerns out of the core editing model
 - uses engineering-friendly interchange formats, including native `.xlsx`
   workbook support but not legacy `.xls`
+- operates on local files; long-running imports are local worker-thread tasks,
+  not remote services

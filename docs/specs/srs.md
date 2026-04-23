@@ -42,6 +42,9 @@ The current implementation scope includes:
 - reloading one file from disk without discarding the rest of the workspace
 - undoing modifications inside the active document context
 - restoring and saving UI settings in a version-scoped persistence store
+- rendering dense signals with level-of-detail aggregation
+- loading files on a worker thread while keeping the main window responsive
+- showing actionable import diagnostics for common malformed-file problems
 
 The following are out of scope for the current product line:
 
@@ -128,6 +131,12 @@ independent from the GUI framework.
 | FR-47 | The system shall export plot screenshots to common image formats through the GUI. |
 | FR-48 | The system shall surface document state, opened-file context, active signal context, and interaction status in the workspace shell. |
 | FR-49 | The system shall persist UI settings in a version-scoped namespace so saved preferences are isolated per application line. |
+| FR-50 | The system shall render dense plotted signals with LOD aggregation when the visible sample count is too high for raw rendering. |
+| FR-51 | The system shall preserve visible spikes in zoomed-out dense-signal views by using min/max aggregation rather than average-only downsampling. |
+| FR-52 | The system shall load user-selected files on a worker thread. |
+| FR-53 | The file-loading progress dialog shall not block normal main-window actions such as minimize, restore, or resize. |
+| FR-54 | The system shall show actionable diagnostics for common tabular import failures, including non-increasing time, non-numeric time, missing time columns, and inconsistent row width. |
+| FR-55 | XLSX worksheet validation failures shall include the worksheet name when available. |
 
 ## 4. Data Requirements
 
@@ -168,9 +177,11 @@ independent from the GUI framework.
 ### 4.2 Common Data Rules
 
 - decimal separator shall be `.`
-- time values are expected to be monotonically increasing inside a signal
-- table-driven sample insertion shall propose a timestamp greater than the
-  current last sample timestamp
+- imported time values are expected to be strictly increasing inside each tabular sheet
+- domain-level sample insertion may replace an existing timestamp when the edit
+  intentionally targets an existing sample
+- table-driven sample insertion shall propose a timestamp near the selected row
+  so the inserted sample remains visible even in large table previews
 - the shared editor model assumes a common time axis across signals inside one
   edited sheet
 - for tabular imports, a time column named `time` or `t` is required
@@ -224,6 +235,8 @@ independent from the GUI framework.
 | NFR-8 | Reload and workbook-sheet switching shall avoid stale widget bindings and stale pointers. |
 | NFR-9 | Documentation shall be updated when format semantics, workspace behavior, architecture, or persistence scope changes. |
 | NFR-10 | Automated tests shall cover core domain, service orchestration, and repository behavior where practical, including XLSX workbook handling. |
+| NFR-11 | Dense-signal plot rendering shall avoid drawing every raw sample when many samples map to one screen pixel. |
+| NFR-12 | Long-running file load operations shall not block the Qt event loop. |
 
 ## 7. Verification Strategy
 

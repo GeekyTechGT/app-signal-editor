@@ -31,6 +31,11 @@ Naming conventions in Signal Editor are intended to optimize:
 | Test | `test_<subject>.cpp` | `test_signal.cpp` |
 | Markdown document | lowercase words with underscores where appropriate | `architecture_overview.md` |
 
+When adding a source file, also consider whether
+[`docs/developer/source_file_guide.md`](../developer/source_file_guide.md)
+needs a short entry. That guide is intentionally file-oriented and should stay
+useful for new contributors.
+
 ## CMake Naming
 
 | Construct | Convention | Example |
@@ -51,6 +56,7 @@ Rules:
 - prefer titles that explain the document’s real role
 - keep architecture docs aligned with actual containers and components
 - keep public header comments aligned with the current implementation
+- keep file-by-file explanations aligned with the real source tree
 
 ## Commenting Conventions
 

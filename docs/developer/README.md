@@ -12,7 +12,14 @@ Recommended reading order:
 4. [Level-of-Detail Rendering](lod_rendering.md)
 5. [Filesystem and Persistence](filesystem_and_persistence.md)
 6. [Workbook and XLSX Notes](workbook_and_xlsx.md)
+7. [Source File Guide](source_file_guide.md)
 
 These documents complement the architecture material in
 [`docs/architecture/`](../architecture) and the API-oriented Doxygen comments in
 the main public headers.
+
+If you are new to C++ or to this repository, read the
+[Source File Guide](source_file_guide.md) whenever you see an unfamiliar file.
+It explains the responsibility and risk profile of the important files under
+`src/`, `apps/`, `cmake/`, `include/`, `resources/`, `scripts/`, and the main
+unit-test tree.

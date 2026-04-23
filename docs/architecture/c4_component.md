@@ -29,6 +29,9 @@
 │                                                                            │
 │      adapters/filesystem/WorkbookModel                                    │
 │          └──────────────> sheet-level persistence payload                 │
+│                                                                            │
+│      adapters/qt/SignalLodPyramid                                         │
+│          └──────────────> dense-signal min/max rendering support          │
 └────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -49,8 +52,14 @@
 | `XlsxSignalRepository` | `adapters/filesystem/xlsx_signal_repository.*` | Native XLSX workbook parsing and export semantics including dedicated metadata worksheet handling |
 | `TabularSignalRows` | `adapters/filesystem/tabular_signal_rows.*` | Shared row-model mapping used by tabular adapters after raw format decoding |
 | `WorkbookModel` | `adapters/filesystem/workbook_model.h` | Workbook-level payload that allows one file to carry multiple sheet-local libraries |
+| `SignalLodPyramid` | `adapters/qt/signal_lod_pyramid.*` | Min/max level-of-detail support used by the Qt plot for dense signals |
 | `signal_editor_api.h` | `api/signal_editor_api.h` | Public facade consumed by the application shell |
 
 ## Notes
 
-The GUI layer depends on these components indirectly through the service/API surface. The domain remains unaware of Qt widgets, dialogs, rendering concerns, and concrete file-format parsing details.
+The GUI layer depends on core components indirectly through the service/API surface. The domain remains unaware of Qt widgets, dialogs, rendering concerns, and concrete file-format parsing details.
+
+The LOD helper lives under the Qt adapter because it is currently a rendering
+optimization, not a domain concept. It is still separated from
+`SignalPlotWidget` so its bucket construction and level-selection behavior can
+be tested directly.

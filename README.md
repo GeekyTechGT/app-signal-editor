@@ -46,6 +46,9 @@ The project intentionally keeps the domain model independent from Qt so waveform
 - Interactive plot editing: drag waypoints, Shift+drag for Gaussian brushing
 - Plot navigation toolbar with zoom in/out, fit view, pan mode, and rectangle zoom mode
 - Table-first editing with one value column per visible signal
+- Scalable min/max level-of-detail rendering for dense signals
+- Worker-thread file loading with non-blocking progress feedback for large imports
+- Detailed import diagnostics for common tabular problems such as duplicate timestamps
 - Enumerated signal support with inferred and editable label/value mappings
 - Shared interpolation control (linear / step) across visible plotted signals
 - Signal generation for constant, sine, cosine, pulse, sawtooth, triangle, ramp, and enumerated patterns
@@ -76,6 +79,8 @@ Recommended entry points for contributors:
 - [`docs/developer/workspace_and_selection.md`](docs/developer/workspace_and_selection.md)
 - [`docs/developer/filesystem_and_persistence.md`](docs/developer/filesystem_and_persistence.md)
 - [`docs/developer/workbook_and_xlsx.md`](docs/developer/workbook_and_xlsx.md)
+- [`docs/developer/lod_rendering.md`](docs/developer/lod_rendering.md)
+- [`docs/developer/source_file_guide.md`](docs/developer/source_file_guide.md)
 - [`docs/specs/srs.md`](docs/specs/srs.md)
 
 The developer documents focus on how the code is actually structured today:
@@ -247,6 +252,7 @@ Format notes:
 - XLSX data worksheets remain plain tabular sheets with a `time` header and signal columns.
 - XLSX enumerated mappings are stored in a dedicated workbook sheet named `METADATA`.
 - `METADATA` stores `sheet`, `signal_name`, `enum_label`, and `enum_value`.
+- Import diagnostics explain common file-shape problems in user-facing language. When an XLSX sheet fails validation, the message includes the sheet name whenever possible.
 
 Enumerated signals are supported across all formats. When labels are present, the plot renders string state names on the Y axis instead of raw numeric values.
 
@@ -429,7 +435,11 @@ lrelease resources/translations/signal_editor_en.ts resources/translations/signa
 
 The table workflow is designed to keep sample insertion predictable rather than behaving like a generic spreadsheet.
 
-- **+ Sample** appends a new row at the end of the active signal
+- **+ Sample** inserts a new row near the selected row instead of blindly appending to the end
+- when the table is previewing only the first rows of a very large signal, insertion stays close to the visible selection so the user can see the new sample immediately
+- the default time value is chosen between neighboring samples when possible
+- the default `y(t)` value copies the selected sample value
+- the new row is selected immediately and opened in edit mode so the user can proceed without extra clicks
 
 ## Plot Navigation Behavior
 
@@ -443,9 +453,8 @@ The plot toolbar separates navigation actions from direct waveform editing.
 - visible range edits in `t start` / `t end` keep the plot synchronized with the toolbar state
 
 Plot rendering is clipped to the internal content rect so samples, handles, and fill areas stay inside plot bounds during normal view, zoom, and drag interactions.
-- the default time value is always greater than the last sample time
-- the default `y(t)` value copies the last sample value
-- the new row is selected immediately and opened in edit mode so the user can proceed without extra clicks
+
+For dense signals, the plot switches from raw point rendering to min/max LOD rendering. At close zoom levels the plot uses the original samples. At wider zoom levels it draws vertical min/max envelopes per visible bucket, preserving spikes without freezing the UI.
 
 ## Architecture
 
@@ -463,7 +472,7 @@ Layer responsibilities:
 |-------|------|------|
 | Domain | `src/signal_editor/core/domain/` | Signal, SignalLibrary, interpolation semantics, editing primitives, enumerated-state invariants |
 | Use Cases | `src/signal_editor/core/usecases/` | Load/save orchestration, signal replacement and removal, interpolation change coordination |
-| Ports | `src/signal_editor/core/ports/` | Repository abstractions consumed by use cases |
+| Ports | `src/signal_editor/ports/` | Repository abstractions consumed by use cases |
 | Filesystem adapters | `src/signal_editor/adapters/filesystem/` | Multi-format parsing, CSV metadata, JSON mapping, SpreadsheetML XML |
 | Qt adapters | `src/signal_editor/adapters/qt/` | Workspace shell, plot/table widgets, theme engine, dialogs |
 | API | `src/signal_editor/api/` | Composition-facing facade for executables |
@@ -510,6 +519,7 @@ signal-editor/
 - [docs/architecture/c4_context.md](docs/architecture/c4_context.md): system context view
 - [docs/architecture/c4_container.md](docs/architecture/c4_container.md): container-level breakdown
 - [docs/architecture/c4_component.md](docs/architecture/c4_component.md): component-level view
+- [docs/developer/source_file_guide.md](docs/developer/source_file_guide.md): file-by-file guide for contributors learning the source tree
 
 ## Testing
 

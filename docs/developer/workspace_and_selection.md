@@ -34,6 +34,10 @@ Important fields:
 This means widgets are not authoritative. They are views over that document
 state.
 
+Large file loading is also coordinated by `MainWindow`. The parser work runs in
+a background thread, but loaded documents are only applied back to the workspace
+on the Qt thread.
+
 ## File-Level Model
 
 Each loaded input file gets one `LoadedDocument`. That document keeps its own:
@@ -56,6 +60,8 @@ Consequences:
 - plot visibility is document-local
 - table column layout is document-local
 - interpolation changes now target visible signals, not only the active one
+- LOD cache content is derived from the currently bound library and visible
+  signal set, so cache invalidation belongs to the binding/refresh flow
 
 ## Active Signal Rules
 
@@ -113,3 +119,14 @@ Rules that should remain true:
 
 This split exists so users can batch-select files without accidentally changing
 the signal context shown in the main editors.
+
+## Large Signal Notes
+
+Large signals affect workspace behavior in two places:
+
+- the plot uses min/max LOD rendering to keep zoomed-out views responsive
+- the table materializes a bounded preview of rows instead of every sample
+
+Because of the table preview, table insertion is intentionally local to the
+current selection. Inserting at the real end of a huge signal could succeed but
+appear invisible because the end is outside the materialized preview.

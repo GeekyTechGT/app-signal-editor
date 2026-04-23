@@ -10,6 +10,7 @@ It complements:
 
 - [Filesystem and Persistence](filesystem_and_persistence.md)
 - [Workspace and Selection Model](workspace_and_selection.md)
+- [Source File Guide](source_file_guide.md)
 - [Architecture Overview](../architecture/architecture_overview.md)
 
 ## Supported Workbook Formats
@@ -77,8 +78,10 @@ For workbook formats the loading flow is:
 
 1. The concrete repository reads the workbook container.
 2. Each relevant worksheet is converted into one sheet-local `SignalLibrary`.
-3. `MainWindow` stores those libraries inside one `LoadedDocument`.
-4. One `active_sheet_index` determines which sheet is currently bound to:
+3. If one worksheet fails validation, XLSX errors include the worksheet name
+   before the lower-level parser message.
+4. `MainWindow` stores those libraries inside one `LoadedDocument`.
+5. One `active_sheet_index` determines which sheet is currently bound to:
    - the signal list
    - the plot
    - the table
@@ -161,6 +164,8 @@ Contributors should preserve these constraints:
   contract is intentionally revised
 - reload and sheet switching must clear and rebind UI state rather than trying
   to patch widgets incrementally from stale pointers
+- worksheet-level import errors should preserve the sheet name so users know
+  where to fix the workbook
 
 ## Debugging Tips
 
@@ -174,3 +179,5 @@ When workbook behavior breaks, separate the problem by layer:
   re-application.
 - If the UI shows sheet controls for CSV, inspect the file-options branching
   logic rather than the repositories.
+- If a workbook reports a non-increasing time column, inspect the named sheet
+  and compare the reported row with the previous data row.

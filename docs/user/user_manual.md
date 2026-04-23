@@ -237,6 +237,11 @@ After loading with the file browser:
 - the file appears in the file list
 - the workspace retains the file until you remove it
 
+When a file is large, Signal Editor shows a loading progress window. This
+window does not block normal main-window operations such as resize, minimize, or
+restore. You can continue managing the application window while the import runs
+in the background.
+
 ### Drag And Drop
 
 You can drag supported files into the application window.
@@ -267,6 +272,10 @@ For workbook formats:
 - the file is loaded as a workbook-aware document
 - one sheet becomes active
 - the signal list is populated from that active sheet only
+
+If loading fails, the error dialog includes the file, path, original parser
+problem, and guidance for common issues. For XLSX workbooks, sheet-specific
+validation errors include the sheet name when available.
 
 After loading multiple files, remember that:
 
@@ -744,6 +753,12 @@ Typical table operations include:
 - inserting a sample
 - removing a sample
 
+`+ Sample` inserts near the selected row. This matters for very large signals:
+the table may show only a bounded preview of rows to keep the interface
+responsive, so inserting at the real end of the signal could succeed but appear
+invisible. Inserting near the selection makes the new sample immediately visible
+and editable.
+
 When you need exact edits, the recommended workflow is often:
 
 1. identify the region in the plot
@@ -1153,6 +1168,27 @@ If needed:
 - inspect the mapping
 - edit it
 - apply the change
+
+### Loading Failed Because The Time Column Is Not Strictly Increasing
+
+This means one timestamp is not greater than the timestamp above it.
+
+Common causes:
+
+- two rows have the same `time`
+- one row is out of order
+- a copied row duplicated the previous timestamp
+
+The error dialog reports the file path and, for XLSX workbooks, the sheet name
+when available. Open the file in Excel or another spreadsheet editor, compare
+the reported row with the previous data row, fix the timestamp, save, and load
+the file again.
+
+### Loading A Large File Shows A Progress Window
+
+This is expected. Large files are loaded on a worker thread so the main window
+can keep responding. The progress window reports the file currently being
+loaded and can be cancelled before the next file starts.
 
 ## Frequently Asked Questions
 

@@ -36,6 +36,7 @@ If the repository’s active product identity changes in the future, the followi
 - `docs/product/*`
 - `docs/specs/srs.md`
 - `docs/architecture/*`
+- `docs/developer/source_file_guide.md`
 - naming and versioning guidance
 
 ## Cleanup Rule

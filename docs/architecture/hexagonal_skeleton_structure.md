@@ -14,7 +14,7 @@ src/signal_editor/
 ├── ports/             # Repository abstractions consumed by the use-case layer
 ├── adapters/
 │   ├── filesystem/    # per-format file persistence adapters plus shared tabular row mapping
-│   └── qt/            # Qt widgets, dialogs, and workspace shell
+│   └── qt/            # Qt widgets, dialogs, LOD rendering helpers, and workspace shell
 ├── api/               # Public facade used by the GUI application
 └── schema/            # Structured validation assets when applicable
 
@@ -44,6 +44,8 @@ Inside `adapters/` you should place:
 - extension-based repository dispatch
 - format-specific metadata handling
 - rendering and interaction logic
+- worker-thread UI orchestration for long-running desktop operations
+- user-facing diagnostics derived from adapter/parser errors
 
 ### What belongs in `apps/`
 

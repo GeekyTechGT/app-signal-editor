@@ -52,12 +52,15 @@ The architecture exists to preserve practical engineering benefits:
 ### 5.1 Load Flow
 
 1. The main window receives a load request from the menu or drag-and-drop.
-2. `SignalEditorService` delegates the path to the configured repository port.
-3. `SignalFileRepository` dispatches by file extension to dedicated CSV, TSV/TXT, JSON, SpreadsheetML XML, and XLSX adapters.
+2. Large imports are executed on a worker thread so the Qt event loop remains responsive.
+3. A non-blocking progress dialog reports which file is being loaded and allows cancellation before the next file starts.
+4. `SignalEditorService` delegates the path to the configured repository port.
+5. `SignalFileRepository` dispatches by file extension to dedicated CSV, TSV/TXT, JSON, SpreadsheetML XML, and XLSX adapters.
    `DelimitedSignalRepository` covers the TSV/TXT family because those formats differ only by delimiter semantics, not by domain mapping rules.
-4. Workbook-aware adapters may expand one persisted file into multiple sheet-local `SignalLibrary` snapshots.
-5. The currently active sheet library is bound into the workspace document model.
-6. The active signal is exposed to both the plot and table adapters.
+6. Workbook-aware adapters may expand one persisted file into multiple sheet-local `SignalLibrary` snapshots.
+7. Import failures are formatted into user-facing diagnostics. XLSX worksheet failures include the sheet name when the adapter can identify it.
+8. The currently active sheet library is bound into the workspace document model.
+9. The active signal is exposed to both the plot and table adapters.
 
 ### 5.2 Edit Flow
 
@@ -98,6 +101,8 @@ Key points:
 - interpolation control is presented at workspace scope because it applies to the signal itself, not to the table only
 - enumerated signals constrain the UI by disabling inappropriate interpolation changes and exposing label-based values
 - file reload is treated as a full clear-and-rebind operation for signal list, plot, and table
+- plot rendering uses a dedicated LOD module for dense signals so the UI does not attempt to paint millions of raw samples when zoomed out
+- table rendering caps materialized rows for large signals and inserts new samples near the current selection so edits remain visible
 
 ## 7. Quality Attributes
 
@@ -117,6 +122,7 @@ The architecture is currently optimized for:
 - GCC/MinGW is the only supported compiler family in the repository build matrix at this time
 - native `.xlsx` workbook parsing and export are present; `.xls` remains unsupported
 - the repository does not yet include collaborative or remote-backed persistence
+- file load cancellation stops before the next file starts; it does not currently interrupt a parser in the middle of one file
 
 ## 9. Architectural Change Rules
 
@@ -138,3 +144,5 @@ material in [`docs/developer/`](../developer/README.md), especially:
 - workspace and selection model
 - plot subsystem notes
 - persistence and reload behavior
+- dense-signal LOD rendering
+- source-file guide for contributors learning the repository structure

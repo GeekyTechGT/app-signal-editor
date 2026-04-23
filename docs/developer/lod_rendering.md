@@ -259,8 +259,20 @@ Run it with:
 python3 scripts/generate_lod_sample.py
 ```
 
-The generated CSV is intentionally ignored by Git because it is large. It is for
-manual stress testing, not for source control.
+The generated CSV is intentionally large. Keep it only when it serves a clear
+manual stress-testing or regression purpose.
+
+Additional generated fixtures live under:
+
+```text
+tests/01.data/generated/lod_levels/
+```
+
+Those files are committed fixtures that exercise progressively denser sample
+counts and naturally trigger raw rendering and increasingly coarse LOD choices.
+They are useful for manual desktop checks because the user can load each file,
+zoom in and out, and watch the plot switch between exact polylines and min/max
+envelopes.
 
 ## Automated Tests
 
@@ -284,3 +296,13 @@ build\windows-mingw64-debug\bin\test_signal_editor.exe --gtest_filter=SignalLodP
 ```
 
 When running from Windows, ensure the MinGW runtime is on `PATH`.
+
+## Related Source Guide
+
+For file-by-file orientation, read
+[`source_file_guide.md`](source_file_guide.md). The most relevant entries are:
+
+- `signal_lod_pyramid.h/.cpp`
+- `signal_plot_widget.h/.cpp`
+- `signal_table_panel.h/.cpp`
+- `test_signal_lod_pyramid.cpp`

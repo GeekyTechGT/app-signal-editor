@@ -45,11 +45,14 @@ Examples:
 ## Load Flow
 
 1. `MainWindow` requests a load.
-2. `SignalEditorService` calls the repository.
-3. The repository resolves the concrete adapter for the file type.
-4. Single-sheet adapters build one `SignalLibrary`.
-5. Workbook-aware adapters build one `WorkbookDocument` containing one or more sheet-local `SignalLibrary` instances.
-6. `MainWindow` stores the result inside one `LoadedDocument` with an active sheet index.
+2. For user-selected file loads, `MainWindow::open_paths()` starts a worker thread so the GUI remains responsive.
+3. A non-blocking progress dialog reports progress and lets the user cancel before the next file starts.
+4. `SignalEditorService` calls the repository.
+5. The repository resolves the concrete adapter for the file type.
+6. Single-sheet adapters build one `SignalLibrary`.
+7. Workbook-aware adapters build one `WorkbookDocument` containing one or more sheet-local `SignalLibrary` instances.
+8. If parsing fails, `MainWindow` formats the raw parser error into a user-facing diagnostic.
+9. `MainWindow` stores the result inside one `LoadedDocument` with an active sheet index.
 
 ## Save Flow
 
@@ -105,6 +108,25 @@ Important rules:
 
 This allows the same signal name to exist on multiple sheets with different
 enumerated mappings without ambiguity.
+
+When an XLSX worksheet fails validation, `XlsxSignalRepository` wraps the
+underlying tabular parser error with the worksheet name. This is important for
+user support because a workbook can contain several valid sheets and one invalid
+sheet. The UI can then show an error such as `Sheet 'INPUT_1': Time column is
+not strictly increasing at row 6`.
+
+## Import Diagnostics
+
+The raw filesystem adapters throw concise technical exceptions. The Qt shell
+turns common parser failures into more helpful popups:
+
+- duplicate or descending values in the `time` column
+- non-numeric `time` values
+- missing required `time` or `t` columns
+- inconsistent row width compared with the header
+
+Keep these layers separate. Adapters should report the precise parser failure;
+the UI should explain what the user can do next.
 
 ## Why Persistence Lives Outside the Core
 
