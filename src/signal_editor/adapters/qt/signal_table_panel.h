@@ -114,6 +114,7 @@ private:
     QPushButton* remove_button_{nullptr};
     QStyledItemDelegate* item_delegate_{nullptr};
     bool suppress_item_changed_{false};
+    int displayed_row_count_{0};
 
     /** @brief Retranslates labels, hints, buttons, and header copy. */
     void retranslate_ui();
@@ -123,6 +124,8 @@ private:
     void repopulate();
     /** @brief Writes one table row using the current plotted signal set. */
     void set_row_values(int row);
+    /** @brief Returns whether the table is showing a bounded prefix of a large signal. */
+    [[nodiscard]] bool is_row_display_truncated() const;
     /** @brief Returns the suggested insertion time for a new row. */
     [[nodiscard]] double default_insert_time() const;
     /** @brief Returns the suggested insertion value for a new row. */

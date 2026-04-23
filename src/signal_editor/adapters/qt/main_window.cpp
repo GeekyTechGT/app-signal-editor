@@ -22,6 +22,7 @@
 #include <QDoubleValidator>
 #include <QDir>
 #include <QEvent>
+#include <QEventLoop>
 #include <QFont>
 #include <QLabel>
 #include <QDoubleSpinBox>
@@ -39,6 +40,9 @@
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QMimeData>
+#include <QMetaObject>
+#include <QPointer>
+#include <QProgressDialog>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QRegularExpressionValidator>
@@ -49,6 +53,7 @@
 #include <QStatusBar>
 #include <QTabBar>
 #include <QTabWidget>
+#include <QThread>
 #include <QToolBar>
 #include <QToolButton>
 #include <QTextEdit>
@@ -64,8 +69,12 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cmath>
+#include <exception>
 #include <filesystem>
+#include <functional>
+#include <memory>
 #include <stdexcept>
 #include <utility>
 
@@ -84,7 +93,8 @@ QString qt_main_window_tr(const char* source_text,
 
 constexpr double kPi = 3.14159265358979323846;
 constexpr double kSamplingEpsilon = 1e-9;
-constexpr std::size_t kMaxGeneratedSamples = 1'000'000;
+constexpr std::size_t kMaxGeneratedSamples = 50'000'000;
+constexpr std::size_t kGenerationProgressStride = 100'000;
 
 /**
  * @brief Parses a floating-point value accepting both comma and dot decimals.
@@ -355,56 +365,6 @@ double wrap_unit_phase(double x) {
 }
 
 /**
- * @brief Builds a time axis driven by the user-defined sampling interval.
- *
- * The helper preserves the requested `sampling_time` for every full interval
- * starting at `t_start` and appends `t_end` when the range is not an exact
- * multiple, so the generated signal always covers the full requested span.
- *
- * @param t_start Inclusive first timestamp.
- * @param t_end Inclusive upper bound of the generated time range.
- * @param sampling_time Positive sampling interval entered by the user.
- * @return Ordered time vector containing at least two samples.
- */
-std::vector<double> build_time_axis_from_sampling_time(double t_start,
-                                                       double t_end,
-                                                       double sampling_time) {
-    if (!(sampling_time > 0.0)) {
-        throw std::invalid_argument("sampling time must be > 0");
-    }
-    if (!(t_end > t_start)) {
-        throw std::invalid_argument("t end must be greater than t start");
-    }
-
-    const auto expected_samples =
-        static_cast<std::size_t>(std::ceil((t_end - t_start) / sampling_time)) + 1U;
-    if (expected_samples > kMaxGeneratedSamples) {
-        throw std::invalid_argument("sampling time generates too many samples");
-    }
-
-    std::vector<double> time;
-    time.reserve(expected_samples);
-    time.push_back(t_start);
-
-    double current = t_start + sampling_time;
-    while (current < (t_end - kSamplingEpsilon)) {
-        time.push_back(current);
-        current += sampling_time;
-    }
-
-    if ((t_end - time.back()) > kSamplingEpsilon) {
-        time.push_back(t_end);
-    } else {
-        time.back() = t_end;
-    }
-
-    if (time.size() < 2) {
-        throw std::invalid_argument("sampling time produced less than two samples");
-    }
-    return time;
-}
-
-/**
  * @brief Computes the number of samples implied by a sampling interval.
  * @param t_start Inclusive first timestamp.
  * @param t_end Inclusive upper bound of the generated time range.
@@ -414,95 +374,143 @@ std::vector<double> build_time_axis_from_sampling_time(double t_start,
 [[nodiscard]] std::size_t compute_sample_count(double t_start,
                                                double t_end,
                                                double sampling_time) {
-    return build_time_axis_from_sampling_time(t_start, t_end, sampling_time).size();
+    if (!(sampling_time > 0.0)) {
+        throw std::invalid_argument("sampling time must be > 0");
+    }
+    if (!(t_end > t_start)) {
+        throw std::invalid_argument("t end must be greater than t start");
+    }
+    const auto sample_count =
+        static_cast<std::size_t>(std::ceil((t_end - t_start) / sampling_time)) + 1U;
+    if (sample_count > kMaxGeneratedSamples) {
+        throw std::invalid_argument("sampling time generates too many samples");
+    }
+    return std::max<std::size_t>(2U, sample_count);
+}
+
+using GenerationProgress = std::function<bool(std::size_t completed, std::size_t total)>;
+
+template <typename ValueAt>
+Signal build_generated_signal(const QString& name,
+                              double t_start,
+                              double t_end,
+                              double sampling_time,
+                              Signal::InterpolationMode interpolation,
+                              ValueAt value_at,
+                              const GenerationProgress& progress = {}) {
+    const std::size_t sample_count = compute_sample_count(t_start, t_end, sampling_time);
+    std::vector<SamplePoint> samples;
+    samples.reserve(sample_count);
+
+    for (std::size_t index = 0; index < sample_count; ++index) {
+        const double t = index + 1U == sample_count
+            ? t_end
+            : std::min(t_start + static_cast<double>(index) * sampling_time, t_end);
+        samples.push_back({t, value_at(t, index, sample_count)});
+
+        if (progress && (index % kGenerationProgressStride == 0U || index + 1U == sample_count)) {
+            if (!progress(index + 1U, sample_count)) {
+                throw std::runtime_error("signal generation cancelled");
+            }
+        }
+    }
+
+    return Signal::from_ordered_samples(name.toStdString(), std::move(samples), interpolation);
 }
 
 Signal generate_constant_signal(const QString& name, double t_start, double t_end,
-                                double sampling_time, double level) {
-    const auto time = build_time_axis_from_sampling_time(t_start, t_end, sampling_time);
-    std::vector<double> values(time.size(), level);
-    return Signal::from_vectors(name.toStdString(), time, values);
+                                double sampling_time, double level,
+                                const GenerationProgress& progress = {}) {
+    return build_generated_signal(name, t_start, t_end, sampling_time,
+                                  Signal::InterpolationMode::Linear,
+                                  [level](double, std::size_t, std::size_t) { return level; },
+                                  progress);
 }
 
 Signal generate_periodic_signal(const QString& name, double t_start, double t_end,
                                 double sampling_time, double amplitude, double offset,
-                                double frequency_hz, double phase_deg, bool use_cosine) {
+                                double frequency_hz, double phase_deg, bool use_cosine,
+                                const GenerationProgress& progress = {}) {
     if (!(frequency_hz > 0.0)) {
         throw std::invalid_argument("frequency must be > 0");
     }
-    const auto time = build_time_axis_from_sampling_time(t_start, t_end, sampling_time);
-    std::vector<double> values;
-    values.reserve(time.size());
     const double phase_rad = phase_deg * kPi / 180.0;
-    for (double t : time) {
-        const double angle   = 2.0 * kPi * frequency_hz * (t - t_start) + phase_rad;
-        const double carrier = use_cosine ? std::cos(angle) : std::sin(angle);
-        values.push_back(offset + amplitude * carrier);
-    }
-    return Signal::from_vectors(name.toStdString(), time, values);
+    return build_generated_signal(name, t_start, t_end, sampling_time,
+                                  Signal::InterpolationMode::Linear,
+                                  [=](double t, std::size_t, std::size_t) {
+                                      const double angle = 2.0 * kPi * frequency_hz * (t - t_start) + phase_rad;
+                                      const double carrier = use_cosine ? std::cos(angle) : std::sin(angle);
+                                      return offset + amplitude * carrier;
+                                  },
+                                  progress);
 }
 
 Signal generate_pulse_signal(const QString& name, double t_start, double t_end,
                              double sampling_time, double low_level, double high_level,
-                             double frequency_hz, double duty_cycle_pct, double phase_deg) {
+                             double frequency_hz, double duty_cycle_pct, double phase_deg,
+                             const GenerationProgress& progress = {}) {
     if (!(frequency_hz > 0.0)) { throw std::invalid_argument("frequency must be > 0"); }
     if (!(duty_cycle_pct > 0.0 && duty_cycle_pct < 100.0)) {
         throw std::invalid_argument("duty cycle must be between 0 and 100");
     }
-    const auto time = build_time_axis_from_sampling_time(t_start, t_end, sampling_time);
-    std::vector<double> values;
-    values.reserve(time.size());
     const double duty         = duty_cycle_pct / 100.0;
     const double phase_cycles = phase_deg / 360.0;
-    for (double t : time) {
-        const double unit_phase = wrap_unit_phase(frequency_hz * (t - t_start) + phase_cycles);
-        values.push_back(unit_phase < duty ? high_level : low_level);
-    }
-    return Signal::from_vectors(name.toStdString(), time, values);
+    return build_generated_signal(name, t_start, t_end, sampling_time,
+                                  Signal::InterpolationMode::Step,
+                                  [=](double t, std::size_t, std::size_t) {
+                                      const double unit_phase =
+                                          wrap_unit_phase(frequency_hz * (t - t_start) + phase_cycles);
+                                      return unit_phase < duty ? high_level : low_level;
+                                  },
+                                  progress);
 }
 
 Signal generate_sawtooth_signal(const QString& name, double t_start, double t_end,
                                 double sampling_time, double min_value, double max_value,
-                                double frequency_hz, double phase_deg) {
+                                double frequency_hz, double phase_deg,
+                                const GenerationProgress& progress = {}) {
     if (!(frequency_hz > 0.0)) { throw std::invalid_argument("frequency must be > 0"); }
-    const auto time = build_time_axis_from_sampling_time(t_start, t_end, sampling_time);
-    std::vector<double> values;
-    values.reserve(time.size());
     const double span         = max_value - min_value;
     const double phase_cycles = phase_deg / 360.0;
-    for (double t : time) {
-        const double unit_phase = wrap_unit_phase(frequency_hz * (t - t_start) + phase_cycles);
-        values.push_back(min_value + span * unit_phase);
-    }
-    return Signal::from_vectors(name.toStdString(), time, values);
+    return build_generated_signal(name, t_start, t_end, sampling_time,
+                                  Signal::InterpolationMode::Linear,
+                                  [=](double t, std::size_t, std::size_t) {
+                                      const double unit_phase =
+                                          wrap_unit_phase(frequency_hz * (t - t_start) + phase_cycles);
+                                      return min_value + span * unit_phase;
+                                  },
+                                  progress);
 }
 
 Signal generate_triangle_signal(const QString& name, double t_start, double t_end,
                                 double sampling_time, double min_value, double max_value,
-                                double frequency_hz, double phase_deg) {
+                                double frequency_hz, double phase_deg,
+                                const GenerationProgress& progress = {}) {
     if (!(frequency_hz > 0.0)) { throw std::invalid_argument("frequency must be > 0"); }
-    const auto time = build_time_axis_from_sampling_time(t_start, t_end, sampling_time);
-    std::vector<double> values;
-    values.reserve(time.size());
     const double phase_cycles = phase_deg / 360.0;
-    for (double t : time) {
-        const double unit_phase = wrap_unit_phase(frequency_hz * (t - t_start) + phase_cycles);
-        const double shape = unit_phase < 0.5 ? unit_phase * 2.0 : 2.0 - unit_phase * 2.0;
-        values.push_back(min_value + (max_value - min_value) * shape);
-    }
-    return Signal::from_vectors(name.toStdString(), time, values);
+    return build_generated_signal(name, t_start, t_end, sampling_time,
+                                  Signal::InterpolationMode::Linear,
+                                  [=](double t, std::size_t, std::size_t) {
+                                      const double unit_phase =
+                                          wrap_unit_phase(frequency_hz * (t - t_start) + phase_cycles);
+                                      const double shape =
+                                          unit_phase < 0.5 ? unit_phase * 2.0 : 2.0 - unit_phase * 2.0;
+                                      return min_value + (max_value - min_value) * shape;
+                                  },
+                                  progress);
 }
 
 Signal generate_ramp_signal(const QString& name, double t_start, double t_end,
-                            double sampling_time, double start_value, double end_value) {
-    const auto time = build_time_axis_from_sampling_time(t_start, t_end, sampling_time);
-    std::vector<double> values;
-    values.reserve(time.size());
-    for (std::size_t i = 0; i < time.size(); ++i) {
-        const double alpha = static_cast<double>(i) / static_cast<double>(time.size() - 1);
-        values.push_back(start_value + (end_value - start_value) * alpha);
-    }
-    return Signal::from_vectors(name.toStdString(), time, values);
+                            double sampling_time, double start_value, double end_value,
+                            const GenerationProgress& progress = {}) {
+    return build_generated_signal(name, t_start, t_end, sampling_time,
+                                  Signal::InterpolationMode::Linear,
+                                  [=](double, std::size_t index, std::size_t sample_count) {
+                                      const double alpha =
+                                          static_cast<double>(index) / static_cast<double>(sample_count - 1U);
+                                      return start_value + (end_value - start_value) * alpha;
+                                  },
+                                  progress);
 }
 
 std::vector<Signal::EnumerationEntry> parse_enumeration_definition(const QString& text) {
@@ -545,22 +553,26 @@ QString format_enumeration_definition(const std::vector<Signal::EnumerationEntry
 Signal generate_enumerated_signal(const QString& name, double t_start, double t_end,
                                   double sampling_time,
                                   const std::vector<Signal::EnumerationEntry>& enumeration,
-                                  const QString& initial_label) {
+                                  const QString& initial_label,
+                                  const GenerationProgress& progress = {}) {
     QString resolved_label = initial_label.trimmed();
     if (resolved_label.isEmpty()) {
         resolved_label = QString::fromStdString(enumeration.front().label);
     }
-    const auto time = build_time_axis_from_sampling_time(t_start, t_end, sampling_time);
     const double initial_value = [&]() {
-        Signal preview = Signal::from_vectors(name.toStdString(), time,
-                                              std::vector<double>(time.size(), 0.0),
-                                              Signal::InterpolationMode::Step);
+        Signal preview = Signal::from_ordered_samples(
+            name.toStdString(),
+            std::vector<SamplePoint>{{t_start, 0.0}, {t_end, 0.0}},
+            Signal::InterpolationMode::Step);
         preview.set_enumeration(enumeration);
         return preview.value_for_label(resolved_label.toStdString());
     }();
-    std::vector<double> values(time.size(), initial_value);
-    Signal signal = Signal::from_vectors(name.toStdString(), time, values,
-                                         Signal::InterpolationMode::Step);
+    Signal signal = build_generated_signal(name, t_start, t_end, sampling_time,
+                                           Signal::InterpolationMode::Step,
+                                           [initial_value](double, std::size_t, std::size_t) {
+                                               return initial_value;
+                                           },
+                                           progress);
     signal.set_enumeration(enumeration);
     return signal;
 }
@@ -597,28 +609,34 @@ QString describe_signal_line(const Signal& signal) {
 Signal generate_waveform_signal(WaveformKind kind, const QString& name,
                                 double t_start, double t_end, double sampling_time,
                                 const std::array<double, 4>& params_a,
-                                const std::array<double, 4>& params_b) {
+                                const std::array<double, 4>& params_b,
+                                const GenerationProgress& progress = {}) {
     switch (kind) {
     case WaveformKind::Constant:
-        return generate_constant_signal(name, t_start, t_end, sampling_time, params_a[0]);
+        return generate_constant_signal(name, t_start, t_end, sampling_time, params_a[0], progress);
     case WaveformKind::Sine:
         return generate_periodic_signal(name, t_start, t_end, sampling_time,
-                                        params_a[0], params_a[1], params_a[2], params_a[3], false);
+                                        params_a[0], params_a[1], params_a[2], params_a[3], false,
+                                        progress);
     case WaveformKind::Cosine:
         return generate_periodic_signal(name, t_start, t_end, sampling_time,
-                                        params_a[0], params_a[1], params_a[2], params_a[3], true);
+                                        params_a[0], params_a[1], params_a[2], params_a[3], true,
+                                        progress);
     case WaveformKind::Pulse:
         return generate_pulse_signal(name, t_start, t_end, sampling_time,
-                                     params_a[0], params_a[1], params_a[2], params_a[3], params_b[0]);
+                                     params_a[0], params_a[1], params_a[2], params_a[3], params_b[0],
+                                     progress);
     case WaveformKind::Sawtooth:
         return generate_sawtooth_signal(name, t_start, t_end, sampling_time,
-                                        params_a[0], params_a[1], params_a[2], params_a[3]);
+                                        params_a[0], params_a[1], params_a[2], params_a[3],
+                                        progress);
     case WaveformKind::Triangle:
         return generate_triangle_signal(name, t_start, t_end, sampling_time,
-                                        params_a[0], params_a[1], params_a[2], params_a[3]);
+                                        params_a[0], params_a[1], params_a[2], params_a[3],
+                                        progress);
     case WaveformKind::Ramp:
         return generate_ramp_signal(name, t_start, t_end, sampling_time,
-                                    params_a[0], params_a[1]);
+                                    params_a[0], params_a[1], progress);
     case WaveformKind::Enumerated:
         break;
     }
@@ -2162,16 +2180,43 @@ void MainWindow::onAddRequested() {
     }
 
     try {
+        const std::size_t sample_count =
+            compute_sample_count(t_start->value(), t_end->value(), sampling_time);
+        QProgressDialog progress_dialog(
+            tr("Generating %1 samples...").arg(static_cast<qulonglong>(sample_count)),
+            tr("Cancel"),
+            0,
+            1000,
+            this);
+        apply_application_icon(&progress_dialog);
+        progress_dialog.setWindowModality(Qt::ApplicationModal);
+        progress_dialog.setMinimumDuration(sample_count > 250'000U ? 0 : 1000);
+        progress_dialog.setValue(0);
+
+        const GenerationProgress progress = [&progress_dialog](std::size_t completed,
+                                                               std::size_t total) {
+            const int value = total == 0U
+                ? 0
+                : static_cast<int>((static_cast<unsigned long long>(completed) * 1000ULL) /
+                                   static_cast<unsigned long long>(total));
+            progress_dialog.setValue(std::clamp(value, 0, 1000));
+            QApplication::processEvents(QEventLoop::AllEvents, 50);
+            return !progress_dialog.wasCanceled();
+        };
+
         Signal signal = waveform == WaveformKind::Enumerated
             ? generate_enumerated_signal(signal_name,
                                          t_start->value(), t_end->value(),
                                          sampling_time,
                                          parse_enumeration_definition(enum_mapping->toPlainText()),
-                                         enum_initial_label->text())
+                                         enum_initial_label->text(),
+                                         progress)
             : generate_waveform_signal(waveform, signal_name,
                                        t_start->value(), t_end->value(),
                                        sampling_time,
-                                       params_a, params_b);
+                                       params_a, params_b,
+                                       progress);
+        progress_dialog.setValue(1000);
 
         if (ensure_workspace_document() < 0) {
             show_error(tr("Create failed"),
@@ -2545,21 +2590,92 @@ void MainWindow::onPlotTimeViewChanged(double t_start, double t_end) {
 // ============================================================================
 
 void MainWindow::open_paths(const QStringList& paths) {
+    QStringList normalized_paths;
     for (const QString& path : paths) {
-        if (path.isEmpty()) {
-            continue;
-        }
-        try {
-            load_document(path);
-        } catch (const std::exception& ex) {
-            show_error(tr("Load failed"),
-                       QStringLiteral("%1\n\n%2").arg(path, QString::fromLocal8Bit(ex.what())));
-        } catch (...) {
-            show_error(tr("Load failed"),
-                       QStringLiteral("%1\n\n%2")
-                           .arg(path, tr("Unknown error while loading the document.")));
+        if (!path.trimmed().isEmpty()) {
+            normalized_paths.push_back(path);
         }
     }
+    if (normalized_paths.isEmpty()) {
+        return;
+    }
+
+    if (active_document_index_ >= 0 &&
+        active_document_index_ < static_cast<int>(documents_.size())) {
+        sync_active_document_from_service();
+    }
+
+    auto* progress = new QProgressDialog(
+        normalized_paths.size() == 1
+            ? tr("Loading %1...").arg(QFileInfo(normalized_paths.front()).fileName())
+            : tr("Loading %1 files...").arg(normalized_paths.size()),
+        tr("Cancel"),
+        0,
+        normalized_paths.size(),
+        this);
+    apply_application_icon(progress);
+    progress->setWindowModality(Qt::ApplicationModal);
+    progress->setMinimumDuration(0);
+    progress->setAutoClose(false);
+    progress->setAutoReset(false);
+    progress->setValue(0);
+    progress->show();
+
+    auto result = std::make_shared<AsyncLoadResult>();
+    auto cancelled = std::make_shared<std::atomic_bool>(false);
+    QPointer<QProgressDialog> progress_guard(progress);
+    connect(progress, &QProgressDialog::canceled, this, [cancelled]() {
+        cancelled->store(true);
+    });
+
+    QThread* worker = QThread::create([this, normalized_paths, result, cancelled, progress_guard]() {
+        for (qsizetype index = 0; index < normalized_paths.size(); ++index) {
+            if (cancelled->load()) {
+                break;
+            }
+
+            const QString path = normalized_paths.at(index);
+            QMetaObject::invokeMethod(this, [this, progress_guard, path, index, total = normalized_paths.size()]() {
+                if (progress_guard == nullptr) {
+                    return;
+                }
+                progress_guard->setLabelText(
+                    tr("Loading %1 (%2/%3)...")
+                        .arg(QFileInfo(path).fileName())
+                        .arg(index + 1)
+                        .arg(total));
+                progress_guard->setValue(static_cast<int>(index));
+            }, Qt::QueuedConnection);
+
+            try {
+                result->loaded.push_back(AsyncLoadResult::LoadedPath{
+                    path,
+                    load_document_state(path),
+                });
+            } catch (const std::exception& ex) {
+                result->failed.push_back(AsyncLoadResult::FailedPath{
+                    path,
+                    QString::fromLocal8Bit(ex.what()),
+                });
+            } catch (...) {
+                result->failed.push_back(AsyncLoadResult::FailedPath{
+                    path,
+                    QStringLiteral("Unknown error while loading the document."),
+                });
+            }
+        }
+    });
+
+    connect(worker, &QThread::finished, this, [this, worker, progress_guard, result]() mutable {
+        if (progress_guard != nullptr) {
+            progress_guard->setValue(progress_guard->maximum());
+            progress_guard->close();
+            progress_guard->deleteLater();
+        }
+        apply_loaded_documents(std::move(*result));
+        worker->deleteLater();
+    });
+    worker->start();
 }
 
 void MainWindow::load_document(const QString& path) {
@@ -2611,6 +2727,43 @@ void MainWindow::load_document(const QString& path) {
             refresh_status();
         }
         throw;
+    }
+}
+
+void MainWindow::apply_loaded_documents(AsyncLoadResult result) {
+    if (result.loaded.empty()) {
+        for (const auto& failure : result.failed) {
+            show_error(tr("Load failed"),
+                       QStringLiteral("%1\n\n%2").arg(failure.path, failure.message));
+        }
+        refresh_status(result.failed.empty() ? tr("Load cancelled") : tr("No files loaded"));
+        return;
+    }
+
+    const int first_new_index = static_cast<int>(documents_.size());
+    for (auto& loaded : result.loaded) {
+        documents_.push_back(std::move(loaded.document));
+    }
+
+    refresh_file_panel();
+    activate_document(static_cast<int>(documents_.size()) - 1);
+
+    if (result.failed.empty()) {
+        refresh_status(result.loaded.size() == 1U
+                           ? tr("Loaded %1").arg(result.loaded.front().path)
+                           : tr("Loaded %1 files").arg(result.loaded.size()));
+    } else {
+        refresh_status(tr("Loaded %1 files, %2 failed")
+                           .arg(result.loaded.size())
+                           .arg(result.failed.size()));
+        for (const auto& failure : result.failed) {
+            show_error(tr("Load failed"),
+                       QStringLiteral("%1\n\n%2").arg(failure.path, failure.message));
+        }
+    }
+
+    if (first_new_index >= 0 && first_new_index < static_cast<int>(documents_.size())) {
+        file_panel_->set_opened_index(static_cast<int>(documents_.size()) - 1);
     }
 }
 

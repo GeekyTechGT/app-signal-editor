@@ -1,5 +1,7 @@
 #pragma once
 
+#include "signal_editor/adapters/qt/signal_lod_pyramid.h"
+
 #include <QPointF>
 #include <QRectF>
 #include <QWidget>
@@ -207,6 +209,8 @@ private:
     const SignalLibrary* library_{nullptr};
     int active_signal_index_{-1};
     std::vector<int> visible_signal_indices_;
+
+    mutable SignalLodCache lod_cache_;
 
     /** @brief Converts a data-space point into plot-local pixel coordinates. */
     QPointF data_to_pixel(double t, double y) const;

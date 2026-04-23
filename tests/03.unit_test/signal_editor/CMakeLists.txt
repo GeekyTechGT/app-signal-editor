@@ -2,12 +2,14 @@ add_executable(test_signal_editor
     test_signal.cpp
     test_signal_library.cpp
     test_signal_editor_service.cpp
+    test_signal_lod_pyramid.cpp
     test_csv_repository.cpp
     test_delimited_signal_repository.cpp
     test_json_signal_repository.cpp
     test_spreadsheet_xml_signal_repository.cpp
     test_xlsx_signal_repository.cpp
     test_signal_file_repository.cpp
+    ${CMAKE_SOURCE_DIR}/src/signal_editor/adapters/qt/signal_lod_pyramid.cpp
 )
 
 target_link_libraries(test_signal_editor

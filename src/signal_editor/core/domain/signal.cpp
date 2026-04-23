@@ -49,6 +49,18 @@ void Signal::validate_name(const std::string& name) {
     }
 }
 
+void Signal::validate_ordered_samples(const std::vector<SamplePoint>& samples) {
+    if (samples.empty()) {
+        return;
+    }
+    for (std::size_t index = 1; index < samples.size(); ++index) {
+        if (!(samples[index].t > samples[index - 1U].t) ||
+            std::fabs(samples[index].t - samples[index - 1U].t) < kTimeEpsilon) {
+            throw std::invalid_argument("ordered samples must have strictly increasing timestamps");
+        }
+    }
+}
+
 void Signal::validate_enumeration(const std::vector<EnumerationEntry>& enumeration) {
     std::vector<std::string> labels;
     std::vector<double> values;
@@ -82,6 +94,15 @@ Signal::Signal(std::string name,
     sort_and_dedupe(samples_);
 }
 
+Signal::Signal(std::string name,
+               std::vector<SamplePoint> samples,
+               InterpolationMode interpolation,
+               OrderedSamplesTag)
+    : name_(std::move(name)), interpolation_(interpolation), samples_(std::move(samples)) {
+    validate_name(name_);
+    validate_ordered_samples(samples_);
+}
+
 Signal Signal::from_vectors(std::string name,
                             const std::vector<double>& time,
                             const std::vector<double>& values,
@@ -95,6 +116,12 @@ Signal Signal::from_vectors(std::string name,
         samples.push_back({time[i], values[i]});
     }
     return Signal(std::move(name), std::move(samples), interpolation);
+}
+
+Signal Signal::from_ordered_samples(std::string name,
+                                    std::vector<SamplePoint> samples,
+                                    InterpolationMode interpolation) {
+    return Signal(std::move(name), std::move(samples), interpolation, OrderedSamplesTag{});
 }
 
 Signal Signal::create_uniform(std::string name,

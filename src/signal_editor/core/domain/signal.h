@@ -56,6 +56,16 @@ public:
                                InterpolationMode interpolation = InterpolationMode::Linear);
 
     /**
+     * @brief Builds a signal from already ordered samples.
+     *
+     * This avoids the constructor sort path for generators that can guarantee
+     * monotonic timestamps while still validating the ordering contract.
+     */
+    static Signal from_ordered_samples(std::string name,
+                                       std::vector<SamplePoint> samples,
+                                       InterpolationMode interpolation = InterpolationMode::Linear);
+
+    /**
      * @brief Builds a uniformly sampled flat signal.
      * @param name Human-readable signal identifier.
      * @param t_start Inclusive first timestamp.
@@ -232,7 +242,14 @@ private:
     std::vector<SamplePoint> samples_;
     std::vector<EnumerationEntry> enumeration_;
 
+    struct OrderedSamplesTag {};
+    Signal(std::string name,
+           std::vector<SamplePoint> samples,
+           InterpolationMode interpolation,
+           OrderedSamplesTag);
+
     static void validate_name(const std::string& name);
+    static void validate_ordered_samples(const std::vector<SamplePoint>& samples);
     static void validate_enumeration(const std::vector<EnumerationEntry>& enumeration);
 };
 

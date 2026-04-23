@@ -124,6 +124,18 @@ TEST(SignalTest, SetSampleValueUpdatesY) {
     EXPECT_THROW(s.set_sample_value(7, 0.0), std::out_of_range);
 }
 
+TEST(SignalTest, FromOrderedSamplesKeepsLargeGeneratorOrder) {
+    std::vector<SamplePoint> samples{{0.0, 1.0}, {0.1, 2.0}, {0.2, 3.0}};
+
+    const Signal signal = Signal::from_ordered_samples("ordered", std::move(samples));
+
+    ASSERT_EQ(signal.size(), 3u);
+    EXPECT_DOUBLE_EQ(signal.samples()[0].t, 0.0);
+    EXPECT_DOUBLE_EQ(signal.samples()[2].t, 0.2);
+    EXPECT_THROW(Signal::from_ordered_samples("bad", {{0.0, 1.0}, {0.0, 2.0}}),
+                 std::invalid_argument);
+}
+
 TEST(SignalTest, MoveSampleReordersAndUpdatesPoint) {
     auto s = Signal::from_vectors("s", {0.0, 1.0, 2.0}, {0.0, 10.0, 20.0});
     const std::size_t moved_index = s.move_sample(0, 1.5, 7.5);

@@ -37,6 +37,8 @@ namespace signal_editor::adapters::qt {
 #define tr qt_signal_table_panel_tr
 
 namespace {
+constexpr int kMaxMaterializedRows = 10000;
+
 QString qt_signal_table_panel_tr(const char* source_text,
                                  const char* disambiguation = nullptr,
                                  int n = -1) {
@@ -535,10 +537,14 @@ void SignalTablePanel::repopulate() {
     table_->setColumnCount(1 + static_cast<int>(display_indices.size()));
 
     if (const Signal* signal = reference_signal(); signal != nullptr) {
-        table_->setRowCount(static_cast<int>(signal->size()));
-        for (int row = 0; row < static_cast<int>(signal->size()); ++row) {
+        displayed_row_count_ = static_cast<int>(
+            std::min<std::size_t>(signal->size(), kMaxMaterializedRows));
+        table_->setRowCount(displayed_row_count_);
+        for (int row = 0; row < displayed_row_count_; ++row) {
             set_row_values(row);
         }
+    } else {
+        displayed_row_count_ = 0;
     }
 
     if (previous_row >= 0 && previous_row < table_->rowCount()) {
@@ -699,6 +705,12 @@ int SignalTablePanel::active_value_column() const {
     return -1;
 }
 
+bool SignalTablePanel::is_row_display_truncated() const {
+    const Signal* signal = reference_signal();
+    return signal != nullptr &&
+           signal->size() > static_cast<std::size_t>(displayed_row_count_);
+}
+
 const Signal* SignalTablePanel::signal_for_value_column(int column) const {
     if (column <= 0) {
         return nullptr;
@@ -734,9 +746,12 @@ void SignalTablePanel::refresh_summary() const {
     const QString enum_summary = signal->is_enumerated()
         ? tr(" | %1 states").arg(signal->enumeration().size())
         : QString();
+    const QString row_summary = is_row_display_truncated()
+        ? tr("%1 of %2 rows shown").arg(displayed_row_count_).arg(signal->size())
+        : tr("%1 rows").arg(signal->size());
     stats_label_->setText(
-        tr("%1 rows | range %2s to %3s | %4 interpolation | %5 plotted%6")
-            .arg(signal->size())
+        tr("%1 | range %2s to %3s | %4 interpolation | %5 plotted%6")
+            .arg(row_summary)
             .arg(signal->empty() ? 0.0 : signal->t_min(), 0, 'f', 4)
             .arg(signal->empty() ? 0.0 : signal->t_max(), 0, 'f', 4)
             .arg(interpolation)
@@ -745,6 +760,8 @@ void SignalTablePanel::refresh_summary() const {
 
     if (signal->is_enumerated()) {
         hint_label_->setText(tr("Enumerated signals use label-based editing in the active value column; other plotted columns stay read-only."));
+    } else if (is_row_display_truncated()) {
+        hint_label_->setText(tr("Large signals are previewed in the table to keep the interface responsive. Use the plot to inspect the full signal."));
     } else {
         hint_label_->setText(tr("Use the table for precise edits. The time column and active value column are editable; other plotted signals are read-only for comparison."));
     }

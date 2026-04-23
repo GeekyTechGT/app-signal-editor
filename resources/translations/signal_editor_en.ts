@@ -359,6 +359,34 @@ The initial state can be left empty to use the first mapping entry.</translation
         <translation>Loaded %1</translation>
     </message>
     <message>
+        <source>Loading %1...</source>
+        <translation>Loading %1...</translation>
+    </message>
+    <message>
+        <source>Loading %1 files...</source>
+        <translation>Loading %1 files...</translation>
+    </message>
+    <message>
+        <source>Loading %1 (%2/%3)...</source>
+        <translation>Loading %1 (%2/%3)...</translation>
+    </message>
+    <message>
+        <source>Load cancelled</source>
+        <translation>Load cancelled</translation>
+    </message>
+    <message>
+        <source>No files loaded</source>
+        <translation>No files loaded</translation>
+    </message>
+    <message>
+        <source>Loaded %1 files</source>
+        <translation>Loaded %1 files</translation>
+    </message>
+    <message>
+        <source>Loaded %1 files, %2 failed</source>
+        <translation>Loaded %1 files, %2 failed</translation>
+    </message>
+    <message>
         <source>File details</source>
         <translation>File details</translation>
     </message>
@@ -757,6 +785,14 @@ Signals:
         <translation>%1 samples will be generated.</translation>
     </message>
     <message>
+        <source>Generating %1 samples...</source>
+        <translation>Generating %1 samples...</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>Cancel</translation>
+    </message>
+    <message>
         <source>Invalid name</source>
         <translation>Invalid name</translation>
     </message>
@@ -1037,6 +1073,22 @@ FALSE:0</translation>
     <message>
         <source>%1 rows | range %2s to %3s | %4 interpolation%5</source>
         <translation>%1 rows | range %2s to %3s | %4 interpolation%5</translation>
+    </message>
+    <message>
+        <source>%1 of %2 rows shown</source>
+        <translation>%1 of %2 rows shown</translation>
+    </message>
+    <message>
+        <source>%1 rows</source>
+        <translation>%1 rows</translation>
+    </message>
+    <message>
+        <source>%1 | range %2s to %3s | %4 interpolation | %5 plotted%6</source>
+        <translation>%1 | range %2s to %3s | %4 interpolation | %5 plotted%6</translation>
+    </message>
+    <message>
+        <source>Large signals are previewed in the table to keep the interface responsive. Use the plot to inspect the full signal.</source>
+        <translation>Large signals are previewed in the table to keep the interface responsive. Use the plot to inspect the full signal.</translation>
     </message>
     <message>
         <source>Enumerated signals use label-based editing in the value column and are always rendered with step interpolation.</source>

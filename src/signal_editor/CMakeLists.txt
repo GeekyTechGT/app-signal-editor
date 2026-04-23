@@ -83,6 +83,8 @@ if(SIGNAL_EDITOR_BUILD_GUI)
         adapters/qt/main_window.h
         adapters/qt/signal_list_panel.cpp
         adapters/qt/signal_list_panel.h
+        adapters/qt/signal_lod_pyramid.cpp
+        adapters/qt/signal_lod_pyramid.h
         adapters/qt/signal_plot_widget.cpp
         adapters/qt/signal_plot_widget.h
         adapters/qt/signal_table_panel.cpp

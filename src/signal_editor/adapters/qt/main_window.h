@@ -234,6 +234,21 @@ private:
         bool dirty{false};
     };
 
+    struct AsyncLoadResult {
+        struct LoadedPath {
+            QString path;
+            LoadedDocument document;
+        };
+
+        struct FailedPath {
+            QString path;
+            QString message;
+        };
+
+        std::vector<LoadedPath> loaded;
+        std::vector<FailedPath> failed;
+    };
+
     SignalEditorService& service_;
 
     // Workspace header labels
@@ -318,6 +333,8 @@ private:
     void open_paths(const QStringList& paths);
     /** @brief Loads a persisted document and adds it to the workspace set. */
     void load_document(const QString& path);
+    /** @brief Applies documents loaded by a background worker to the GUI state. */
+    void apply_loaded_documents(AsyncLoadResult result);
     /** @brief Ensures there is always at least one editable workspace document. */
     int ensure_workspace_document();
     /** @brief Pushes the currently active document state back into the service. */

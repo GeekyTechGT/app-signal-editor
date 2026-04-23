@@ -359,6 +359,34 @@ Lo stato iniziale può essere lasciato vuoto per usare la prima voce della mappa
         <translation>Caricato %1</translation>
     </message>
     <message>
+        <source>Loading %1...</source>
+        <translation>Caricamento di %1...</translation>
+    </message>
+    <message>
+        <source>Loading %1 files...</source>
+        <translation>Caricamento di %1 file...</translation>
+    </message>
+    <message>
+        <source>Loading %1 (%2/%3)...</source>
+        <translation>Caricamento di %1 (%2/%3)...</translation>
+    </message>
+    <message>
+        <source>Load cancelled</source>
+        <translation>Caricamento annullato</translation>
+    </message>
+    <message>
+        <source>No files loaded</source>
+        <translation>Nessun file caricato</translation>
+    </message>
+    <message>
+        <source>Loaded %1 files</source>
+        <translation>Caricati %1 file</translation>
+    </message>
+    <message>
+        <source>Loaded %1 files, %2 failed</source>
+        <translation>Caricati %1 file, %2 falliti</translation>
+    </message>
+    <message>
         <source>File details</source>
         <translation>Dettagli file</translation>
     </message>
@@ -757,6 +785,14 @@ Segnali:
         <translation>Verranno generati %1 campioni.</translation>
     </message>
     <message>
+        <source>Generating %1 samples...</source>
+        <translation>Generazione di %1 campioni...</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>Annulla</translation>
+    </message>
+    <message>
         <source>Invalid name</source>
         <translation>Nome non valido</translation>
     </message>
@@ -1065,6 +1101,22 @@ Seleziona un file per ispezionarne il percorso sorgente e lo stato nell&apos;are
     <message>
         <source>%1 rows | range %2s to %3s | %4 interpolation%5</source>
         <translation>%1 righe | intervallo da %2s a %3s | interpolazione %4%5</translation>
+    </message>
+    <message>
+        <source>%1 of %2 rows shown</source>
+        <translation>%1 di %2 righe visualizzate</translation>
+    </message>
+    <message>
+        <source>%1 rows</source>
+        <translation>%1 righe</translation>
+    </message>
+    <message>
+        <source>%1 | range %2s to %3s | %4 interpolation | %5 plotted%6</source>
+        <translation>%1 | intervallo da %2s a %3s | interpolazione %4 | %5 nel grafico%6</translation>
+    </message>
+    <message>
+        <source>Large signals are previewed in the table to keep the interface responsive. Use the plot to inspect the full signal.</source>
+        <translation>I segnali grandi sono mostrati in anteprima nella tabella per mantenere l'interfaccia reattiva. Usa il grafico per ispezionare il segnale completo.</translation>
     </message>
     <message>
         <source>Enumerated signals use label-based editing in the value column and are always rendered with step interpolation.</source>
