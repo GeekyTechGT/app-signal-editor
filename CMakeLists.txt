@@ -86,8 +86,8 @@ endif()
 
 # Qt6 (if GUI enabled)
 if(SIGNAL_EDITOR_BUILD_GUI)
-    find_package(Qt6 REQUIRED COMPONENTS Widgets LinguistTools)
-    find_package(Qt6 QUIET COMPONENTS Svg SvgWidgets Pdf PdfWidgets Network)
+    find_package(Qt6 REQUIRED COMPONENTS Widgets LinguistTools Svg Pdf PdfWidgets)
+    find_package(Qt6 QUIET COMPONENTS SvgWidgets Network)
     qt_standard_project_setup()
 
     set(SIGNAL_EDITOR_SETTINGS_STORAGE_VERSION "1.0.0"
@@ -212,9 +212,9 @@ if(SIGNAL_EDITOR_BUILD_GUI)
         # The static archive uses QSvgWidget/QSvgRenderer, so Svg/SvgWidgets
         # must appear *after* the archive in the GCC single-pass link line.
         set(_LIB_QT_CW_IFACE "Qt6::Widgets;Qt6::Gui;Qt6::Core")
-        foreach(_svg_comp Qt6::Svg Qt6::SvgWidgets)
-            if(TARGET ${_svg_comp})
-                string(APPEND _LIB_QT_CW_IFACE ";${_svg_comp}")
+        foreach(_qt_cw_comp Qt6::Svg Qt6::SvgWidgets Qt6::Pdf Qt6::PdfWidgets)
+            if(TARGET ${_qt_cw_comp})
+                string(APPEND _LIB_QT_CW_IFACE ";${_qt_cw_comp}")
             endif()
         endforeach()
 
