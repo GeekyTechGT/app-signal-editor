@@ -28,6 +28,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 - Switched application settings persistence to a version-scoped namespace (`signal-editor/v1.0.0`) instead of the older unversioned storage path
 
 ### Fixed
+
+- Resolved Windows test runtime failures caused by missing libzip and its transitive dependencies (libbz2, zlib, liblzma, libzstd) by copying the required DLLs to the build output directory at build time
 - Resolved test warnings related to `nodiscard` usage in unit tests
 - Corrected Qt build regressions introduced during the workspace navigation refactor
 - Removed transient tab-transition bleed-through caused by transparent tab-page rendering

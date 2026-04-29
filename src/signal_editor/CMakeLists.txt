@@ -48,6 +48,57 @@ if(SIGNAL_EDITOR_LIBZIP_INCLUDE_DIR AND SIGNAL_EDITOR_LIBZIP_LIBRARY)
     target_include_directories(signal_editor_core PRIVATE ${SIGNAL_EDITOR_LIBZIP_INCLUDE_DIR})
     target_link_libraries(signal_editor_core PRIVATE ${SIGNAL_EDITOR_LIBZIP_LIBRARY})
     target_compile_definitions(signal_editor_core PRIVATE SIGNAL_EDITOR_HAS_LIBZIP=1)
+
+    # On Windows copy libzip and its runtime dependencies next to executables
+    # so that tests can find them.  All DLLs live in the sibling bin/ of the
+    # detected lib/ (standard MinGW/MSYS2 layout).
+    if(WIN32)
+        get_filename_component(_libzip_lib_dir "${SIGNAL_EDITOR_LIBZIP_LIBRARY}" DIRECTORY)
+        get_filename_component(_libzip_bin_dir "${_libzip_lib_dir}/../bin" ABSOLUTE)
+
+        # libzip itself (versioned name, e.g. libzip-5.dll)
+        file(GLOB _libzip_dll_candidates "${_libzip_bin_dir}/libzip*.dll")
+
+        # Known transitive runtime dependencies of libzip on MSYS2/MinGW64
+        set(_libzip_dep_dll_names
+            libbz2-1.dll
+            zlib1.dll
+            liblzma-5.dll
+            libzstd.dll
+        )
+        set(_libzip_dep_dlls "")
+        foreach(_dep_name ${_libzip_dep_dll_names})
+            if(EXISTS "${_libzip_bin_dir}/${_dep_name}")
+                list(APPEND _libzip_dep_dlls "${_libzip_bin_dir}/${_dep_name}")
+            else()
+                message(WARNING "libzip dependency not found: ${_libzip_bin_dir}/${_dep_name}")
+            endif()
+        endforeach()
+
+        set(_libzip_all_dlls ${_libzip_dll_candidates} ${_libzip_dep_dlls})
+
+        if(_libzip_all_dlls)
+            set(_copy_commands "")
+            foreach(_dll ${_libzip_all_dlls})
+                get_filename_component(_dll_name "${_dll}" NAME)
+                list(APPEND _copy_commands
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        "${_dll}"
+                        "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${_dll_name}"
+                )
+                message(STATUS "libzip runtime DLL: ${_dll}")
+            endforeach()
+
+            add_custom_target(copy_libzip_dlls ALL
+                ${_copy_commands}
+                COMMENT "Copying libzip and its runtime dependencies to bin/"
+            )
+        else()
+            message(WARNING
+                "No libzip DLLs found in ${_libzip_bin_dir} — "
+                "tests may fail at runtime on Windows.")
+        endif()
+    endif()
 endif()
 
 myprj_configure_target(signal_editor_core)
@@ -67,7 +118,7 @@ configure_file(
 # signal_editor — Qt adapter (only built when GUI is enabled)
 # =============================================================================
 if(SIGNAL_EDITOR_BUILD_GUI)
-    find_package(Qt6 REQUIRED COMPONENTS Widgets Svg)
+    find_package(Qt6 REQUIRED COMPONENTS Widgets Svg Pdf PdfWidgets)
 
     set(CMAKE_AUTOMOC ON)
     set(CMAKE_AUTORCC ON)
@@ -103,6 +154,8 @@ if(SIGNAL_EDITOR_BUILD_GUI)
     target_link_libraries(signal_editor_qt
         PUBLIC
             signal_editor_core
+            Qt6::Pdf
+            Qt6::PdfWidgets
             Qt6::Svg
             Qt6::Widgets
     )
@@ -111,6 +164,7 @@ if(SIGNAL_EDITOR_BUILD_GUI)
         PUBLIC
             SIGNAL_EDITOR_UI_APP_ID="${_SIGNAL_EDITOR_UI_APP_ID}"
             SIGNAL_EDITOR_UI_SETTINGS_VERSION="v${SIGNAL_EDITOR_SETTINGS_STORAGE_VERSION}"
+            SIGNAL_EDITOR_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
     )
 
     if(TARGET lib_qt_utils)
