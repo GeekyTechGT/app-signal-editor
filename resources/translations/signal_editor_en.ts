@@ -2,29 +2,26 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="en_US">
 <context>
-    <name>Splash</name>
+    <name>MainWindow</name>
     <message>
-        <source>Applying theme...</source>
-        <translation>Applying theme...</translation>
+        <source>Signal Editor</source>
+        <translation>Signal Editor</translation>
+    </message>
+    <message>
+        <source>Applying language...</source>
+        <translation>Applying language...</translation>
     </message>
     <message>
         <source>Loading workspace...</source>
         <translation>Loading workspace...</translation>
     </message>
     <message>
-        <source>Initializing signals engine...</source>
-        <translation>Initializing signals engine...</translation>
+        <source>Applying theme...</source>
+        <translation>Applying theme...</translation>
     </message>
     <message>
         <source>Ready</source>
         <translation>Ready</translation>
-    </message>
-</context>
-<context>
-    <name>MainWindow</name>
-    <message>
-        <source>Signal Editor</source>
-        <translation>Signal Editor</translation>
     </message>
     <message>
         <source>Signal Editor Workspace</source>

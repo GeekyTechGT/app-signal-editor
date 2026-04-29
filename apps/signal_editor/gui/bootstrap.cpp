@@ -10,7 +10,6 @@
 #include <QMessageBox>
 #include <QSettings>
 #include <QStringList>
-#include <QTimer>
 
 #include <exception>
 
@@ -83,8 +82,9 @@ QStringList translation_candidates(const QString& app_dir, const QString& transl
  * @return True when at least one bootstrap string resolves to a translated value.
  */
 bool translator_has_bootstrap_strings(const QTranslator& translator) {
-    const QString splash_text = translator.translate("Splash", "Applying theme...");
-    if (!splash_text.isEmpty() && splash_text != QStringLiteral("Applying theme...")) {
+    // Initialization step messages are now in the MainWindow context.
+    const QString init_text = translator.translate("MainWindow", "Applying theme...");
+    if (!init_text.isEmpty() && init_text != QStringLiteral("Applying theme...")) {
         return true;
     }
 
@@ -128,26 +128,25 @@ lib_qt_custom_widgets::SplashScreenWidget* create_splash_screen() {
 }
 
 /**
- * @brief Queues deterministic startup messages for the splash screen.
+ * @brief Wires the splash screen to the main window's real initialization steps.
+ *
+ * Each time MainWindow::initialize() completes a phase it emits
+ * initStepCompleted(message).  This function connects that signal to the
+ * splash so the status text and progress bar reflect actual work rather than
+ * arbitrary delays.
+ *
  * @param splash Splash screen receiving status and progress updates.
+ * @param window Main window whose initStepCompleted signal drives the splash.
  */
-void schedule_splash_progress(lib_qt_custom_widgets::SplashScreenWidget& splash) {
-    const QStringList steps = {
-        QApplication::translate("Splash", "Applying theme..."),
-        QApplication::translate("Splash", "Loading workspace..."),
-        QApplication::translate("Splash", "Initializing signals engine..."),
-        QApplication::translate("Splash", "Ready"),
-    };
-
-    for (int i = 0; i < steps.size(); ++i) {
-        QTimer::singleShot((i + 1) * ui::kSplashStepDelayMs, &splash, [&splash, steps, i]() {
-            splash.setStatusMessage(steps[i]);
-            splash.incrementProgress();
-            if (i == steps.size() - 1) {
-                splash.finishSplash();
-            }
-        });
-    }
+void connect_splash_to_init_steps(lib_qt_custom_widgets::SplashScreenWidget& splash,
+                                  signal_editor::adapters::qt::MainWindow& window) {
+    QObject::connect(&window,
+                     &signal_editor::adapters::qt::MainWindow::initStepCompleted,
+                     &splash,
+                     [&splash](const QString& message) {
+                         splash.setStatusMessage(message);
+                         splash.incrementProgress();
+                     });
 }
 #endif
 
@@ -160,6 +159,7 @@ void launch_without_splash(signal_editor::SignalEditorService& service) {
     auto* window = new signal_editor::adapters::qt::MainWindow(service);
     window->setAttribute(Qt::WA_DeleteOnClose);
     window->setWindowIcon(QApplication::windowIcon());
+    window->initialize();
     window->showMaximized();
 }
 #endif
@@ -215,6 +215,7 @@ void launch_desktop_shell(signal_editor::SignalEditorService& service) {
     auto* window = new signal_editor::adapters::qt::MainWindow(service);
     window->setWindowIcon(QApplication::windowIcon());
 
+    // Show the main window once the splash finishes its fade-out.
     QObject::connect(splash,
                      &lib_qt_custom_widgets::SplashScreenWidget::splashFinished,
                      window,
@@ -223,8 +224,17 @@ void launch_desktop_shell(signal_editor::SignalEditorService& service) {
                          splash->deleteLater();
                      });
 
+    // Route each real initialization step to the splash status bar.
+    connect_splash_to_init_steps(*splash, *window);
+
     splash->startSplash();
-    schedule_splash_progress(*splash);
+
+    // initialize() runs synchronously and emits initStepCompleted at each
+    // phase; processEvents() inside initialize() keeps the splash repainted.
+    window->initialize();
+
+    // All steps are done — begin the splash fade-out.
+    splash->finishSplash();
 #else
     launch_without_splash(service);
 #endif

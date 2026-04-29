@@ -117,10 +117,31 @@ class MainWindow : public QMainWindow {
 public:
     /**
      * @brief Creates the top-level workspace window.
+     *
+     * The constructor performs only minimal setup so that the caller can
+     * connect signals (such as initStepCompleted) before initialization
+     * begins.  Call initialize() immediately after construction.
+     *
      * @param service Application service used to load, save, and edit signals.
      * @param parent Optional owning widget supplied by Qt.
      */
     explicit MainWindow(SignalEditorService& service, QWidget* parent = nullptr);
+
+    /**
+     * @brief Runs the real initialization sequence, emitting initStepCompleted
+     *        at each phase so that a connected splash screen can reflect
+     *        actual progress.
+     *
+     * Must be called once, immediately after the constructor.
+     */
+    void initialize();
+
+Q_SIGNALS:
+    /**
+     * @brief Emitted when a named initialization phase completes.
+     * @param message Human-readable description of the completed step.
+     */
+    void initStepCompleted(const QString& message);
 
 protected:
     void dragEnterEvent(QDragEnterEvent* event) override;

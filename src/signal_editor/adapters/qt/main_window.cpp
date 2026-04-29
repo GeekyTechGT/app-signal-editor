@@ -819,7 +819,14 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
     }
 #endif
     visual_settings_ = app_settings_;
+}
+
+void MainWindow::initialize() {
+    // ── Step 1: Apply the persisted language so all subsequent tr() calls
+    //   already return the correct locale strings.
     apply_language(app_settings_.language);
+    emit initStepCompleted(tr("Applying language..."));
+    QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
 
     // ── Central layout ────────────────────────────────────────────────────────
     auto* central        = new QWidget(this);
@@ -1053,6 +1060,10 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
     register_svg_icon(settings_btn_, QStringLiteral(":/img/settings.svg"));
     refresh_registered_svg_icons();
 
+    // ── Step 2: All workspace widgets are built and icons applied.
+    emit initStepCompleted(tr("Loading workspace..."));
+    QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+
     // ── Connections ───────────────────────────────────────────────────────────
     connect(act_open_,     &QAction::triggered, this, &MainWindow::onOpen);
     connect(act_save_,     &QAction::triggered, this, &MainWindow::onSave);
@@ -1148,10 +1159,17 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
     connect(workspace_tabs_, &QTabWidget::currentChanged,
             this, [this](int index) { animate_tab_reveal(workspace_tabs_, index); });
 
+    // ── Step 3: Restore persisted geometry, theme, font, and density settings.
     load_persisted_settings();
+    emit initStepCompleted(tr("Applying theme..."));
+    QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+
+    // ── Step 4: Final synchronization — the workspace is ready.
     sync_plot_view_controls();
     update_undo_action();
     refresh_status();
+    emit initStepCompleted(tr("Ready"));
+    QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
 }
 
 // ============================================================================
