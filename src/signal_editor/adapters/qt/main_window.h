@@ -137,7 +137,7 @@ private slots:
     void onNewSignal();
     void onRemoveSignal();
     void onRenameSignal();
-    void onOpenManualPlaceholder();
+    void onOpenUserManual();
     void onAbout();
     void onOpenSettings();
 

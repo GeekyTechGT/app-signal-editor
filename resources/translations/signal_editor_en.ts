@@ -919,6 +919,44 @@ Signals:
         <translation>Untitled workspace</translation>
     </message>
     <message>
+        <source>&amp;User manual...</source>
+        <translation>&amp;User manual...</translation>
+    </message>
+    <message>
+        <source>User manual</source>
+        <translation>User manual</translation>
+    </message>
+    <message>
+        <source>Read the Signal Editor user manual.</source>
+        <translation>Read the Signal Editor user manual.</translation>
+    </message>
+    <message>
+        <source>Displays the packaged PDF user guide.</source>
+        <translation>Displays the packaged PDF user guide.</translation>
+    </message>
+    <message>
+        <source>The user manual PDF could not be found. Expected a file under %1.</source>
+        <translation>The user manual PDF could not be found. Expected a file under %1.</translation>
+    </message>
+    <message>
+        <source>The user manual PDF could not be opened:
+%1</source>
+        <translation>The user manual PDF could not be opened:
+%1</translation>
+    </message>
+    <message>
+        <source>The PDF viewer is not available in this build.</source>
+        <translation>The PDF viewer is not available in this build.</translation>
+    </message>
+    <message>
+        <source>Open the packaged PDF user guide.</source>
+        <translation>Open the packaged PDF user guide.</translation>
+    </message>
+    <message>
+        <source>Open the Signal Editor user manual.</source>
+        <translation>Open the Signal Editor user manual.</translation>
+    </message>
+    <message>
         <source>TRUE:1
 FALSE:0</source>
         <translation>TRUE:1
@@ -934,6 +972,45 @@ FALSE:0</translation>
             <numerusform>%n signal</numerusform>
             <numerusform>%n signals</numerusform>
         </translation>
+    </message>
+</context>
+<context>
+    <name>lib_qt_custom_widgets::PdfViewerWidget</name>
+    <message>
+        <source>Document %1</source>
+        <translation>Document %1</translation>
+    </message>
+    <message>
+        <source>Previous page</source>
+        <translation>Previous page</translation>
+    </message>
+    <message>
+        <source>Next page</source>
+        <translation>Next page</translation>
+    </message>
+    <message>
+        <source>Zoom out</source>
+        <translation>Zoom out</translation>
+    </message>
+    <message>
+        <source>Zoom</source>
+        <translation>Zoom</translation>
+    </message>
+    <message>
+        <source>Zoom in</source>
+        <translation>Zoom in</translation>
+    </message>
+    <message>
+        <source>Fit width</source>
+        <translation>Fit width</translation>
+    </message>
+    <message>
+        <source>Fit page</source>
+        <translation>Fit page</translation>
+    </message>
+    <message>
+        <source>PDF preview</source>
+        <translation>PDF preview</translation>
     </message>
 </context>
 <context>

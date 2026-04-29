@@ -64,6 +64,7 @@
 #include <QStringList>
 
 #ifdef LIB_QT_CUSTOM_WIDGETS_AVAILABLE
+#include <pdf_viewer_widget.hpp>
 #include <settings_panel_dialog.hpp>
 #endif
 
@@ -304,6 +305,106 @@ QString normalize_language_code(QString language) {
     }
     return language.left(2).toLower();
 }
+
+QStringList user_manual_pdf_candidates(const QString& language) {
+    const QString lang = normalize_language_code(language);
+    QStringList file_names;
+    if (!lang.isEmpty()) {
+        file_names << QStringLiteral("user_manual_%1.pdf").arg(lang);
+    }
+    file_names << QStringLiteral("user_manual.pdf");
+    file_names.removeDuplicates();
+
+    QStringList directories;
+    const QString app_dir = QCoreApplication::applicationDirPath();
+    directories << QDir(app_dir).filePath(QStringLiteral("docs/user"))
+                << QDir(app_dir).filePath(QStringLiteral("../docs/user"))
+                << QDir(QDir::currentPath()).filePath(QStringLiteral("docs/user"))
+#ifdef SIGNAL_EDITOR_SOURCE_DIR
+                << QDir(QStringLiteral(SIGNAL_EDITOR_SOURCE_DIR)).filePath(QStringLiteral("docs/user"))
+#endif
+        ;
+    directories.removeDuplicates();
+
+    QStringList candidates;
+    for (const QString& directory : directories) {
+        for (const QString& file_name : file_names) {
+            candidates << QDir(directory).filePath(file_name);
+        }
+    }
+    return candidates;
+}
+
+QString resolve_user_manual_pdf(const QString& language) {
+    const QStringList candidates = user_manual_pdf_candidates(language);
+    for (const QString& candidate : candidates) {
+        if (QFileInfo::exists(candidate) && QFileInfo(candidate).isFile()) {
+            return QFileInfo(candidate).absoluteFilePath();
+        }
+    }
+    return {};
+}
+
+void register_pdf_viewer_translation_sources() {
+#ifdef LIB_QT_CUSTOM_WIDGETS_AVAILABLE
+    static_cast<void>(QCoreApplication::translate(
+        "lib_qt_custom_widgets::PdfViewerWidget", "Document %1"));
+    static_cast<void>(QCoreApplication::translate(
+        "lib_qt_custom_widgets::PdfViewerWidget", "Previous page"));
+    static_cast<void>(QCoreApplication::translate(
+        "lib_qt_custom_widgets::PdfViewerWidget", "Next page"));
+    static_cast<void>(QCoreApplication::translate(
+        "lib_qt_custom_widgets::PdfViewerWidget", "Zoom out"));
+    static_cast<void>(QCoreApplication::translate(
+        "lib_qt_custom_widgets::PdfViewerWidget", "Zoom"));
+    static_cast<void>(QCoreApplication::translate(
+        "lib_qt_custom_widgets::PdfViewerWidget", "Zoom in"));
+    static_cast<void>(QCoreApplication::translate(
+        "lib_qt_custom_widgets::PdfViewerWidget", "Fit width"));
+    static_cast<void>(QCoreApplication::translate(
+        "lib_qt_custom_widgets::PdfViewerWidget", "Fit page"));
+    static_cast<void>(QCoreApplication::translate(
+        "lib_qt_custom_widgets::PdfViewerWidget", "PDF preview"));
+#endif
+}
+
+#ifdef LIB_QT_CUSTOM_WIDGETS_AVAILABLE
+class UserManualDialog final : public QDialog {
+public:
+    explicit UserManualDialog(QWidget* parent = nullptr)
+        : QDialog(parent)
+        , viewer_(new lib_qt_custom_widgets::PdfViewerWidget(this)) {
+        register_pdf_viewer_translation_sources();
+        auto* layout = new QVBoxLayout(this);
+        layout->setContentsMargins(8, 8, 8, 8);
+        layout->setSpacing(8);
+        layout->addWidget(viewer_, 1);
+        resize(1000, 720);
+        retranslate();
+    }
+
+    [[nodiscard]] bool loadFile(const QString& path) {
+        return viewer_->loadFile(path);
+    }
+
+protected:
+    void changeEvent(QEvent* event) override {
+        QDialog::changeEvent(event);
+        if (event != nullptr && event->type() == QEvent::LanguageChange) {
+            retranslate();
+        }
+    }
+
+private:
+    void retranslate() {
+        setWindowTitle(tr("User manual"));
+        viewer_->setToolTip(tr("Read the Signal Editor user manual."));
+        viewer_->setStatusTip(tr("Displays the packaged PDF user guide."));
+    }
+
+    lib_qt_custom_widgets::PdfViewerWidget* viewer_{nullptr};
+};
+#endif
 
 bool translator_has_app_ui_strings(const QTranslator& translator) {
     const QString main_window_text =
@@ -960,7 +1061,7 @@ MainWindow::MainWindow(SignalEditorService& service, QWidget* parent)
     connect(act_new_,      &QAction::triggered, this, &MainWindow::onNewSignal);
     connect(rename_action_,&QAction::triggered, this, &MainWindow::onRenameSignal);
     connect(act_remove_,   &QAction::triggered, this, &MainWindow::onRemoveSignal);
-    connect(act_manual_,   &QAction::triggered, this, &MainWindow::onOpenManualPlaceholder);
+    connect(act_manual_,   &QAction::triggered, this, &MainWindow::onOpenUserManual);
     connect(act_about_,    &QAction::triggered, this, &MainWindow::onAbout);
     connect(act_quit_,     &QAction::triggered, qApp, &QApplication::quit);
     connect(settings_action_, &QAction::triggered, this, &MainWindow::onOpenSettings);
@@ -1275,19 +1376,33 @@ void MainWindow::onAbout() {
     box.exec();
 }
 
-void MainWindow::onOpenManualPlaceholder() {
-    QMessageBox box(this);
-    apply_application_icon(&box);
-    box.setWindowTitle(tr("User manual"));
-    box.setIconPixmap(application_logo_pixmap(QSize(72, 72)));
-    box.setTextFormat(Qt::RichText);
-    box.setText(
-        tr("<h3>User manual placeholder</h3>"
-           "<p>The integrated user manual entry point is reserved here.</p>"
-           "<p>You can later connect this action to the PDF generated from the "
-           "Markdown manual under <code>docs/user/user_manual.md</code>.</p>"));
-    box.setStandardButtons(QMessageBox::Ok);
-    box.exec();
+void MainWindow::onOpenUserManual() {
+#ifdef LIB_QT_CUSTOM_WIDGETS_AVAILABLE
+    const QString manual_path = resolve_user_manual_pdf(app_settings_.language);
+    if (manual_path.isEmpty()) {
+        show_error(
+            tr("User manual"),
+            tr("The user manual PDF could not be found. Expected a file under %1.")
+                .arg(QStringLiteral("docs/user/user_manual.pdf")));
+        return;
+    }
+
+    UserManualDialog dialog(this);
+    apply_application_icon(&dialog);
+
+    if (!dialog.loadFile(manual_path)) {
+        show_error(
+            tr("User manual"),
+            tr("The user manual PDF could not be opened:\n%1").arg(manual_path));
+        return;
+    }
+
+    dialog.exec();
+#else
+    show_error(
+        tr("User manual"),
+        tr("The PDF viewer is not available in this build."));
+#endif
 }
 
 // ============================================================================
@@ -3738,8 +3853,8 @@ void MainWindow::retranslate_ui() {
     }
     if (act_manual_) {
         act_manual_->setText(tr("&User manual..."));
-        act_manual_->setToolTip(tr("Open the user manual entry point."));
-        act_manual_->setStatusTip(tr("Open the user manual placeholder."));
+        act_manual_->setToolTip(tr("Open the packaged PDF user guide."));
+        act_manual_->setStatusTip(tr("Open the Signal Editor user manual."));
     }
     if (act_about_) {
         act_about_->setText(tr("&About"));

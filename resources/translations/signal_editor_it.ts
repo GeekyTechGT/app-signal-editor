@@ -919,6 +919,44 @@ Segnali:
         <translation>Area di lavoro senza nome</translation>
     </message>
     <message>
+        <source>&amp;User manual...</source>
+        <translation>Manuale &amp;utente...</translation>
+    </message>
+    <message>
+        <source>User manual</source>
+        <translation>Manuale utente</translation>
+    </message>
+    <message>
+        <source>Read the Signal Editor user manual.</source>
+        <translation>Leggi il manuale utente di Signal Editor.</translation>
+    </message>
+    <message>
+        <source>Displays the packaged PDF user guide.</source>
+        <translation>Mostra la guida utente PDF inclusa.</translation>
+    </message>
+    <message>
+        <source>The user manual PDF could not be found. Expected a file under %1.</source>
+        <translation>Impossibile trovare il PDF del manuale utente. File atteso in %1.</translation>
+    </message>
+    <message>
+        <source>The user manual PDF could not be opened:
+%1</source>
+        <translation>Impossibile aprire il PDF del manuale utente:
+%1</translation>
+    </message>
+    <message>
+        <source>The PDF viewer is not available in this build.</source>
+        <translation>Il visualizzatore PDF non è disponibile in questa build.</translation>
+    </message>
+    <message>
+        <source>Open the packaged PDF user guide.</source>
+        <translation>Apri la guida utente PDF inclusa.</translation>
+    </message>
+    <message>
+        <source>Open the Signal Editor user manual.</source>
+        <translation>Apri il manuale utente di Signal Editor.</translation>
+    </message>
+    <message>
         <source>TRUE:1
 FALSE:0</source>
         <translation>VERO:1
@@ -934,6 +972,45 @@ FALSO:0</translation>
             <numerusform>%n segnale</numerusform>
             <numerusform>%n segnali</numerusform>
         </translation>
+    </message>
+</context>
+<context>
+    <name>lib_qt_custom_widgets::PdfViewerWidget</name>
+    <message>
+        <source>Document %1</source>
+        <translation>Documento %1</translation>
+    </message>
+    <message>
+        <source>Previous page</source>
+        <translation>Pagina precedente</translation>
+    </message>
+    <message>
+        <source>Next page</source>
+        <translation>Pagina successiva</translation>
+    </message>
+    <message>
+        <source>Zoom out</source>
+        <translation>Riduci zoom</translation>
+    </message>
+    <message>
+        <source>Zoom</source>
+        <translation>Zoom</translation>
+    </message>
+    <message>
+        <source>Zoom in</source>
+        <translation>Aumenta zoom</translation>
+    </message>
+    <message>
+        <source>Fit width</source>
+        <translation>Adatta alla larghezza</translation>
+    </message>
+    <message>
+        <source>Fit page</source>
+        <translation>Adatta alla pagina</translation>
+    </message>
+    <message>
+        <source>PDF preview</source>
+        <translation>Anteprima PDF</translation>
     </message>
 </context>
 <context>
