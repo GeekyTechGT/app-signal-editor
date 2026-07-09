@@ -1,0 +1,14 @@
+\
+# Config.cmake.in - inert scaffold for a future SignalEditor CMake package config.
+#
+# Not currently referenced by any install()/export() call: the project only
+# installs the GUI executable today, it does not export a consumable CMake
+# package. Wire this in (via configure_package_config_file() in
+# cmake/Modules/Install.cmake) if/when another CMake project needs to
+# find_package(SignalEditor).
+
+@PACKAGE_INIT@
+
+include("${CMAKE_CURRENT_LIST_DIR}/@PROJECT_NAME@Targets.cmake")
+
+check_required_components("@PROJECT_NAME@")

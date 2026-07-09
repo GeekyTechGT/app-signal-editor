@@ -1,0 +1,4 @@
+// Windows resource script: embeds the application icon into signal-editor-gui.exe.
+// Without this, Explorer/taskbar/desktop shortcuts fall back to the generic
+// executable icon regardless of the Inno Setup SetupIconFile or the Qt window icon.
+IDI_ICON1 ICON "../../../resources/img/app_icon.ico"

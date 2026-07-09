@@ -3,6 +3,7 @@ build/
 deploy/
 out/
 cmake-build-*/
+test-reports/
 
 # IDE files
 .vs/

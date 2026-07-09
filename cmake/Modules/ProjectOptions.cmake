@@ -1,4 +1,12 @@
-# ProjectOptions.cmake - Compiler warnings, sanitizer settings, and runtime helpers
+# ProjectOptions.cmake - aggregates the Modules/*.cmake files and keeps the
+# MinGW-runtime / Qt6 deployment helpers that are specific to this project
+# (as opposed to the generic, reusable pieces split into their own files).
+
+include(${CMAKE_CURRENT_LIST_DIR}/CompilerWarnings.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/Sanitizers.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/Coverage.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/StaticAnalyzers.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/IPO.cmake)
 
 # =============================================================================
 # MinGW Runtime DLLs - Copy to bin folder (when not statically linked)
@@ -98,69 +106,6 @@ function(myprj_enable_static_cpp_runtime target)
 endfunction()
 
 # =============================================================================
-# Compiler warnings
-# =============================================================================
-function(myprj_set_warnings target)
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-        target_compile_options(${target} PRIVATE
-            -Wall
-            -Wextra
-            -Wpedantic
-            -Wshadow
-            -Wconversion
-            -Wsign-conversion
-            -Wnull-dereference
-            -Wdouble-promotion
-            -Wformat=2
-            -Wimplicit-fallthrough
-        )
-        if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-            target_compile_options(${target} PRIVATE
-                -Wduplicated-cond
-                -Wduplicated-branches
-                -Wlogical-op
-                -Wuseless-cast
-            )
-        endif()
-    elseif(MSVC)
-        target_compile_options(${target} PRIVATE /W4 /permissive-)
-    endif()
-endfunction()
-
-# =============================================================================
-# Sanitizers (for debug builds)
-# =============================================================================
-function(myprj_enable_sanitizers target)
-    if(SIGNAL_EDITOR_ENABLE_SANITIZERS AND CMAKE_BUILD_TYPE STREQUAL "Debug")
-        if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-            target_compile_options(${target} PRIVATE
-                -fsanitize=address,undefined
-                -fno-omit-frame-pointer
-            )
-            target_link_options(${target} PRIVATE
-                -fsanitize=address,undefined
-            )
-        endif()
-    endif()
-endfunction()
-
-function(myprj_enable_coverage target)
-    if(SIGNAL_EDITOR_ENABLE_COVERAGE
-       AND CMAKE_BUILD_TYPE STREQUAL "Debug"
-       AND NOT WIN32
-       AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-        target_compile_options(${target} PRIVATE
-            --coverage
-            -O0
-            -g
-        )
-        target_link_options(${target} PRIVATE
-            --coverage
-        )
-    endif()
-endfunction()
-
-# =============================================================================
 # Combined function to apply all project options to a target
 # =============================================================================
 function(myprj_configure_target target)
@@ -169,6 +114,7 @@ function(myprj_configure_target target)
     myprj_enable_coverage(${target})
     myprj_enable_static_cpp_runtime(${target})
     myprj_copy_runtime_dlls(${target})
+    myprj_enable_ipo(${target})
 endfunction()
 
 # =============================================================================
@@ -226,8 +172,7 @@ function(myprj_find_windeployqt out_var)
 endfunction()
 
 # NOTE: Qt runtime deployment is no longer done as a CMake POST_BUILD step.
-# It is performed exclusively by the deploy task — see
-# `scripts\pm_deploy.bat` (`:do_deploy_windows`), which invokes windeployqt
-# on the .exe files copied into `deploy\windows\<config>\`.
-# `myprj_find_windeployqt` is kept above so other tooling can still locate
-# the executable from CMake if needed.
+# It is performed exclusively by the deploy action in scripts/project_manager.py
+# (action_deploy_app), which invokes windeployqt on the .exe copied into
+# deploy/app/<preset>/. myprj_find_windeployqt is kept above so other tooling
+# can still locate the executable from CMake if needed.

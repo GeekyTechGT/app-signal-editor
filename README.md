@@ -205,6 +205,24 @@ cmake --build --preset docker-gcc-debug
 
 > When building the GUI manually, pass `-DSIGNAL_EDITOR_DEPS_VARIANT=<variant>` to point CMake at the correct `_shared_lib` directory. The project manager handles this automatically.
 
+## Installer
+
+`scripts/project_manager.py` builds a Windows installer with Inno Setup from
+the already-deployed app (menu option `[7] Deploy app` must run first):
+
+```bat
+python scripts/project_manager.py
+# -> [10] Create Installer  (Inno Setup, requires Deploy app first)
+```
+
+It renders `cmake/Templates/installer.iss.in` with the current
+`project.json` metadata (`name`, `version`, `build`, `guid`,
+`app_executable`) and compiles it with `ISCC.exe`, located via
+`tools.inno_setup_compiler` in `project.json`, then `PATH`, then the default
+winget install location. The `build` number in `project.json` is bumped and
+persisted each time an installer is created. Output goes to `setup_folder`
+(`deploy/setup/` by default).
+
 ## Dependencies
 
 Signal Editor resolves shared workspace libraries from a central `_shared_lib` directory. The layout expected for each dependency is:

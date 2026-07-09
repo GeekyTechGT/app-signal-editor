@@ -17,6 +17,7 @@ import json
 import os
 import platform
 import shutil
+import stat
 import subprocess
 import sys
 import textwrap
@@ -124,12 +125,14 @@ PRESETS: list[dict] = [
 ]
 
 
-def preset_is_available(p: dict) -> bool:
+def preset_is_available(p: dict, meta: dict | None = None) -> bool:
     if p["host"] == "Windows" and _HOST != "Windows":
         return False
     if p["executor"] == "wsl" and _HOST == "Windows":
         return shutil.which("wsl") is not None or shutil.which("wsl.exe") is not None
     if p["executor"] == "docker":
+        if meta is not None and not meta.get("docker_image_available", True):
+            return False
         return shutil.which("docker") is not None
     return True
 
@@ -158,12 +161,40 @@ def _find_exe(name: str, extra: list[str] | None = None) -> Optional[str]:
     return None
 
 
-def find_cmake() -> Optional[str]:
+def find_cmake(meta: dict | None = None) -> Optional[str]:
+    configured = (meta or {}).get("tools", {}).get("cmake", "")
+    if configured and Path(configured).is_file():
+        return configured
     return _find_exe("cmake", _WIN_CMAKE if _HOST == "Windows" else [])
 
 
-def find_ctest() -> Optional[str]:
+def find_ctest(meta: dict | None = None) -> Optional[str]:
+    configured = (meta or {}).get("tools", {}).get("ctest", "")
+    if configured and Path(configured).is_file():
+        return configured
     return _find_exe("ctest", _WIN_CTEST if _HOST == "Windows" else [])
+
+
+def find_inno_compiler(meta: dict) -> Optional[str]:
+    """Locate ISCC.exe (Inno Setup Compiler): project.json tools.inno_setup_compiler,
+    then PATH, then the default winget install locations."""
+    configured = meta.get("tools", {}).get("inno_setup_compiler", "")
+    if configured and Path(configured).is_file():
+        return configured
+
+    found = shutil.which("iscc") or shutil.which("ISCC")
+    if found:
+        return found
+
+    for candidate in (
+        Path.home() / "AppData/Local/Programs/Inno Setup 6/ISCC.exe",
+        Path("C:/Program Files (x86)/Inno Setup 6/ISCC.exe"),
+        Path("C:/Program Files/Inno Setup 6/ISCC.exe"),
+    ):
+        if candidate.is_file():
+            return str(candidate)
+
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -198,7 +229,7 @@ def _build_wsl_cmd(base_cmd: list[str]) -> list[str]:
 
 
 def _build_docker_cmd(base_cmd: list[str], meta: dict) -> list[str]:
-    image  = meta.get("docker_image", "signal-editor-builder")
+    image  = meta.get("docker_image_name", "signal-editor-builder")
     volume = _win_to_docker_volume(PROJECT_ROOT) if _HOST == "Windows" else str(PROJECT_ROOT)
     return ["docker", "run", "--rm", "-v", f"{volume}:/workspace",
             "-w", "/workspace", image] + base_cmd
@@ -225,6 +256,12 @@ def load_metadata() -> dict:
         sys.exit(1)
     with open(PROJECT_JSON, encoding="utf-8") as fh:
         return json.load(fh)
+
+
+def save_metadata(meta: dict) -> None:
+    with open(PROJECT_JSON, "w", encoding="utf-8", newline="\n") as fh:
+        json.dump(meta, fh, indent=4)
+        fh.write("\n")
 
 
 # ---------------------------------------------------------------------------
@@ -365,7 +402,7 @@ def run_capture(cmd: list[str], preset_name: str | None = None) -> tuple[int, st
 
 
 # ---------------------------------------------------------------------------
-# HTML test report
+# HTML / text test reports
 # ---------------------------------------------------------------------------
 
 def _parse_junit(xml_path: Path) -> tuple[int, int, list[dict]]:
@@ -402,13 +439,16 @@ def _parse_junit(xml_path: Path) -> tuple[int, int, list[dict]]:
 
 
 def _generate_html(out: Path, raw: str, junit: Optional[Path],
-                   preset_name: str, meta: dict) -> None:
+                   preset_name: str, meta: dict, tail_characters: int = 0) -> None:
     total, failures, cases = 0, 0, []
     if junit and junit.exists():
         total, failures, cases = _parse_junit(junit)
     passed = total - failures
     ok = failures == 0
     sc = "#28a745" if ok else "#dc3545"
+
+    if tail_characters and len(raw) > tail_characters:
+        raw = f"…[truncated to last {tail_characters} characters]…\n" + raw[-tail_characters:]
 
     rows = ""
     for tc in cases:
@@ -462,6 +502,16 @@ def _generate_html(out: Path, raw: str, junit: Optional[Path],
     out.write_text(html, encoding="utf-8")
 
 
+def _write_text_report(out: Path, raw: str, tail_characters: int = 0) -> None:
+    if tail_characters and len(raw) > tail_characters:
+        raw = f"...[truncated to last {tail_characters} characters]...\n" + raw[-tail_characters:]
+    out.write_text(raw, encoding="utf-8")
+
+
+def _dir_size_bytes(path: Path) -> int:
+    return sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
+
+
 # ---------------------------------------------------------------------------
 # WSL / Docker helpers
 # ---------------------------------------------------------------------------
@@ -477,11 +527,14 @@ def _check_wsl() -> bool:
 
 
 def _check_docker(meta: dict) -> bool:
+    if not meta.get("docker_image_available", True):
+        CONSOLE.print("[red]docker_image_available is false in project.json.[/]")
+        return False
     docker = shutil.which("docker")
     if not docker:
         CONSOLE.print("[red]docker not found in PATH. Is Docker Desktop running?[/]")
         return False
-    image = meta.get("docker_image", "signal-editor-builder")
+    image = meta.get("docker_image_name", "signal-editor-builder")
     r = subprocess.run(["docker", "image", "inspect", image], capture_output=True, text=True)
     if r.returncode != 0:
         CONSOLE.print(
@@ -538,6 +591,22 @@ def _has_executed_tests(output: str, junit_xml: Optional[Path]) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Filesystem helpers
+# ---------------------------------------------------------------------------
+
+def _rmtree_force(path: Path) -> None:
+    """Delete a directory tree, unlocking read-only files first (required on Windows for git repos)."""
+    def _handle_ro(func, fpath, _exc):
+        os.chmod(fpath, stat.S_IWRITE)
+        func(fpath)
+
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(path, onexc=_handle_ro)
+    else:
+        shutil.rmtree(path, onerror=_handle_ro)
+
+
+# ---------------------------------------------------------------------------
 # Stale cache detection
 # ---------------------------------------------------------------------------
 
@@ -574,7 +643,7 @@ def _clear_stale_cache(preset_name: str) -> None:
             f"  The build directory was created from a different path.\n"
             f"  Deleting entire build directory to allow a clean reconfigure...",
         )
-        shutil.rmtree(build_dir)
+        _rmtree_force(build_dir)
         CONSOLE.print("[bold green]✓  Stale build directory removed — CMake will reconfigure from scratch.[/]\n")
 
 
@@ -596,7 +665,7 @@ def action_select_preset(state: dict, meta: dict) -> None:
 
     available_indices: list[int] = []
     for idx, p in enumerate(PRESETS, start=1):
-        avail  = preset_is_available(p)
+        avail  = preset_is_available(p, meta)
         marker = "[bold green]→[/]" if p["name"] == state["preset"] else "  "
         ready  = "[green]✓[/]" if avail else "[red]✗[/]"
         if avail:
@@ -619,7 +688,7 @@ def action_select_preset(state: dict, meta: dict) -> None:
         default=str(available_indices[0]),
     )
     chosen = PRESETS[int(choice) - 1]
-    if not preset_is_available(chosen):
+    if not preset_is_available(chosen, meta):
         CONSOLE.print(f"[bold yellow]⚠ Preset '{chosen['name']}' is marked as unavailable — "
                       "proceeding anyway.[/]")
     state["preset"] = chosen["name"]
@@ -694,7 +763,7 @@ def action_clean(state: dict) -> None:
         CONSOLE.print(f"[yellow]Build directory not found: {build_dir}[/]")
         return
     if Confirm.ask(f"Delete [bold]{build_dir}[/]?", default=False):
-        shutil.rmtree(build_dir)
+        _rmtree_force(build_dir)
         CONSOLE.print(f"[bold green]✓[/] Deleted {build_dir}")
     else:
         CONSOLE.print("[dim]Cancelled.[/]")
@@ -709,7 +778,7 @@ def action_clean_all() -> None:
     for d in subdirs:
         CONSOLE.print(f"  [dim]{d}[/]")
     if Confirm.ask("Delete ALL build directories?", default=False):
-        shutil.rmtree(build_root)
+        _rmtree_force(build_root)
         CONSOLE.print("[bold green]✓[/] All build directories deleted.")
     else:
         CONSOLE.print("[dim]Cancelled.[/]")
@@ -725,8 +794,19 @@ def action_run_tests(state: dict, ctest: str, meta: dict) -> None:
     if not _check_executor(preset, meta):
         return
 
+    test_report_cfg = meta.get("test_report", {})
+    report_enabled  = test_report_cfg.get("enabled", True)
+    save_text       = test_report_cfg.get("save_text", True)
+    save_html       = test_report_cfg.get("save_html", True)
+    tail_chars      = int(test_report_cfg.get("console_tail_characters", 600000))
+    max_bytes       = int(test_report_cfg.get("artifacts_max_bytes", 5_000_000_000))
+
+    report_base = Path(test_report_cfg.get("directory") or "test-reports")
+    if not report_base.is_absolute():
+        report_base = PROJECT_ROOT / report_base
+    report_dir = report_base / state["preset"]
+
     junit_xml   = build_dir / "test_results.xml"
-    html_report = build_dir / "test_results.html"
 
     base = ["ctest", "--preset", state["preset"],
             "-V", "--output-on-failure", "--output-junit", str(junit_xml)]
@@ -747,13 +827,37 @@ def action_run_tests(state: dict, ctest: str, meta: dict) -> None:
     CONSOLE.print(output)
 
     executed_tests = _has_executed_tests(output, junit_xml)
-    if executed_tests:
-        _generate_html(html_report, output, junit_xml, state["preset"], meta)
-        CONSOLE.print(f"\n[bold]HTML report:[/] {html_report}")
-        if Confirm.ask("Open HTML report in browser?", default=True):
+
+    if not report_enabled:
+        CONSOLE.print("[dim]test_report.enabled is false — report generation skipped.[/]")
+    elif executed_tests:
+        report_dir.mkdir(parents=True, exist_ok=True)
+
+        if junit_xml.exists():
+            shutil.copy2(junit_xml, report_dir / junit_xml.name)
+
+        html_report: Optional[Path] = None
+        if save_html:
+            html_report = report_dir / "test_results.html"
+            _generate_html(html_report, output, junit_xml, state["preset"], meta, tail_chars)
+            CONSOLE.print(f"\n[bold]HTML report:[/] {html_report}")
+
+        if save_text:
+            text_report = report_dir / "test_results.txt"
+            _write_text_report(text_report, output, tail_chars)
+            CONSOLE.print(f"[bold]Text report:[/] {text_report}")
+
+        dir_size = _dir_size_bytes(report_dir)
+        if dir_size > max_bytes:
+            CONSOLE.print(
+                f"[yellow]⚠ Report directory {report_dir} is {dir_size / 1e9:.2f} GB, "
+                f"exceeding artifacts_max_bytes ({max_bytes / 1e9:.2f} GB).[/]"
+            )
+
+        if html_report is not None and Confirm.ask("Open HTML report in browser?", default=True):
             webbrowser.open(html_report.as_uri())
     else:
-        CONSOLE.print("[yellow]No tests were discovered — HTML report skipped.[/]")
+        CONSOLE.print("[yellow]No tests were discovered — report skipped.[/]")
 
     if code == 0 and executed_tests:
         CONSOLE.print("[bold green]✓ All tests passed[/]")
@@ -862,14 +966,22 @@ def _copy_mingw_libzip_runtime(preset_name: str, bin_dir: Path) -> set[str]:
     return copied
 
 
+def _resolve_relative_dir(meta: dict, key: str, default: str) -> Path:
+    """Resolve a project.json path field (e.g. deploy_folder/setup_folder)
+    relative to the project root; absolute values are used as-is."""
+    configured = meta.get(key) or default
+    root = Path(configured)
+    if not root.is_absolute():
+        root = PROJECT_ROOT / root
+    return root
+
+
 def _resolve_app_deploy_dir(state: dict, meta: dict) -> Path:
-    configured = meta.get("deploy_app_folder") or meta.get("app_deploy_folder")
-    if configured:
-        root = Path(configured)
-        if not root.is_absolute():
-            root = PROJECT_ROOT / root
-        return root / state["preset"]
-    return PROJECT_ROOT / "deploy" / "app" / state["preset"]
+    return _resolve_relative_dir(meta, "deploy_folder", "deploy/app") / state["preset"]
+
+
+def _resolve_setup_dir(meta: dict) -> Path:
+    return _resolve_relative_dir(meta, "setup_folder", "deploy/setup")
 
 
 def action_deploy_app(state: dict, cmake: str, meta: dict) -> None:
@@ -900,7 +1012,8 @@ def action_deploy_app(state: dict, cmake: str, meta: dict) -> None:
         )
         return
 
-    exe = bin_dir / "signal-editor-gui.exe"
+    exe_name = meta.get("app_executable", "signal-editor-gui.exe")
+    exe = bin_dir / exe_name
     if not exe.exists():
         CONSOLE.print(f"[red]Executable not found: {exe}[/]")
         return
@@ -911,7 +1024,7 @@ def action_deploy_app(state: dict, cmake: str, meta: dict) -> None:
         return
 
     if out_dir.exists():
-        shutil.rmtree(out_dir)
+        _rmtree_force(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # Copy exe
@@ -999,7 +1112,10 @@ def action_deploy_app(state: dict, cmake: str, meta: dict) -> None:
 
 def action_docker_build_image(meta: dict) -> None:
     CONSOLE.print(Rule("[bold cyan]Build Docker image"))
-    image      = meta.get("docker_image", "signal-editor-builder")
+    if not meta.get("docker_image_available", True):
+        CONSOLE.print("[red]docker_image_available is false in project.json — skipping.[/]")
+        return
+    image      = meta.get("docker_image_name", "signal-editor-builder")
     dockerfile = PROJECT_ROOT / "Dockerfile.ubuntu"
     if not dockerfile.exists():
         dockerfile = PROJECT_ROOT / "Dockerfile.alpine"
@@ -1012,6 +1128,109 @@ def action_docker_build_image(meta: dict) -> None:
         CONSOLE.print(f"[bold green]✓ Image '{image}' built.[/]")
     else:
         CONSOLE.print(f"[bold red]✗ docker build failed (exit {code})[/]")
+
+
+def action_sync_submodules(meta: dict) -> None:
+    CONSOLE.print(Rule("[bold cyan]Sync Git Submodules"))
+    submodules = meta.get("submodules", [])
+    if not submodules:
+        CONSOLE.print("[dim]project.json has no declared submodules — nothing to sync.[/]")
+        return
+
+    git = shutil.which("git")
+    if not git:
+        CONSOLE.print("[red]git not found in PATH.[/]")
+        return
+
+    for sub in submodules:
+        CONSOLE.print(f"  [dim]•[/] {sub.get('name', '?')}  {sub.get('url', '')}")
+
+    code = run([git, "submodule", "update", "--init", "--recursive"])
+    if code == 0:
+        CONSOLE.print("[bold green]✓ Submodules synced.[/]")
+    else:
+        CONSOLE.print(f"[bold red]✗ git submodule update failed (exit {code})[/]")
+
+
+def action_create_installer(state: dict, meta: dict) -> None:
+    """Package the already-deployed app into a Windows installer via Inno Setup."""
+    CONSOLE.print(Rule(f"[bold cyan]Create Installer — {state['preset']}"))
+
+    if _HOST != "Windows":
+        CONSOLE.print("[yellow]Inno Setup installers are Windows-only.[/]")
+        return
+
+    deploy_dir = _resolve_app_deploy_dir(state, meta)
+    exe_name   = meta.get("app_executable", "signal-editor-gui.exe")
+    if not (deploy_dir / exe_name).exists():
+        CONSOLE.print(
+            f"[bold red]Deployed app not found:[/] {deploy_dir / exe_name}\n"
+            "[dim]Run option [7] Deploy app first.[/]"
+        )
+        return
+
+    iscc = find_inno_compiler(meta)
+    if not iscc:
+        CONSOLE.print(
+            "[bold red]ISCC.exe (Inno Setup Compiler) not found.[/]\n"
+            "Set tools.inno_setup_compiler in project.json, or install it via:\n"
+            "  winget install --id JRSoftware.InnoSetup -e -s winget -i"
+        )
+        return
+
+    template_path = PROJECT_ROOT / "cmake" / "Templates" / "installer.iss.in"
+    if not template_path.exists():
+        CONSOLE.print(f"[bold red]Installer template not found:[/] {template_path}")
+        return
+
+    icon_path    = PROJECT_ROOT / "resources" / "img" / "app_icon.ico"
+    license_path = PROJECT_ROOT / "LICENSE.md"
+    if not license_path.exists():
+        license_path = PROJECT_ROOT / "LICENSE"
+    if not meta.get("guid"):
+        CONSOLE.print(
+            "[bold red]project.json has no guid.[/] Run: "
+            "python scripts/generate_guid.py --write"
+        )
+        return
+
+    setup_dir = _resolve_setup_dir(meta)
+    setup_dir.mkdir(parents=True, exist_ok=True)
+
+    # Bump + persist the build number so the installer filename/version stay traceable.
+    meta["build"] = int(meta.get("build", 0)) + 1
+    save_metadata(meta)
+    CONSOLE.print(f"[dim]Build number bumped to {meta['build']}[/]")
+
+    output_basename = f"{meta['name']}-Setup-{meta['version']}-b{meta['build']}-{state['preset']}"
+
+    tokens = {
+        "@APP_NAME@":        meta["name"],
+        "@APP_VERSION@":     meta["version"],
+        "@APP_BUILD@":       str(meta["build"]),
+        "@APP_GUID@":        meta["guid"].upper(),
+        "@EXE_NAME@":        exe_name,
+        "@DEPLOY_DIR@":      str(deploy_dir),
+        "@OUTPUT_DIR@":      str(setup_dir),
+        "@OUTPUT_BASENAME@": output_basename,
+        "@ICON_PATH@":       str(icon_path),
+        "@LICENSE_PATH@":    str(license_path),
+    }
+
+    script_text = template_path.read_text(encoding="utf-8")
+    for token, value in tokens.items():
+        script_text = script_text.replace(token, value)
+
+    iss_path = setup_dir / f"{meta['name']}.iss"
+    iss_path.write_text(script_text, encoding="utf-8")
+    CONSOLE.print(f"[dim]Rendered:[/] {iss_path}")
+
+    code = run([iscc, str(iss_path)])
+    setup_exe = setup_dir / f"{output_basename}.exe"
+    if code == 0 and setup_exe.exists():
+        CONSOLE.print(f"\n[bold green]✓ Installer created:[/] {setup_exe}")
+    else:
+        CONSOLE.print(f"[bold red]✗ ISCC failed (exit {code})[/]")
 
 
 def _print_tree(prefix: Path) -> None:
@@ -1081,6 +1300,10 @@ def print_menu() -> None:
         "  [bold yellow][7][/] Deploy app  (deploy/app/ + windeployqt)\n\n"
         "[bold cyan]Docker[/]\n"
         "  [bold yellow][8][/] Build Docker image\n\n"
+        "[bold cyan]Submodules[/]\n"
+        "  [bold yellow][9][/] Sync Git Submodules\n\n"
+        "[bold cyan]Installer[/]\n"
+        "  [bold yellow][10][/] Create Installer  (Inno Setup, requires Deploy app first)\n\n"
         "[bold cyan]Exit[/]\n"
         "  [bold yellow][0][/] Quit"
     )
@@ -1093,8 +1316,8 @@ def print_menu() -> None:
 
 def main() -> None:
     meta  = load_metadata()
-    cmake = find_cmake()
-    ctest = find_ctest()
+    cmake = find_cmake(meta)
+    ctest = find_ctest(meta)
 
     if not cmake:
         CONSOLE.print(
@@ -1125,7 +1348,7 @@ def main() -> None:
         print_menu()
         choice = Prompt.ask(
             "[bold]Choice",
-            choices=["0", "1", "2", "3", "4", "5", "6", "7", "8"],
+            choices=["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
             default="0",
         )
         if choice == "0":
@@ -1150,6 +1373,10 @@ def main() -> None:
             action_deploy_app(state, cmake, meta)
         elif choice == "8":
             action_docker_build_image(meta)
+        elif choice == "9":
+            action_sync_submodules(meta)
+        elif choice == "10":
+            action_create_installer(state, meta)
 
         CONSOLE.print()
         input("Press Enter to continue...")

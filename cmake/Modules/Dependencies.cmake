@@ -1,4 +1,4 @@
-# ExternalLibraries.cmake
+# Dependencies.cmake (formerly cmake/ExternalLibraries.cmake)
 # Helpers to import pre-built external shared libraries from a local directory.
 #
 # Expected layout for each external library:
@@ -9,7 +9,7 @@
 #       Release/        (release DLL + import lib)
 #
 # Usage example:
-#   include(cmake/ExternalLibraries.cmake)
+#   include(cmake/Modules/Dependencies.cmake)
 #   myprj_collect_external_libraries("${CMAKE_SOURCE_DIR}/external"
 #       EXT_TARGETS EXT_DEBUG_DLLS EXT_RELEASE_DLLS)
 #   target_link_libraries(my_target PRIVATE ${EXT_TARGETS})

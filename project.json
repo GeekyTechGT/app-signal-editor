@@ -1,22 +1,49 @@
 {
     "name": "signal-editor",
     "version": "0.1.0",
-    "description": "C++23 / Qt6 desktop waveform editor — multi-document, plot & table editing",
+    "build": 1,
+    "guid": "81343270-e058-40a9-adcd-51c2d359d683",
+    "description": "C++23 / Qt6 desktop waveform editor \u2014 multi-document, plot & table editing",
     "license": "MIT",
+    "deploy_folder": "deploy/app",
+    "setup_folder": "deploy/setup",
     "shared_lib_base": "D:/GeekyTechRepos/_shared_lib",
-    "deploy_folder": "D:/GeekyTechRepos/_shared_lib",
-    "docker_image": "signal-editor-builder",
+    "docker_image_available": true,
+    "docker_image_name": "signal-editor-builder",
     "qt_version": "6.10.1",
     "qt_root": "C:/eng_apps/Qt",
+    "app_executable": "signal-editor-gui.exe",
     "use_external_deps": false,
     "preset_to_shared_lib_variant": {
         "windows-mingw64-debug": "windows-mingw64-debug",
         "windows-mingw64-release": "windows-mingw64-release",
-        "linux-gcc-debug":      "linux-gcc-debug",
-        "linux-gcc-release":    "linux-gcc-release",
-        "docker-gcc-debug":     "linux-gcc-debug",
-        "docker-gcc-release":   "linux-gcc-release"
+        "linux-gcc-debug": "linux-gcc-debug",
+        "linux-gcc-release": "linux-gcc-release",
+        "docker-gcc-debug": "linux-gcc-debug",
+        "docker-gcc-release": "linux-gcc-release"
     },
+    "tools": {
+        "cmake": "",
+        "ctest": "",
+        "inno_setup_compiler": "C:/Users/Cristian Tesconi/AppData/Local/Programs/Inno Setup 6/ISCC.exe"
+    },
+    "test_report": {
+        "enabled": true,
+        "directory": "test-reports",
+        "save_text": true,
+        "save_html": true,
+        "console_tail_characters": 600000,
+        "artifacts_max_bytes": 5000000000,
+        "notes": "JUnit-derived HTML/text reports written per preset under <directory>/<preset>/."
+    },
+    "submodules": [
+        {
+            "name": "res-qt-themes",
+            "url": "file:///D:/GeekyTechRepos/res-qt-themes",
+            "branch": "",
+            "tag": ""
+        }
+    ],
     "dependencies": [
         {
             "name": "lib-qt-utils",

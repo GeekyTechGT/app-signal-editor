@@ -1,0 +1,49 @@
+; Inno Setup script — rendered by scripts/project_manager.py (action_create_installer)
+; from this template. Do not edit the generated .iss by hand; edit this template
+; and re-run "Create Installer" instead.
+
+#define MyAppName "@APP_NAME@"
+#define MyAppVersion "@APP_VERSION@"
+#define MyAppBuild "@APP_BUILD@"
+#define MyAppPublisher "Signal Viewer Team"
+#define MyAppExeName "@EXE_NAME@"
+
+[Setup]
+AppId={{@APP_GUID@}
+AppName={#MyAppName}
+AppVersion={#MyAppVersion}.{#MyAppBuild}
+AppPublisher={#MyAppPublisher}
+DefaultDirName={autopf}\{#MyAppName}
+DefaultGroupName={#MyAppName}
+DisableProgramGroupPage=yes
+DisableWelcomePage=no
+LicenseFile=@LICENSE_PATH@
+OutputDir=@OUTPUT_DIR@
+OutputBaseFilename=@OUTPUT_BASENAME@
+SetupIconFile=@ICON_PATH@
+UninstallDisplayIcon={app}\{#MyAppExeName}
+Compression=lzma2/ultra64
+SolidCompression=yes
+WizardStyle=modern
+WizardSizePercent=100
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
+PrivilegesRequired=lowest
+PrivilegesRequiredOverridesAllowed=commandline dialog
+
+[Languages]
+Name: "english"; MessagesFile: "compiler:Default.isl"
+
+[Tasks]
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+
+[Files]
+Source: "@DEPLOY_DIR@\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+[Icons]
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+
+[Run]
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall skipifsilent

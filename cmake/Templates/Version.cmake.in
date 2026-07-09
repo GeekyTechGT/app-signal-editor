@@ -1,0 +1,19 @@
+\
+# Version.cmake.in - inert scaffold for a future SignalEditorConfigVersion.cmake.
+#
+# Not currently referenced by any call: see cmake/Modules/Version.cmake for
+# the version header generation this project actually uses
+# (include/signal_editor/version.h.in -> generated/signal_editor/version.h).
+# Wire this in via write_basic_package_version_file() if a CMake package
+# export is added later.
+
+set(PACKAGE_VERSION "@PROJECT_VERSION@")
+
+if(PACKAGE_VERSION VERSION_LESS PACKAGE_FIND_VERSION)
+    set(PACKAGE_VERSION_COMPATIBLE FALSE)
+else()
+    set(PACKAGE_VERSION_COMPATIBLE TRUE)
+    if(PACKAGE_VERSION STREQUAL PACKAGE_FIND_VERSION)
+        set(PACKAGE_VERSION_EXACT TRUE)
+    endif()
+endif()

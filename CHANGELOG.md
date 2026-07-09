@@ -7,6 +7,39 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 ## [Unreleased]
 
 ### Added
+- **Windows installer via Inno Setup** — `scripts/project_manager.py` gained a
+  "Create Installer" action that packages the already-deployed app
+  (`deploy_folder`) into a modern Inno Setup installer, rendered from
+  `cmake/Templates/installer.iss.in` and compiled with `ISCC.exe` (located via
+  `tools.inno_setup_compiler` in `project.json`). Output goes to
+  `setup_folder` (default `deploy/setup/`); the installer bundles the app
+  icon, license, a desktop-icon task, Start Menu shortcuts, and an
+  uninstaller. `project.json` gained a stable `guid` (used as the Inno Setup
+  `AppId`, generated once via the new `scripts/generate_guid.py`) and a
+  `build` number that is bumped on every installer package. Embedded the
+  application icon into `signal-editor-gui.exe` via a new Windows resource
+  script (`apps/signal_editor/gui/app_icon.rc`) so Explorer, the taskbar, and
+  installer-created shortcuts show the real logo instead of the generic
+  executable icon.
+- **`project.json` schema refactor** — reorganized into `deploy_folder` /
+  `setup_folder`, `docker_image_available` / `docker_image_name`,
+  `tools.{cmake,ctest,inno_setup_compiler}`, a `test_report` block
+  (`enabled`, `directory`, `save_text`, `save_html`,
+  `console_tail_characters`, `artifacts_max_bytes`), and a `submodules` list
+  (now covering the existing `external/res-qt-themes` submodule).
+  `scripts/project_manager.py`'s test-report generation now honors these
+  settings (configurable output directory, optional text/HTML reports, tail
+  truncation of embedded console output) and a new "Sync Git Submodules"
+  action runs `git submodule update --init --recursive`.
+- **CMake reorganization** — split `cmake/ProjectOptions.cmake` into
+  `cmake/Modules/*.cmake` by concern (`CompilerWarnings`, `Sanitizers`,
+  `Coverage`, `StaticAnalyzers`, `IPO`, `StandardProjectSettings`,
+  `Dependencies`, `Testing`, `Documentation`/`Doxygen`, `Packaging`,
+  `Install`, `Version`, `Git`, `Utils`, with `ProjectOptions.cmake` as the
+  aggregator), and added `cmake/Toolchains/{gcc,mingw}.cmake`,
+  `cmake/FindModules/`, and `cmake/Templates/`. Existing presets and targets
+  are unaffected; new capabilities (LTO, clang-tidy/cppcheck, Doxygen target,
+  CPack) are opt-in and off by default.
 - Workspace tab navigation that separates plot and table workflows into dedicated views
 - Shared interpolation control positioned at workspace level so it remains available in both editing contexts
 - Dedicated plot navigation controls for zoom in/out, fit view, pan mode, and rectangle zoom mode

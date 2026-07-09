@@ -4,11 +4,17 @@ endif()
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets LinguistTools Svg Pdf PdfWidgets)
 
+set(SIGNAL_EDITOR_GUI_PLATFORM_SOURCES)
+if(WIN32)
+    list(APPEND SIGNAL_EDITOR_GUI_PLATFORM_SOURCES app_icon.rc)
+endif()
+
 qt_add_executable(signal_editor_gui
     bootstrap.h
     bootstrap.cpp
     main.cpp
     resources.qrc
+    ${SIGNAL_EDITOR_GUI_PLATFORM_SOURCES}
 )
 
 set_target_properties(signal_editor_gui PROPERTIES
