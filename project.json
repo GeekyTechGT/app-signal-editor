@@ -39,7 +39,13 @@
     "submodules": [
         {
             "name": "res-qt-themes",
-            "url": "file:///D:/GeekyTechRepos/res-qt-themes",
+            "url": "git@github.com:GeekyTechGT/res-qt-themes.git",
+            "branch": "",
+            "tag": ""
+        },
+        {
+            "name": "res-graphics",
+            "url": "git@github.com:GeekyTechGT/res-graphics.git",
             "branch": "",
             "tag": ""
         }
@@ -53,5 +59,9 @@
             "name": "lib-qt-custom-widgets",
             "version": "1.0.0"
         }
-    ]
+    ],
+    "cmake_prefix": "SIGNAL_EDITOR",
+    "scripts": {
+        "test": "scripts/test.py"
+    }
 }

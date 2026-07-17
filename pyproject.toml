@@ -1,0 +1,21 @@
+[project]
+name = "signal-editor-tooling"
+version = "0.1.0"
+description = "Python tooling for the signal-editor repository (project manager, tests)."
+requires-python = ">=3.11"
+dependencies = [
+    "rich>=13.7.0",
+    "colorama>=0.4.6",
+]
+
+# The repository is a C++/CMake project; this pyproject only pins the helper
+# tooling under scripts/. Nothing here is built or published as a distribution.
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0,<9.0",
+    "pytest-html>=4.0,<5.0",
+    "ruff>=0.8,<1.0",
+]

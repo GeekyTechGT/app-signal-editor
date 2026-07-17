@@ -1,14 +1,27 @@
 #!/usr/bin/env python3
 """
-project_manager.py — interactive build manager for Signal Editor.
+project_manager.py — interactive build manager shared by all desktop/CLI projects.
 
-Activate the virtual environment first, then run:
-    python scripts/project_manager.py
+Run it with uv, which provisions .venv from pyproject.toml/uv.lock on demand:
+    uv run python scripts/project_manager.py
 
 Supports three execution modes:
   native  — cmake runs directly in the current process
   wsl     — cmake runs inside WSL (wsl.exe on Windows, native on Linux)
   docker  — cmake runs inside Docker (docker run …)
+
+This file is project-agnostic: everything project-specific is read from
+project.json, and the two menu entries that vary the most between projects are
+delegated to optional per-project scripts:
+
+  [6] Run Tests     -> scripts/test.py      (override: scripts.test in project.json)
+  [9] Run Examples  -> scripts/examples.py  (override: scripts.examples in project.json)
+
+Both are invoked as ``python <script> --preset <preset>``. When the script does
+not exist, the menu entry reports that nothing is available and does nothing
+else, so a project without tests or examples needs no edits here. Reusable
+machinery (preset catalogue, executors, JUnit parsing, HTML/text reports) stays
+in this module so those scripts can import it instead of duplicating it.
 """
 
 from __future__ import annotations
@@ -16,12 +29,12 @@ from __future__ import annotations
 import json
 import os
 import platform
+import re
 import shutil
 import stat
 import subprocess
 import sys
 import textwrap
-import webbrowser
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Optional
@@ -39,10 +52,10 @@ try:
 except ImportError:
     print(
         "\n[ERROR] 'rich' is not installed.\n"
-        "Activate the virtual environment first:\n"
-        "  Windows : pyvenv\\Scripts\\activate\n"
-        "  Linux   : source pyvenv/bin/activate\n"
-        "Then: pip install -r requirements.txt\n"
+        "This project's Python tooling is managed with uv. Run it via:\n"
+        "  uv run python scripts/project_manager.py\n"
+        "which creates and syncs .venv from pyproject.toml/uv.lock on demand.\n"
+        "Install uv: https://docs.astral.sh/uv/getting-started/installation/\n"
     )
     sys.exit(1)
 
@@ -66,8 +79,13 @@ _WIN_CTEST = [
 
 # ---------------------------------------------------------------------------
 # Preset catalogue
+#
+# The default catalogue below suits a project whose CMakePresets.json exposes
+# the usual six. A project with a different set (an extra MSVC preset, no Docker
+# variants, ...) overrides it wholesale through a "presets" list in
+# project.json, so this file never needs a per-project edit.
 # ---------------------------------------------------------------------------
-PRESETS: list[dict] = [
+DEFAULT_PRESETS: list[dict] = [
     {
         "name":           "windows-mingw64-debug",
         "display":        "Windows Qt6 GCC/MinGW64  [Debug]",
@@ -123,6 +141,45 @@ PRESETS: list[dict] = [
         "shared_variant": "linux-gcc-release",
     },
 ]
+
+# Resolved from project.json at startup; see load_presets().
+PRESETS: list[dict] = list(DEFAULT_PRESETS)
+
+
+def load_presets(meta: dict) -> list[dict]:
+    """Preset catalogue for this project: project.json "presets" when present,
+    the default catalogue otherwise. Missing per-preset fields fall back to
+    sensible values so a project only has to spell out what differs."""
+    configured = meta.get("presets")
+    if not configured:
+        return list(DEFAULT_PRESETS)
+
+    resolved: list[dict] = []
+    for entry in configured:
+        preset = {
+            "display":        entry.get("display", entry["name"]),
+            "executor":       entry.get("executor", "native"),
+            "arch":           entry.get("arch", "native"),
+            "build_type":     entry.get("build_type", "Debug"),
+            "host":           entry.get("host", "any"),
+            "shared_variant": entry.get("shared_variant", entry["name"]),
+        }
+        preset.update(entry)
+        resolved.append(preset)
+    return resolved
+
+
+def cmake_prefix(meta: dict) -> str:
+    """Prefix of the project's CMake cache variables (<PREFIX>_BUILD_GUI, ...).
+
+    Read from project.json "cmake_prefix"; falls back to the project name
+    upper-cased. Getting this wrong is silent — CMake ignores unknown -D
+    variables — so the project declares it explicitly.
+    """
+    configured = meta.get("cmake_prefix")
+    if configured:
+        return configured
+    return re.sub(r"[^A-Za-z0-9]+", "_", meta.get("name", "")).upper()
 
 
 def preset_is_available(p: dict, meta: dict | None = None) -> bool:
@@ -229,7 +286,7 @@ def _build_wsl_cmd(base_cmd: list[str]) -> list[str]:
 
 
 def _build_docker_cmd(base_cmd: list[str], meta: dict) -> list[str]:
-    image  = meta.get("docker_image_name", "signal-editor-builder")
+    image  = meta.get("docker_image_name", "signal-viewer-builder")
     volume = _win_to_docker_volume(PROJECT_ROOT) if _HOST == "Windows" else str(PROJECT_ROOT)
     return ["docker", "run", "--rm", "-v", f"{volume}:/workspace",
             "-w", "/workspace", image] + base_cmd
@@ -251,11 +308,19 @@ def build_cmd(preset: dict, base_cmd: list[str], meta: dict) -> list[str]:
 # ---------------------------------------------------------------------------
 
 def load_metadata() -> dict:
+    global PRESETS
+
     if not PROJECT_JSON.exists():
         CONSOLE.print(f"[bold red]ERROR[/] project.json not found at {PROJECT_JSON}")
         sys.exit(1)
     with open(PROJECT_JSON, encoding="utf-8") as fh:
-        return json.load(fh)
+        meta = json.load(fh)
+
+    # Resolve the catalogue here rather than in main(): scripts/test.py and
+    # scripts/examples.py enter through this function too, and must see the same
+    # presets the menu offered them.
+    PRESETS = load_presets(meta)
+    return meta
 
 
 def save_metadata(meta: dict) -> None:
@@ -402,7 +467,7 @@ def run_capture(cmd: list[str], preset_name: str | None = None) -> tuple[int, st
 
 
 # ---------------------------------------------------------------------------
-# HTML / text test reports
+# HTML test report
 # ---------------------------------------------------------------------------
 
 def _parse_junit(xml_path: Path) -> tuple[int, int, list[dict]]:
@@ -534,7 +599,7 @@ def _check_docker(meta: dict) -> bool:
     if not docker:
         CONSOLE.print("[red]docker not found in PATH. Is Docker Desktop running?[/]")
         return False
-    image = meta.get("docker_image_name", "signal-editor-builder")
+    image = meta.get("docker_image_name", "signal-viewer-builder")
     r = subprocess.run(["docker", "image", "inspect", image], capture_output=True, text=True)
     if r.returncode != 0:
         CONSOLE.print(
@@ -719,13 +784,15 @@ def action_configure(state: dict, cmake: str, meta: dict) -> bool:
         return False
     CONSOLE.print("[bold green]✓ All dependencies verified[/]")
 
-    # Pass the shared-lib variant and external-deps flag as cmake cache variables.
+    # Pass the shared-lib variant and external-deps flag as cmake cache variables,
+    # under this project's own prefix (see cmake_prefix).
     shared_variant  = preset.get("shared_variant", preset["name"])
     use_external    = meta.get("use_external_deps", False)
+    prefix          = cmake_prefix(meta)
     extra_args      = [
-        f"-DSIGNAL_EDITOR_DEPS_VARIANT={shared_variant}",
-        f"-DSIGNAL_EDITOR_USE_EXTERNAL_DEPS={'ON' if use_external else 'OFF'}",
-        "-DSIGNAL_EDITOR_BUILD_GUI=ON",
+        f"-D{prefix}_DEPS_VARIANT={shared_variant}",
+        f"-D{prefix}_USE_EXTERNAL_DEPS={'ON' if use_external else 'OFF'}",
+        f"-D{prefix}_BUILD_GUI=ON",
     ]
 
     base = [cmake, "--preset", state["preset"]] + extra_args
@@ -784,87 +851,57 @@ def action_clean_all() -> None:
         CONSOLE.print("[dim]Cancelled.[/]")
 
 
-def action_run_tests(state: dict, ctest: str, meta: dict) -> None:
-    preset    = _get_preset(state["preset"])
-    CONSOLE.print(Rule(f"[bold cyan]Tests — {state['preset']} [{preset['executor']}]"))
-    build_dir = PROJECT_ROOT / "build" / state["preset"]
-    if not build_dir.exists():
-        CONSOLE.print("[red]Build directory not found. Configure + Build first.[/]")
+# ---------------------------------------------------------------------------
+# Per-project scripts (tests / examples)
+# ---------------------------------------------------------------------------
+
+# Menu entries delegated to an optional per-project script, keyed by the
+# project.json "scripts" field that overrides the default path.
+PROJECT_SCRIPTS: dict[str, dict[str, str]] = {
+    "test": {
+        "default": "scripts/test.py",
+        "title":   "Tests",
+        "missing": "No runnable tests",
+    },
+    "examples": {
+        "default": "scripts/examples.py",
+        "title":   "Examples",
+        "missing": "No runnable examples",
+    },
+}
+
+
+def _project_script_path(meta: dict, key: str) -> Path:
+    """Absolute path of a per-project script, whether or not it exists."""
+    configured = meta.get("scripts", {}).get(key) or PROJECT_SCRIPTS[key]["default"]
+    path = Path(configured)
+    return path if path.is_absolute() else PROJECT_ROOT / path
+
+
+def action_run_project_script(state: dict, meta: dict, key: str) -> None:
+    """Run a per-project script (tests or examples) for the selected preset.
+
+    The script is invoked as ``python <script> --preset <preset>`` from the
+    project root and owns everything project-specific; this module only locates
+    it and reports the outcome. A missing script is a normal state, not an
+    error: the project simply has nothing of that kind to run.
+    """
+    spec   = PROJECT_SCRIPTS[key]
+    script = _project_script_path(meta, key)
+
+    CONSOLE.print(Rule(f"[bold cyan]{spec['title']} — {state['preset']}"))
+
+    if not script.is_file():
+        CONSOLE.print(f"[bold yellow]{spec['missing']}[/]")
+        CONSOLE.print(
+            f"[dim]Expected script: {script}\n"
+            f"Create it, or point \"scripts.{key}\" in project.json at another path.[/]"
+        )
         return
-    if not _check_executor(preset, meta):
-        return
 
-    test_report_cfg = meta.get("test_report", {})
-    report_enabled  = test_report_cfg.get("enabled", True)
-    save_text       = test_report_cfg.get("save_text", True)
-    save_html       = test_report_cfg.get("save_html", True)
-    tail_chars      = int(test_report_cfg.get("console_tail_characters", 600000))
-    max_bytes       = int(test_report_cfg.get("artifacts_max_bytes", 5_000_000_000))
-
-    report_base = Path(test_report_cfg.get("directory") or "test-reports")
-    if not report_base.is_absolute():
-        report_base = PROJECT_ROOT / report_base
-    report_dir = report_base / state["preset"]
-
-    junit_xml   = build_dir / "test_results.xml"
-
-    base = ["ctest", "--preset", state["preset"],
-            "-V", "--output-on-failure", "--output-junit", str(junit_xml)]
-    if preset["executor"] == "native":
-        base[0] = ctest
-    elif preset["executor"] == "wsl":
-        wsl_junit = _win_to_wsl_path(junit_xml) if _HOST == "Windows" else str(junit_xml)
-        base      = ["ctest", "--preset", state["preset"],
-                     "-V", "--output-on-failure", "--output-junit", wsl_junit]
-    elif preset["executor"] == "docker":
-        docker_junit = f"/workspace/build/{state['preset']}/test_results.xml"
-        base         = ["ctest", "--preset", state["preset"],
-                        "-V", "--output-on-failure", "--output-junit", docker_junit]
-
-    cmd   = build_cmd(preset, base, meta)
-    pname = state["preset"] if preset["executor"] == "native" else None
-    code, output = run_capture(cmd, preset_name=pname)
-    CONSOLE.print(output)
-
-    executed_tests = _has_executed_tests(output, junit_xml)
-
-    if not report_enabled:
-        CONSOLE.print("[dim]test_report.enabled is false — report generation skipped.[/]")
-    elif executed_tests:
-        report_dir.mkdir(parents=True, exist_ok=True)
-
-        if junit_xml.exists():
-            shutil.copy2(junit_xml, report_dir / junit_xml.name)
-
-        html_report: Optional[Path] = None
-        if save_html:
-            html_report = report_dir / "test_results.html"
-            _generate_html(html_report, output, junit_xml, state["preset"], meta, tail_chars)
-            CONSOLE.print(f"\n[bold]HTML report:[/] {html_report}")
-
-        if save_text:
-            text_report = report_dir / "test_results.txt"
-            _write_text_report(text_report, output, tail_chars)
-            CONSOLE.print(f"[bold]Text report:[/] {text_report}")
-
-        dir_size = _dir_size_bytes(report_dir)
-        if dir_size > max_bytes:
-            CONSOLE.print(
-                f"[yellow]⚠ Report directory {report_dir} is {dir_size / 1e9:.2f} GB, "
-                f"exceeding artifacts_max_bytes ({max_bytes / 1e9:.2f} GB).[/]"
-            )
-
-        if html_report is not None and Confirm.ask("Open HTML report in browser?", default=True):
-            webbrowser.open(html_report.as_uri())
-    else:
-        CONSOLE.print("[yellow]No tests were discovered — report skipped.[/]")
-
-    if code == 0 and executed_tests:
-        CONSOLE.print("[bold green]✓ All tests passed[/]")
-    elif code == 0:
-        CONSOLE.print("[yellow]No tests were executed.[/]")
-    else:
-        CONSOLE.print(f"[bold red]✗ Some tests failed (exit {code})[/]")
+    code = run([sys.executable, str(script), "--preset", state["preset"]])
+    if code != 0:
+        CONSOLE.print(f"[bold red]✗ {script.name} failed (exit {code})[/]")
 
 
 _MINGW_WINPTHREAD = [
@@ -1012,7 +1049,7 @@ def action_deploy_app(state: dict, cmake: str, meta: dict) -> None:
         )
         return
 
-    exe_name = meta.get("app_executable", "signal-editor-gui.exe")
+    exe_name = meta.get("app_executable", "signal-viewer.exe")
     exe = bin_dir / exe_name
     if not exe.exists():
         CONSOLE.print(f"[red]Executable not found: {exe}[/]")
@@ -1031,7 +1068,7 @@ def action_deploy_app(state: dict, cmake: str, meta: dict) -> None:
     shutil.copy2(exe, out_dir / exe.name)
 
     # Copy runtime DLLs produced by this project build itself.
-    # This covers shared libraries such as libsignal_editor_core.dll that the
+    # This covers shared libraries such as libsignal_viewer_core.dll that the
     # executable depends on but that are not part of shared_lib/ or Qt.
     project_runtime_dlls: set[str] = set()
     for dll in sorted(bin_dir.glob("*.dll")):
@@ -1075,7 +1112,7 @@ def action_deploy_app(state: dict, cmake: str, meta: dict) -> None:
     if bin_translations.exists():
         qm_candidates.extend(sorted(bin_translations.glob("*.qm")))
     else:
-        qm_candidates.extend(sorted(build_dir.glob("apps/signal_editor/gui/*.qm")))
+        qm_candidates.extend(sorted(build_dir.glob("apps/signal_viewer/gui/*.qm")))
     for qm in qm_candidates:
         shutil.copy2(qm, out_trans / qm.name)
         CONSOLE.print(f"  [dim]Translation:[/] {qm.name}")
@@ -1115,7 +1152,7 @@ def action_docker_build_image(meta: dict) -> None:
     if not meta.get("docker_image_available", True):
         CONSOLE.print("[red]docker_image_available is false in project.json — skipping.[/]")
         return
-    image      = meta.get("docker_image_name", "signal-editor-builder")
+    image      = meta.get("docker_image_name", "signal-viewer-builder")
     dockerfile = PROJECT_ROOT / "Dockerfile.ubuntu"
     if not dockerfile.exists():
         dockerfile = PROJECT_ROOT / "Dockerfile.alpine"
@@ -1130,11 +1167,60 @@ def action_docker_build_image(meta: dict) -> None:
         CONSOLE.print(f"[bold red]✗ docker build failed (exit {code})[/]")
 
 
+def _is_git_worktree(path: Path) -> bool:
+    """True when `path` is the root of a usable git checkout.
+
+    A submodule's .git is a *file* pointing into the superproject, so existence
+    alone is not enough — the link is checked by asking git itself, which also
+    catches the broken case where .git/modules/<name> has gone missing.
+    """
+    if not (path / ".git").exists():
+        return False
+    r = subprocess.run(["git", "-C", str(path), "rev-parse", "--git-dir"],
+                       capture_output=True, text=True)
+    return r.returncode == 0
+
+
+def _submodule_remote(path: Path) -> str:
+    r = subprocess.run(["git", "-C", str(path), "remote", "get-url", "origin"],
+                       capture_output=True, text=True)
+    return r.stdout.strip() if r.returncode == 0 else ""
+
+
+def _clone_dependency(git: str, sub: dict, target: Path) -> bool:
+    """Clone a declared dependency into `target`, at its branch/tag when given."""
+    url = sub.get("url", "")
+    if not url:
+        CONSOLE.print(f"  [red]✗ {sub.get('name', '?')}: no url declared in project.json[/]")
+        return False
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    cmd = [git, "clone", url, str(target)]
+    branch = sub.get("branch") or ""
+    if branch:
+        cmd[2:2] = ["--branch", branch]
+    if run(cmd) != 0:
+        return False
+
+    tag = sub.get("tag") or ""
+    if tag and run([git, "-C", str(target), "checkout", tag]) != 0:
+        return False
+    return True
+
+
 def action_sync_submodules(meta: dict) -> None:
-    CONSOLE.print(Rule("[bold cyan]Sync Git Submodules"))
+    """Bring every dependency declared in project.json "submodules" into shape.
+
+    Works whether or not the project itself is a git repository, and repairs
+    the states that `git submodule update` cannot: a plain directory sitting
+    where a checkout should be, or a submodule whose gitlink no longer resolves.
+    Such a directory is replaced by a fresh clone — it carries no history to
+    lose, being either vendored files or a broken link.
+    """
+    CONSOLE.print(Rule("[bold cyan]Sync Dependencies"))
     submodules = meta.get("submodules", [])
     if not submodules:
-        CONSOLE.print("[dim]project.json has no declared submodules — nothing to sync.[/]")
+        CONSOLE.print("[dim]project.json declares no submodules — nothing to sync.[/]")
         return
 
     git = shutil.which("git")
@@ -1142,14 +1228,52 @@ def action_sync_submodules(meta: dict) -> None:
         CONSOLE.print("[red]git not found in PATH.[/]")
         return
 
-    for sub in submodules:
-        CONSOLE.print(f"  [dim]•[/] {sub.get('name', '?')}  {sub.get('url', '')}")
+    superproject_is_git = _is_git_worktree(PROJECT_ROOT)
+    if not superproject_is_git:
+        CONSOLE.print("[yellow]This project is not a git repository — dependencies are "
+                      "cloned into external/ as standalone checkouts.[/]")
 
-    code = run([git, "submodule", "update", "--init", "--recursive"])
-    if code == 0:
-        CONSOLE.print("[bold green]✓ Submodules synced.[/]")
+    failed: list[str] = []
+    for sub in submodules:
+        name   = sub.get("name", "?")
+        url    = sub.get("url", "")
+        target = PROJECT_ROOT / "external" / name
+        CONSOLE.print(f"\n  [bold]{name}[/]  [dim]{url}[/]")
+
+        if target.exists() and not _is_git_worktree(target):
+            CONSOLE.print(f"  [yellow]{target.name} is not a git checkout — replacing it "
+                          f"with a clone.[/]")
+            _rmtree_force(target)
+
+        if target.exists():
+            remote = _submodule_remote(target)
+            if url and remote and remote != url:
+                CONSOLE.print(f"  [yellow]remote is {remote}, expected {url} — re-cloning.[/]")
+                _rmtree_force(target)
+
+        if not target.exists():
+            if not _clone_dependency(git, sub, target):
+                failed.append(name)
+                continue
+            CONSOLE.print(f"  [green]✓ cloned[/]")
+        else:
+            ref = sub.get("tag") or sub.get("branch") or ""
+            run([git, "-C", str(target), "fetch", "--quiet", "origin"])
+            if ref and run([git, "-C", str(target), "checkout", "--quiet", ref]) != 0:
+                failed.append(name)
+                continue
+            CONSOLE.print(f"  [green]✓ present[/] "
+                          f"[dim]{_submodule_remote(target) or 'no remote'}[/]")
+
+    # Registered submodules still need their gitlink resolved.
+    if superproject_is_git and (PROJECT_ROOT / ".gitmodules").exists():
+        if run([git, "submodule", "update", "--init", "--recursive"]) != 0:
+            failed.append("git submodule update --init --recursive")
+
+    if failed:
+        CONSOLE.print(f"\n[bold red]✗ Failed: {', '.join(failed)}[/]")
     else:
-        CONSOLE.print(f"[bold red]✗ git submodule update failed (exit {code})[/]")
+        CONSOLE.print("\n[bold green]✓ Dependencies synced.[/]")
 
 
 def action_create_installer(state: dict, meta: dict) -> None:
@@ -1161,7 +1285,7 @@ def action_create_installer(state: dict, meta: dict) -> None:
         return
 
     deploy_dir = _resolve_app_deploy_dir(state, meta)
-    exe_name   = meta.get("app_executable", "signal-editor-gui.exe")
+    exe_name   = meta.get("app_executable", "signal-viewer.exe")
     if not (deploy_dir / exe_name).exists():
         CONSOLE.print(
             f"[bold red]Deployed app not found:[/] {deploy_dir / exe_name}\n"
@@ -1185,8 +1309,6 @@ def action_create_installer(state: dict, meta: dict) -> None:
 
     icon_path    = PROJECT_ROOT / "resources" / "img" / "app_icon.ico"
     license_path = PROJECT_ROOT / "LICENSE.md"
-    if not license_path.exists():
-        license_path = PROJECT_ROOT / "LICENSE"
     if not meta.get("guid"):
         CONSOLE.print(
             "[bold red]project.json has no guid.[/] Run: "
@@ -1279,13 +1401,25 @@ def print_header(state: dict, meta: dict) -> None:
         f"([italic]{_executor_for_current(state['preset'])}[/italic])\n"
         f"Deps variant : [dim]{variant}[/]\n"
         f"Build dir    : [dim]{PROJECT_ROOT / 'build' / state['preset']}[/]",
-        title="[bold cyan]Signal Editor  —  Project Manager[/]",
+        title=f"[bold cyan]{meta['name']}  —  Project Manager[/]",
         border_style="cyan",
         expand=False,
     ))
 
 
-def print_menu() -> None:
+def _script_menu_hint(meta: dict, key: str) -> str:
+    """Menu suffix telling the user whether the per-project script is present."""
+    script = _project_script_path(meta, key)
+    try:
+        shown = script.relative_to(PROJECT_ROOT).as_posix()
+    except ValueError:
+        shown = str(script)
+    if script.is_file():
+        return f"[dim]({shown})[/]"
+    return f"[dim]({shown} — [/][yellow]not available[/][dim])[/]"
+
+
+def print_menu(meta: dict) -> None:
     txt = (
         "[bold cyan]Preset[/]\n"
         "  [bold yellow][1][/] Select Preset\n\n"
@@ -1295,15 +1429,17 @@ def print_menu() -> None:
         "  [bold yellow][4][/] Clean current preset\n"
         "  [bold yellow][5][/] Clean ALL presets\n\n"
         "[bold cyan]Test[/]\n"
-        "  [bold yellow][6][/] Run Tests + HTML report\n\n"
+        f"  [bold yellow][6][/] Run Tests  {_script_menu_hint(meta, 'test')}\n\n"
         "[bold cyan]Deploy[/]\n"
         "  [bold yellow][7][/] Deploy app  (deploy/app/ + windeployqt)\n\n"
         "[bold cyan]Docker[/]\n"
         "  [bold yellow][8][/] Build Docker image\n\n"
+        "[bold cyan]Examples[/]\n"
+        f"  [bold yellow][9][/] Run Examples  {_script_menu_hint(meta, 'examples')}\n\n"
         "[bold cyan]Submodules[/]\n"
-        "  [bold yellow][9][/] Sync Git Submodules\n\n"
+        "  [bold yellow][10][/] Sync Dependencies  (clone/repair external/)\n\n"
         "[bold cyan]Installer[/]\n"
-        "  [bold yellow][10][/] Create Installer  (Inno Setup, requires Deploy app first)\n\n"
+        "  [bold yellow][11][/] Create Installer  (Inno Setup, requires Deploy app first)\n\n"
         "[bold cyan]Exit[/]\n"
         "  [bold yellow][0][/] Quit"
     )
@@ -1345,10 +1481,10 @@ def main() -> None:
 
     while True:
         print_header(state, meta)
-        print_menu()
+        print_menu(meta)
         choice = Prompt.ask(
             "[bold]Choice",
-            choices=["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
+            choices=["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"],
             default="0",
         )
         if choice == "0":
@@ -1365,17 +1501,16 @@ def main() -> None:
         elif choice == "5":
             action_clean_all()
         elif choice == "6":
-            if not ctest and _get_preset(state["preset"])["executor"] == "native":
-                CONSOLE.print("[red]ctest not found.[/]")
-            else:
-                action_run_tests(state, ctest or "ctest", meta)
+            action_run_project_script(state, meta, "test")
         elif choice == "7":
             action_deploy_app(state, cmake, meta)
         elif choice == "8":
             action_docker_build_image(meta)
         elif choice == "9":
-            action_sync_submodules(meta)
+            action_run_project_script(state, meta, "examples")
         elif choice == "10":
+            action_sync_submodules(meta)
+        elif choice == "11":
             action_create_installer(state, meta)
 
         CONSOLE.print()

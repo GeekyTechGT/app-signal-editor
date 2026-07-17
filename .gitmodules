@@ -1,3 +1,6 @@
 [submodule "external/res-qt-themes"]
 	path = external/res-qt-themes
-	url = file:///D:/GeekyTechRepos/res-qt-themes
+	url = git@github.com:GeekyTechGT/res-qt-themes.git
+[submodule "external/res-graphics"]
+	path = external/res-graphics
+	url = git@github.com:GeekyTechGT/res-graphics.git

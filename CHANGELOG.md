@@ -7,6 +7,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 ## [Unreleased]
 
 ### Added
+- **Shared icon library via `res-graphics` submodule** — the 13 toolbar icons
+  previously duplicated locally under `resources/img/` (`new`, `open`, `pan`,
+  `remove`, `rename`, `save`, `screen-share`, `settings`, `undo`, `zoom-fit`,
+  `zoom-in`, `zoom-out`, `zoom-selection`) are now sourced directly from the
+  new `external/res-graphics` git submodule (byte-identical content, verified
+  before removal) and referenced from `apps/signal_editor/gui/resources.qrc`
+  under the existing `:/img/*` aliases, so no C++ code changes were needed.
+  `project.json` gained a matching `submodules` entry alongside the existing
+  `res-qt-themes` one, and the `external/res-qt-themes` submodule (already in
+  use for `dark.qss`/`light.qss`/`splash_screen.qss`) now points at the real
+  `git@github.com:GeekyTechGT/res-qt-themes.git` remote instead of a local
+  `file://` path. The app's own `app_icon.ico`/`app_icon.png`/`app_logo.png`/
+  `app_logo.svg` remain local to `resources/img/`, unchanged.
 - **Windows installer via Inno Setup** — `scripts/project_manager.py` gained a
   "Create Installer" action that packages the already-deployed app
   (`deploy_folder`) into a modern Inno Setup installer, rendered from
